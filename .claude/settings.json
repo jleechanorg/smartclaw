@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "'/Users/jleechan/.worktrees/smartclaw/smc-2/.claude/metadata-updater.sh'",
+            "command": "'.claude/metadata-updater.sh'",
             "timeout": 5000
           }
         ]
