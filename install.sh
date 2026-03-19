@@ -21,6 +21,9 @@ detect_python() {
 }
 
 PYTHON_BIN="${PYTHON_BIN:-$(detect_python)}"
+if [ -z "$PYTHON_BIN" ]; then
+    exit 1
+fi
 echo "Using Python: $PYTHON_BIN"
 
 # Check Python version
