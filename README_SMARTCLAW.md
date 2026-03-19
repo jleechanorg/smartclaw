@@ -4,6 +4,14 @@
 >
 > This package is under active development. Features may be incomplete, broken, or subject to change without notice. Do not use in production.
 
+---
+
+## Source from jleechanclaw
+
+> This document adapts content from the private jleechanorg/jleechanclaw harness. See source references inline below.
+
+---
+
 ## What This Package Does
 
 The SmartClaw orchestration package provides AI agent task execution through:
@@ -26,6 +34,141 @@ The SmartClaw orchestration package provides AI agent task execution through:
 **When to use SmartClaw**: Quick ad-hoc agent tasks, CLI passthrough, simple async execution.
 
 **When to use Agent-Orchestrator**: Multi-agent coordination, A2A messaging, complex task graphs, production automation.
+
+---
+
+## Architecture
+
+### Source: jleechanclaw ORCHESTRATION_DESIGN.md
+
+The orchestration system follows a layered approach:
+
+```
+Human (Developer)
+       ▲
+       │ escalation (budget exhausted, ambiguity)
+       ▼
+┌─────────────────────────────────────────────────────┐
+│          LLM Brain (OpenClaw-style)                  │
+│  • memory: project memories, feedback                │
+│  • judgment: deterministic rules first, LLM second   │
+│  • learning: outcome ledger feeds next decision      │
+└─────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────┐
+│    Agent-Orchestrator (AO) — lifecycle + reactions   │
+│  • session manager: spawn, send, kill, liveness    │
+│  • scm-github: PR detection, CI parsing              │
+│  • reactions: ci-failed, changes-requested, etc.    │
+└─────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────┐
+│   Headless Agents (claude, codex, gemini)            │
+│   Fresh context per call (no accumulated state)      │
+└─────────────────────────────────────────────────────┘
+```
+
+### Core Principle: Deterministic First, LLM for Judgment
+
+> Source: jleechanclaw docs/HARNESS_ENGINEERING.md
+
+The orchestration handles the predictable 80% deterministically. The LLM handles the 20% that requires judgment.
+
+| Signal | Handler | Decision Maker |
+|--------|---------|----------------|
+| CI failed ≤ retry cap | `ci-failed` → `send-to-agent` | AO deterministic |
+| Review comment received | `changes-requested` → `send-to-agent` | AO deterministic |
+| Agent stuck > threshold | `agent-stuck` → kill + respawn | Deterministic |
+| Retry budget exhausted | escalate with failure summary | LLM → Human |
+| Vague review needing interpretation | interpret + dispatch fix | LLM |
+| New feature → subtask decomposition | plan + spawn parallel | LLM |
+
+---
+
+## Harness Engineering Philosophy
+
+> Source: jleechanclaw docs/HARNESS_ENGINEERING.md
+
+Harness engineering shifts human engineers from writing code to designing:
+
+1. **Environments** — isolated workspaces, tool access, credentials
+2. **Constraints** — architectural rules, CLAUDE.md policies, dependency layering
+3. **Feedback loops** — CI reactions, review automation, escalation policies
+4. **Intent specifications** — prompts, task descriptions, acceptance criteria
+
+### Key Principles
+
+#### 1. Documentation Is Infrastructure
+
+> "From the agent's perspective, anything it can't access in-context doesn't exist."
+
+CLAUDE.md, AGENTS.md are not documentation — they are infrastructure. They are read by agents on every turn and directly control agent behavior.
+
+#### 2. Deterministic First, LLM for Judgment
+
+Don't use an LLM when a rule will do. CI failed? That's deterministic. Review comment? Deterministic. The LLM is called only when the deterministic router has no rule.
+
+#### 3. Fresh Context, Not Accumulated Context
+
+Each headless agent call gets a clean prompt with all context injected upfront. No memory of previous attempts — that's the harness's job.
+
+#### 4. Build Rippable Harnesses
+
+> "If you over-engineer the control flow, the next model update will break your system."
+
+The orchestration layer is thin and replaceable. If a new tool adds native judgment support, the Python layer can be removed without touching agent configs.
+
+#### 5. LLM Decides, Server Executes
+
+For AI-driven features: the LLM gets full context and makes decisions. The server executes actions. Don't strip information "to optimize."
+
+---
+
+## Configuration
+
+### Source: jleechanclaw agent-orchestrator.yaml (sanitized)
+
+The system uses a YAML configuration file with:
+
+```yaml
+defaults:
+  runtime: tmux
+  agent: claude-code
+  workspace: worktree
+
+projects:
+  your-project:
+    name: your project orchestration
+    repo: your-org/your-repo
+    path: ~/.your-harness
+    defaultBranch: main
+    sessionPrefix: pr
+    workspace: worktree
+```
+
+### Agent Rules
+
+> Source: jleechanclaw agent-orchestrator.yaml (sanitized)
+
+Agent behavior is controlled via rules injected at session start:
+
+```markdown
+**START HERE (before any code changes):**
+1. Run: gh pr view --comments <PR_NUMBER> --repo <OWNER>/<REPO>
+2. Read ALL existing review comments before writing any code.
+
+**DEFINITION OF "GREEN" PR — ALL must be true:**
+1. CI green — all required GitHub Actions checks pass
+2. No merge conflicts — mergeable: "MERGEABLE"
+3. CodeRabbit approved — verdict is APPROVE or LGTM
+4. All inline comments resolved
+
+**AFTER EVERY PUSH:**
+- Post: @coderabbitai all good?
+- Wait for response before declaring done
+```
 
 ---
 
@@ -65,14 +208,6 @@ ai_orch --async "implement feature X"
 | `minimax` | MiniMax CLI |
 | `cursor` | Cursor Agent CLI |
 
-### Python Packages
-
-Install via `install.sh` or manually:
-
-```bash
-pip install jleechanorg-orchestration
-```
-
 ---
 
 ## Setup Prerequisites
@@ -81,7 +216,7 @@ pip install jleechanorg-orchestration
 2. **tmux** installed and running
 3. **Git** configured with GitHub access
 4. **gh CLI** authenticated (`gh auth status`)
-5. At least one agent CLI installed (see above)
+5. At least one agent CLI installed
 
 ---
 
@@ -100,16 +235,7 @@ This script will:
 
 - **No destructive actions**: Does not modify system files, crontab, or existing configurations
 - **Idempotent**: Safe to run multiple times
-- **Non-intrusive**: Only installs Python package, nothing else
-
----
-
-## Configuration
-
-No configuration required for basic usage. Advanced options:
-
-- Set `PYTHON_BIN` to override Python interpreter
-- Package version can be passed as argument: `./install.sh 0.1.40`
+- **Non-intrusive**: Only installs Python package
 
 ---
 
@@ -117,43 +243,32 @@ No configuration required for basic usage. Advanced options:
 
 > **⚠️ Never commit secrets to this repository**
 
-- API keys, tokens, and credentials must be stored in environment variables or secure vaults
+- API keys, tokens, and credentials must be stored in environment variables
 - Use `.env` files (ignored by git) for local development
 - When using agent CLIs, ensure credentials are configured outside this package
 
-Example `.env` setup:
-```bash
-# .env (add to .gitignore)
-export ANTHROPIC_API_KEY="sk-..."
-export GITHUB_TOKEN="ghp_..."
-```
+---
+
+## Maturity Model
+
+> Source: jleechanclaw docs/HARNESS_ENGINEERING.md
+
+Based on the NxCode framework:
+
+| Level | What You Have | Status |
+|-------|---------------|--------|
+| **1. Individual** | CLAUDE.md, pre-commit hooks, test suite | ✅ Available |
+| **2. Team** | AGENTS.md, CI constraints, shared prompts | ✅ Available |
+| **3. Organization** | Custom middleware, observability, escalation policies | 🔄 Future |
 
 ---
 
-## Architecture
+## References
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    ai_orch CLI                          │
-├─────────────────────────────────────────────────────────┤
-│  Passthrough Mode  │  Async Mode (tmux)                │
-│  ───────────────   │  ─────────────────               │
-│  Direct exec       │  Spawn detached session           │
-│  Stream output     │  Return immediately               │
-├─────────────────────────────────────────────────────────┤
-│              TaskDispatcher (Python API)               │
-├─────────────────────────────────────────────────────────┤
-│  Claude  │  Codex  │  Gemini  │  MiniMax  │  Cursor   │
-└─────────────────────────────────────────────────────────┘
-```
-
----
-
-## Documentation
-
-- [Full README](orchestration/README.md) - Detailed documentation
-- [Design Doc](orchestration/design.md) - Architecture details
-- [A2A Design](orchestration/A2A_DESIGN.md) - Agent-to-Agent protocols
+- [OpenAI: Harness Engineering](https://openai.com/index/harness-engineering/)
+- [Martin Fowler: Harness Engineering](https://martinfowler.com/articles/exploring-gen-ai/harness-engineering.html)
+- [NxCode: Complete Guide to Harness Engineering](https://www.nxcode.io/resources/news/harness-engineering-complete-guide-ai-agent-codex-2026)
+- [Composio: Agent Orchestrator](https://github.com/ComposioHQ/agent-orchestrator)
 
 ---
 
