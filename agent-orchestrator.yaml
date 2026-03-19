@@ -1,0 +1,91 @@
+# Agent Orchestrator Configuration Template
+#
+# Source: Adapted from jleechanorg/jleechanclaw/agent-orchestrator.yaml
+# Copy this file to ~/.agent-orchestrator.yaml and customize for your environment
+# NEVER commit secrets - use environment variables like ${GITHUB_TOKEN}
+
+dataDir: ~/.agent-orchestrator
+worktreeDir: ~/.worktrees
+port: 3011
+
+defaults:
+  runtime: tmux
+  agent: claude-code
+  workspace: worktree
+  notifiers: [orchestrator, webhook]
+
+  # Agent rules injected at session start
+  # Customize for your project's requirements
+  agentRules: |
+    **START HERE (before any code changes):**
+    1. Run: gh pr view --comments <PR_NUMBER> --repo <OWNER>/<REPO>
+    2. Run: gh api repos/<OWNER>/<REPO>/pulls/<PR_NUMBER>/reviews
+    3. Read ALL existing review comments before writing any code.
+
+    **DEFINITION OF "GREEN" / "MERGE-READY" PR — ALL must be true:**
+    1. CI green — all required GitHub Actions checks pass
+    2. No merge conflicts — mergeable: "MERGEABLE"
+    3. CodeRabbit approved — verdict is APPROVE or LGTM
+    4. All inline comments resolved
+
+    **AFTER EVERY PUSH:**
+    - Post: @coderabbitai all good?
+    - Wait for response before declaring done
+
+    **NEVER MERGE YOURSELF:**
+    Your job: get to green, post signal. The orchestrator merges.
+
+plugins:
+  scm-github:
+    token: ${GITHUB_TOKEN}
+
+# Project configurations
+# Add your projects here
+projects:
+  your-project:
+    name: your project orchestration
+    repo: your-org/your-repo
+    path: ~/.your-harness
+    agentRulesFile: workspace/AGENTS.md
+    defaultBranch: main
+    sessionPrefix: pr
+    workspace: worktree
+    worktreeDir: ~/.worktrees/your-project
+
+# Notifier configuration
+# This example shows webhook-based escalation
+notifiers:
+  webhook:
+    enabled: true
+    url: http://localhost:9100/webhook
+    events:
+      - ci-failed
+      - changes-requested
+      - merge-ready
+
+# Reaction rules
+# Customize based on your workflow needs
+reactions:
+  ci-failed:
+    auto: true
+    action: send-to-agent
+    retries: 2
+  changes-requested:
+    auto: true
+    action: send-to-agent
+    escalateAfter: 30m
+  agent-stuck:
+    threshold: 10m
+    action: notify
+    priority: urgent
+
+---
+# Example environment setup (DO NOT commit):
+#
+# Export these in your shell profile (~/.zshrc, ~/.bashrc):
+#
+# export GITHUB_TOKEN="ghp_..."
+# export GATEWAY_TOKEN="your-gateway-token"
+# export HOOKS_TOKEN="your-hooks-token"
+#
+# Then run: ao start
