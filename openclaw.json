@@ -129,7 +129,7 @@
         "maxConcurrent": 8
       },
       "sandbox": {
-        "mode": "off",
+        "mode": "on",
         "workspaceAccess": "rw"
       }
     },
@@ -174,7 +174,7 @@
       }
     },
     "elevated": {
-      "enabled": true,
+      "enabled": false,
       "allowFrom": {
         "slack": ["*"],
         "whatsapp": ["*"],
@@ -186,7 +186,7 @@
     "exec": {
       "host": "gateway",
       "security": "full",
-      "ask": "off",
+      "ask": "on",
       "safeBins": [
         "git", "gh", "python", "python3", "vpython", "npm", "npx", "node",
         "pip", "ls", "cat", "grep", "find", "head", "tail", "sed", "awk",
