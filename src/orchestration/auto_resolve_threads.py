@@ -160,82 +160,55 @@ def get_review_threads(owner: str, repo: str, pr_number: int) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-def get_files_changed_in_push(owner: str, repo: str, branch: str) -> list[str]:
+def get_files_changed_in_push(
+    owner: str,
+    repo: str,
+    branch: str,
+    before_sha: Optional[str] = None,
+    after_sha: Optional[str] = None,
+) -> list[str]:
     """Get list of files changed in the latest push to a branch.
 
-    Uses `gh pr diff` to get the files that were modified in the most recent push.
+    When push SHAs are available, uses the compare endpoint for accurate results.
+    Falls back to the PR files endpoint when SHAs are not provided.
 
     Args:
         owner: Repository owner
         repo: Repository name
-        branch: Branch name (PR head branch)
+        branch: Branch name (PR head branch, used for fallback only)
+        before_sha: SHA of the commit before the push (from webhook payload)
+        after_sha: SHA of the commit after the push (from webhook payload)
 
     Returns:
         List of file paths that were changed
     """
-    # Get the comparison between the branch and its base
-    # For a PR, we can use the PR number or compare with the base branch
-    try:
-        # Try using the compare API to get files changed in the latest push
-        raw = gh([
-            "api", "repos", f"{owner}/{repo}",
-            "--jq", ".compare"
-        ])
-    except Exception:
-        # Fallback: use pr diff which shows all changes in the PR
-        raw = gh([
-            "pr", "diff",
-            "--repo", f"{owner}/{repo}",
-            "--name-only",
-        ])
-        # pr diff returns file names directly, one per line
-        return [line.strip() for line in raw.strip().split("\n") if line.strip()]
+    # Primary: compare the exact push SHAs when available
+    if before_sha and after_sha:
+        try:
+            raw = gh([
+                "api",
+                f"repos/{owner}/{repo}/compare/{before_sha}...{after_sha}",
+                "--jq", ".files[].filename",
+            ])
+            if raw.strip():
+                return [line.strip() for line in raw.strip().split("\n") if line.strip()]
+        except Exception:
+            pass
 
-    # Use the commits API to get the latest commit
-    try:
-        raw = gh([
-            "api",
-            f"repos/{owner}/{repo}/commits/{branch}",
-            "--jq", ".[].files[].filename"
-        ])
-    except Exception:
-        pass
+    # Fallback: single commit files when only after_sha is known
+    if after_sha:
+        try:
+            raw = gh([
+                "api",
+                f"repos/{owner}/{repo}/commits/{after_sha}",
+                "--jq", ".files[].filename",
+            ])
+            if raw.strip():
+                return [line.strip() for line in raw.strip().split("\n") if line.strip()]
+        except Exception:
+            pass
 
-    # Fallback: get files from the PR itself
-    try:
-        raw = gh([
-            "api",
-            "graphql",
-            "-f", (
-                "query=query($owner: String!, $name: String!, $branch: String!) {"
-                "  repository(owner: $owner, name: $name) {"
-                "    ref(qualifiedName: $branch) {"
-                "      target {"
-                "        ... on Commit {"
-                "          changedFiles(first: 100) {"
-                "            nodes {"
-                "              path"
-                "            }"
-                "          }"
-                "        }"
-                "      }"
-                "    }"
-                "  }"
-                "}"
-            ),
-            "-f", f"owner={owner}",
-            "-f", f"name={repo}",
-            "-f", f"branch=refs/heads/{branch}",
-        ])
-        data = json.loads(raw)
-        files = data.get("data", {}).get("repository", {}).get("ref", {}).get("target", {})
-        if files:
-            changed_files = files.get("changedFiles", {}).get("nodes", [])
-            return [f["path"] for f in changed_files]
-    except Exception:
-        pass
-
-    # Final fallback: empty list
+    # Final fallback: empty list (caller will use PR-level file list instead)
     return []
 
 
@@ -294,6 +267,8 @@ def auto_resolve_threads_for_pr(
     repo: str,
     pr_number: int,
     branch: Optional[str] = None,
+    before_sha: Optional[str] = None,
+    after_sha: Optional[str] = None,
 ) -> dict:
     """Auto-resolve review threads whose locations were modified in the latest push.
 
@@ -335,11 +310,12 @@ def auto_resolve_threads_for_pr(
     if not threads:
         return result
 
-    # Step 2: Get files changed in the PR
+    # Step 2: Get files changed in the push (SHAs preferred) or PR
     try:
-        if branch:
-            # Get files from branch comparison (for latest push only)
-            files = get_files_changed_in_push(owner, repo, branch)
+        if before_sha or after_sha:
+            files = get_files_changed_in_push(
+                owner, repo, branch or "", before_sha=before_sha, after_sha=after_sha
+            )
         else:
             files = _get_pr_files_gh(owner, repo, pr_number)
     except Exception as e:
