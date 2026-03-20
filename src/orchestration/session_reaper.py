@@ -205,7 +205,14 @@ def get_pr_state_from_branch(repo: str, branch: str) -> str:
         import urllib.request
         import urllib.error
         
-        url = f"https://api.github.com/repos/{repo}/pulls?head={urllib.parse.quote(branch, safe='')}&state=all"
+        # Extract owner from repo (format: owner/repo_name)
+        owner = repo.split('/')[0] if '/' in repo else ''
+        if not owner:
+            return 'none'
+        
+        # GitHub API requires head parameter in format "owner:branch"
+        head_param = f"{owner}:{branch}"
+        url = f"https://api.github.com/repos/{repo}/pulls?head={urllib.parse.quote(head_param, safe='')}&state=all"
         
         req = urllib.request.Request(url)
         req.add_header('Authorization', f'Bearer {GITHUB_TOKEN}')
