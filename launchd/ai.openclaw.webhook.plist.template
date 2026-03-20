@@ -12,13 +12,13 @@
         <key>WEBHOOK_PORT</key>
         <string>19888</string>
         <key>WEBHOOK_HOST</key>
-        <string>0.0.0.0</string>
+        <string>127.0.0.1</string>
         <key>WEBHOOK_DB_PATH</key>
         <string>@HOME@/.openclaw/webhook_queue.db</string>
         <key>WEBHOOK_LOG_DIR</key>
         <string>@HOME@/.openclaw/logs</string>
         <key>PATH</key>
-        <string>@HOME@/bin:@HOME@/.nvm/versions/node/v22.22.0/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <string>@HOME@/bin:@HOME@/.nvm/versions/node/current/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
         <key>GITHUB_WEBHOOK_SECRET</key>
         <!-- @WEBHOOK_SECRET@ replaced by install-launchagents.sh at install time -->
         <string>@WEBHOOK_SECRET@</string>

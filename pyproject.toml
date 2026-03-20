@@ -3,7 +3,7 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "jleechanclaw"
+name = "smartclaw"
 version = "0.1.0"
 description = "Genesis orchestration layer for OpenClaw"
 requires-python = ">=3.11"

@@ -10,7 +10,7 @@ Replaces legacy per-project lifecycle plists.</string>
 		<key>HOME</key>
 		<string>@HOME@</string>
 		<key>PATH</key>
-		<string>@HOME@/.nvm/versions/node/v22.22.0/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+		<string>@HOME@/.nvm/versions/node/current/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
 		<key>PYTHONUNBUFFERED</key>
 		<string>1</string>
 		<key>AO_LIFECYCLE_PROJECTS</key>
@@ -37,7 +37,7 @@ fi
 
 for project in $(echo "$PROJECTS" | tr ',' ' '); do
     echo "[lifecycle-manager] Starting worker for: $project"
-    @HOME@/.nvm/versions/node/v22.22.0/bin/node @HOME@/bin/ao lifecycle-worker "$project" 2&gt;&amp;1 | while read line; do
+    @HOME@/.nvm/versions/node/current/bin/node @HOME@/bin/ao lifecycle-worker "$project" 2&gt;&amp;1 | while read line; do
         echo "[lifecycle-$project] $line"
     done &amp;
 done

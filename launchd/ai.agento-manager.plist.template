@@ -13,7 +13,7 @@ Replaces 3 separate plists:
 		<key>HOME</key>
 		<string>@HOME@</string>
 		<key>PATH</key>
-		<string>@HOME@/.nvm/versions/node/v22.22.0/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:@HOME@/bin:/opt/homebrew/bin</string>
+		<string>@HOME@/.nvm/versions/node/current/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:@HOME@/bin:/opt/homebrew/bin</string>
 		<key>PYTHONUNBUFFERED</key>
 		<string>1</string>
 		<key>AO_CONFIG_PATH</key>

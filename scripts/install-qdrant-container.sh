@@ -5,9 +5,9 @@
 set -euo pipefail
 
 CONTAINER="openclaw-mem0-qdrant"
-IMAGE="qdrant/qdrant:latest"
+IMAGE="${QDRANT_IMAGE:-qdrant/qdrant:v1.13.6}"
 STORAGE_DIR="${HOME}/.openclaw/qdrant_storage"
-HOST_PORT=6333
+HOST_PORT="${QDRANT_PORT:-6333}"
 
 if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
   echo "  ✓ container '${CONTAINER}' already exists (skipping create)"
@@ -16,7 +16,7 @@ else
   docker pull "$IMAGE"
   docker create \
     --name "$CONTAINER" \
-    -p "${HOST_PORT}:6333" \
+    -p "127.0.0.1:${HOST_PORT}:6333" \
     -v "${STORAGE_DIR}:/qdrant/storage" \
     "$IMAGE"
   echo "  ✓ container '${CONTAINER}' created with storage at ${STORAGE_DIR}"

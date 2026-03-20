@@ -18,6 +18,7 @@ def check_stale_beads(registry_path: str) -> list[str]:
 
         updated_at = _parse_timestamp(mapping.updated_at)
         if updated_at is None:
+            stale_bead_ids.append(mapping.bead_id)
             continue
         if current_time - updated_at < STALE_IN_PROGRESS_THRESHOLD:
             continue

@@ -47,8 +47,22 @@ jobs:
             }
 
             const body = '@coderabbitai all good?';
+            const dedupeWindowMs = 10 * 60 * 1000; // 10 minutes
 
             for (const pr of prs) {
+              // Skip if we already pinged within the dedup window to avoid comment spam
+              const { data: recentComments } = await github.rest.issues.listComments({
+                owner, repo, issue_number: pr.number, per_page: 20,
+              });
+              const alreadyPinged = recentComments.some(c =>
+                c.user.login === 'github-actions[bot]' &&
+                c.body.trim() === body &&
+                Date.now() - new Date(c.created_at).getTime() < dedupeWindowMs
+              );
+              if (alreadyPinged) {
+                core.info(`Already pinged CodeRabbit on PR #${pr.number} within dedup window; skipping.`);
+                continue;
+              }
               await github.rest.issues.createComment({
                 owner,
                 repo,

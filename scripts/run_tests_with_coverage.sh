@@ -38,7 +38,7 @@ run_test() {
     echo -e "\n${BLUE}${emoji} Running ${test_name}...${NC}"
     echo "Command: $command"
 
-    if eval "$command"; then
+    if bash -c "$command"; then
         echo -e "${GREEN}✅ ${test_name}: PASSED${NC}"
         return 0
     else
