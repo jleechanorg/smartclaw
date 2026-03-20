@@ -229,29 +229,40 @@ def get_files_changed_in_push(
 
 
 def _parse_hunk_ranges(patch: str) -> list[tuple[int, int]]:
-    """Parse a unified diff patch string and return (start, end) line ranges for changed hunks.
+    """Parse a unified diff patch string and return (line, line) pairs for each added line.
+
+    Only lines that begin with ``+`` (i.e. lines that were actually added or
+    modified in the new file) are recorded.  Context lines (lines with no
+    prefix or with a space prefix) are explicitly excluded so that a review
+    thread sitting on an unchanged context line inside a large hunk is NOT
+    wrongly auto-resolved.
 
     Args:
         patch: Unified diff patch string (from GitHub API ``patch`` field)
 
     Returns:
-        List of (start_line, end_line) tuples for modified lines in the new file
+        List of (line_number, line_number) tuples — one per added line in the
+        new file.  Each tuple represents a single touched line; callers that
+        treat tuples as (start, end) ranges will correctly match only exact
+        line positions.
     """
     ranges: list[tuple[int, int]] = []
     current_line = 0
     for raw_line in patch.splitlines():
         m = re.match(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", raw_line)
         if m:
-            start = int(m.group(1))
-            count = int(m.group(2)) if m.group(2) is not None else 1
-            end = start + max(count - 1, 0)
-            ranges.append((start, end))
-            current_line = start - 1
-        elif raw_line.startswith("+"):
+            # Reset the new-file line counter to the hunk start (minus 1; the
+            # first non-header line will increment it before use).
+            current_line = int(m.group(1)) - 1
+        elif raw_line.startswith("+") and not raw_line.startswith("+++"):
+            # Actual added line — advance counter and record exact position.
             current_line += 1
+            ranges.append((current_line, current_line))
         elif raw_line.startswith("-"):
-            pass  # removed line, doesn't count in new file
+            pass  # Removed line: does not occupy a line number in the new file.
         else:
+            # Context line (space prefix or bare line): advance counter but do
+            # NOT record — threads on context lines should not be auto-resolved.
             current_line += 1
     return ranges
 

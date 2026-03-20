@@ -20,8 +20,20 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# Evidence verdicts are accepted from any commenter matching the PASS/WARN/FAIL pattern.
-# No bot-login allowlist is maintained — any authenticated user's verdict counts.
+# Only verdicts from trusted bot authors are accepted.  Arbitrary commenters (including
+# PR authors and external contributors) cannot satisfy the evidence gate.
+TRUSTED_EVIDENCE_AUTHORS: frozenset[str] = frozenset(
+    [
+        "coderabbitai",
+        "coderabbitai[bot]",
+        "codex",
+        "codex[bot]",
+        "openclaw",
+        "openclaw[bot]",
+        "github-actions",
+        "github-actions[bot]",
+    ]
+)
 
 
 # ---------------------------------------------------------------------------
@@ -200,20 +212,28 @@ def check_evidence_review(owner: str, repo: str, pr_number: int) -> EvidenceGate
             verdict=None,
         )
 
-    # Collect all evidence verdicts from any commenter (bots or authenticated gh user).
-    # Accept from: known bots OR any comment body containing a recognizable verdict.
+    # Collect evidence verdicts only from trusted bot authors.
+    # Arbitrary commenters (PR authors, external contributors) cannot satisfy the gate.
     # Use the latest verdict so re-reviews (fixes after an initial FAIL) win.
     all_verdicts: list[tuple[str, str, str]] = []  # (submitted_at, verdict, author)
 
     for review in reviews:
+        author = review["author"]
+        if author not in TRUSTED_EVIDENCE_AUTHORS:
+            logger.debug(f"Skipping evidence verdict from untrusted author: {author}")
+            continue
         v = _extract_evidence_verdict(review["body"])
         if v:
-            all_verdicts.append((review.get("submitted_at") or "", v, review["author"]))
+            all_verdicts.append((review.get("submitted_at") or "", v, author))
 
     for comment in comments:
+        author = comment["author"]
+        if author not in TRUSTED_EVIDENCE_AUTHORS:
+            logger.debug(f"Skipping evidence verdict from untrusted author: {author}")
+            continue
         v = _extract_evidence_verdict(comment["body"])
         if v:
-            all_verdicts.append((comment.get("created_at") or "", v, comment["author"]))
+            all_verdicts.append((comment.get("created_at") or "", v, author))
 
     if all_verdicts:
         # Sort by timestamp, pick the latest

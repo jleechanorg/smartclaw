@@ -85,8 +85,20 @@ case "$TEST_MODE" in
             echo -e "\n${BLUE}📈 Coverage Summary:${NC}"
             if command -v jq &>/dev/null; then
                 jq '.total' coverage/coverage-summary.json
+
+                # Enforce the threshold — fail the build if lines coverage is below it.
+                actual_pct=$(jq '.total.lines.pct // 0' coverage/coverage-summary.json)
+                # Use awk for floating-point comparison (bash arithmetic only handles integers).
+                if awk -v actual="$actual_pct" -v threshold="$COVERAGE_THRESHOLD" \
+                        'BEGIN { exit (actual >= threshold) ? 0 : 1 }'; then
+                    echo -e "${GREEN}Coverage ${actual_pct}% meets threshold ${COVERAGE_THRESHOLD}%${NC}"
+                else
+                    echo -e "${RED}Coverage ${actual_pct}% is below threshold ${COVERAGE_THRESHOLD}%${NC}"
+                    overall_status=1
+                fi
             else
                 echo "Install jq to view summary, or open coverage/index.html"
+                echo "WARNING: Cannot enforce coverage threshold without jq."
             fi
         fi
         ;;

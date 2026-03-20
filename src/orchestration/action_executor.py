@@ -483,6 +483,24 @@ def _execute_merge_action(
     """Execute a MergeAction: merge the PR and send confirmation."""
     # Parse PR URL to get owner/repo and PR number
     pr_url = action.pr_url
+    if not pr_url:
+        error_msg = "MergeAction.pr_url is None — cannot merge without a PR URL"
+        _log_action(
+            action_type="MergeAction",
+            session_id=action.session_id,
+            success=False,
+            details={"pr_url": None, "error": error_msg},
+            action_log_path=action_log_path,
+        )
+        notifier.send_dm(
+            f"Merge failed for session {action.session_id}: {error_msg}",
+            channel=JEFFREY_DM_CHANNEL,
+        )
+        return ActionResult(
+            success=False,
+            action_type="MergeAction",
+            details={"pr_url": None, "error": error_msg},
+        )
     try:
         # URL format: https://github.com/owner/repo/pull/123
         parts = pr_url.rstrip("/").split("/")
@@ -574,8 +592,10 @@ def _execute_merge_action(
         merge_error = None
     except Exception as e:
         err_str = str(e)
-        # Treat "already merged" as success — MergeAction is idempotent
-        if "already merged" in err_str.lower() or "pull request is not mergeable" in err_str.lower():
+        # Treat "already merged" as success — MergeAction is idempotent.
+        # "pull request is not mergeable" is a real failure (e.g. merge conflicts)
+        # and must NOT be mapped to success.
+        if "already merged" in err_str.lower():
             merge_success = True
             merge_error = f"already merged (idempotent): {err_str}"
         else:

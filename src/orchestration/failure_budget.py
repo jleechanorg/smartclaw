@@ -168,65 +168,83 @@ class FailureBudget:
         finally:
             self._release_lock(lock_file)
 
-    def save(self) -> None:
-        """Atomically save budget state to JSON file with locking.
+    def _write_locked(
+        self,
+        subtasks: dict[str, BudgetEntry],
+        tasks: dict[str, TaskEntry],
+    ) -> None:
+        """Atomically write *subtasks* and *tasks* to the budget file.
 
-        Uses write-to-temp-then-rename for atomicity. Reloads latest state
-        before saving to handle concurrent modifications.
+        Must be called while the caller already holds the exclusive file lock.
+        Uses write-to-temp-then-rename for atomicity.
+        """
+        data = {
+            "subtasks": {sid: e.to_dict() for sid, e in subtasks.items()},
+            "tasks": {tid: e.to_dict() for tid, e in tasks.items()},
+        }
+        dir_path = self._budget_path.parent  # type: ignore[union-attr]
+        dir_path.mkdir(parents=True, exist_ok=True)
+        temp_fd, temp_path = tempfile.mkstemp(dir=dir_path, prefix=".fb_", suffix=".tmp")
+        try:
+            with os.fdopen(temp_fd, "w") as f:
+                json.dump(data, f)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(temp_path, self._budget_path)  # type: ignore[arg-type]
+        except Exception:
+            if os.path.exists(temp_path):
+                try:
+                    os.unlink(temp_path)
+                except OSError:
+                    pass
+            raise
+
+    def _load_from_disk_locked(self) -> tuple[dict[str, BudgetEntry], dict[str, TaskEntry]]:
+        """Read and return the current on-disk budget state.
+
+        Must be called while the caller already holds the exclusive file lock.
+        Returns (subtasks, tasks) dicts populated from disk, or empty dicts if
+        the file does not exist yet.
+        """
+        subtasks: dict[str, BudgetEntry] = {}
+        tasks: dict[str, TaskEntry] = {}
+        if self._budget_path and self._budget_path.exists():
+            try:
+                with open(self._budget_path) as f:
+                    data = json.load(f)
+                for sid, entry_data in data.get("subtasks", {}).items():
+                    subtasks[sid] = BudgetEntry.from_dict(entry_data)
+                for tid, entry_data in data.get("tasks", {}).items():
+                    tasks[tid] = TaskEntry.from_dict(entry_data, task_id=tid)
+            except (json.JSONDecodeError, OSError):
+                pass  # Corrupt file — start from empty; will be overwritten below
+        return subtasks, tasks
+
+    def save(self) -> None:
+        """Atomically save the current in-memory budget state to the JSON file.
+
+        Acquires the exclusive file lock, merges the latest on-disk state with
+        the in-memory state (disk wins for keys that exist only on disk; in-memory
+        wins for keys mutated locally), then writes atomically.
         """
         if not self._budget_path:
             return  # In-memory budget, no persistence needed
-        
+
         lock_file = self._acquire_lock()
         try:
-            # Reload latest state from file to handle concurrent modifications
-            if self._budget_path.exists():
-                with open(self._budget_path) as f:
-                    data = json.load(f)
+            # Read the freshest on-disk state while holding the lock so we do
+            # not silently drop concurrent writes from other processes.
+            disk_subtasks, disk_tasks = self._load_from_disk_locked()
 
-                # Merge loaded subtasks with local changes (local takes precedence for same key)
-                loaded_subtasks = data.get("subtasks", {})
-                for subtask_id, entry_data in loaded_subtasks.items():
-                    if subtask_id not in self._subtasks:
-                        self._subtasks[subtask_id] = BudgetEntry.from_dict(entry_data)
+            # Merge: disk provides the base; in-memory local mutations overlay it.
+            merged_subtasks = {**disk_subtasks, **self._subtasks}
+            merged_tasks = {**disk_tasks, **self._tasks}
 
-                # Merge loaded tasks
-                loaded_tasks = data.get("tasks", {})
-                for task_id, entry_data in loaded_tasks.items():
-                    if task_id not in self._tasks:
-                        self._tasks[task_id] = TaskEntry.from_dict(entry_data, task_id=task_id)
-
-            # Now save merged state
-            data = {
-                "subtasks": {
-                    subtask_id: entry.to_dict()
-                    for subtask_id, entry in self._subtasks.items()
-                },
-                "tasks": {task_id: entry.to_dict() for task_id, entry in self._tasks.items()},
-            }
-
-            # Atomic write: write to temp file then rename
-            dir_path = self._budget_path.parent
-            dir_path.mkdir(parents=True, exist_ok=True)
-
-            # Create temp file with unique name to avoid concurrent conflicts
-            temp_fd, temp_path = tempfile.mkstemp(
-                dir=dir_path, prefix=".fb_", suffix=".tmp"
-            )
-            try:
-                with os.fdopen(temp_fd, "w") as f:
-                    json.dump(data, f)
-                    f.flush()
-                    os.fsync(f.fileno())
-                os.replace(temp_path, self._budget_path)
-            except Exception:
-                # Clean up temp file on failure
-                if os.path.exists(temp_path):
-                    try:
-                        os.unlink(temp_path)
-                    except OSError:
-                        pass
-                raise
+            # Persist merged state and update the in-memory cache so subsequent
+            # in-process reads reflect the latest data.
+            self._write_locked(merged_subtasks, merged_tasks)
+            self._subtasks = merged_subtasks
+            self._tasks = merged_tasks
         finally:
             self._release_lock(lock_file)
 
@@ -235,34 +253,94 @@ class FailureBudget:
     ) -> None:
         """Record an escalation attempt for a subtask.
 
+        Reads the latest on-disk state inside the exclusive file lock before
+        incrementing the attempt counter, so concurrent writers cannot overwrite
+        each other's updates.
+
         Args:
             subtask_id: The subtask identifier
             task_id: The parent task identifier
             reaction_key: The reaction key that triggered escalation (unused but kept for API)
         """
-        if subtask_id in self._subtasks:
-            entry = self._subtasks[subtask_id]
-            entry.attempts += 1
-        else:
-            self._subtasks[subtask_id] = BudgetEntry(
-                subtask_id=subtask_id,
-                task_id=task_id,
-                attempts=1,
-                first_escalation=datetime.now(timezone.utc).isoformat(),
-            )
-        self.save()
+        if not self._budget_path:
+            # In-memory mode: mutate directly, no locking needed.
+            if subtask_id in self._subtasks:
+                self._subtasks[subtask_id].attempts += 1
+            else:
+                self._subtasks[subtask_id] = BudgetEntry(
+                    subtask_id=subtask_id,
+                    task_id=task_id,
+                    attempts=1,
+                    first_escalation=datetime.now(timezone.utc).isoformat(),
+                )
+            return
+
+        lock_file = self._acquire_lock()
+        try:
+            # Read the authoritative on-disk state while holding the lock.
+            disk_subtasks, disk_tasks = self._load_from_disk_locked()
+
+            # Apply the increment on top of the freshest disk data.
+            if subtask_id in disk_subtasks:
+                disk_subtasks[subtask_id].attempts += 1
+            else:
+                disk_subtasks[subtask_id] = BudgetEntry(
+                    subtask_id=subtask_id,
+                    task_id=task_id,
+                    attempts=1,
+                    first_escalation=datetime.now(timezone.utc).isoformat(),
+                )
+
+            # Merge remaining in-memory tasks (other processes may not have them).
+            merged_tasks = {**disk_tasks, **self._tasks}
+
+            self._write_locked(disk_subtasks, merged_tasks)
+
+            # Update the in-memory cache to reflect the committed state.
+            self._subtasks = disk_subtasks
+            self._tasks = merged_tasks
+        finally:
+            self._release_lock(lock_file)
 
     def record_strategy_change(self, task_id: str) -> None:
         """Record a strategy change at task level.
 
+        Reads the latest on-disk state inside the exclusive file lock before
+        incrementing the strategy-change counter, so concurrent writers cannot
+        overwrite each other's updates.
+
         Args:
             task_id: The task identifier
         """
-        if task_id in self._tasks:
-            self._tasks[task_id].strategy_changes += 1
-        else:
-            self._tasks[task_id] = TaskEntry(task_id=task_id, strategy_changes=1)
-        self.save()
+        if not self._budget_path:
+            # In-memory mode: mutate directly, no locking needed.
+            if task_id in self._tasks:
+                self._tasks[task_id].strategy_changes += 1
+            else:
+                self._tasks[task_id] = TaskEntry(task_id=task_id, strategy_changes=1)
+            return
+
+        lock_file = self._acquire_lock()
+        try:
+            # Read the authoritative on-disk state while holding the lock.
+            disk_subtasks, disk_tasks = self._load_from_disk_locked()
+
+            # Apply the increment on top of the freshest disk data.
+            if task_id in disk_tasks:
+                disk_tasks[task_id].strategy_changes += 1
+            else:
+                disk_tasks[task_id] = TaskEntry(task_id=task_id, strategy_changes=1)
+
+            # Merge remaining in-memory subtasks.
+            merged_subtasks = {**disk_subtasks, **self._subtasks}
+
+            self._write_locked(merged_subtasks, disk_tasks)
+
+            # Update the in-memory cache to reflect the committed state.
+            self._subtasks = merged_subtasks
+            self._tasks = disk_tasks
+        finally:
+            self._release_lock(lock_file)
 
     def is_subtask_expired(self, subtask_id: str, timeout_minutes: int = 30) -> bool:
         """Check if subtask has exceeded the timeout threshold.

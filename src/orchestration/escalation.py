@@ -17,7 +17,6 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Protocol, Union
 
 from orchestration.ao_events import AOEvent, parse_ao_webhook, AOWebhookError
 from orchestration.action_executor import (
@@ -25,6 +24,17 @@ from orchestration.action_executor import (
     ActionResult,
     AOCli,
     SlackNotifier,
+)
+from orchestration.escalation_router import (
+    RetryAction,
+    KillAndRespawnAction,
+    NotifyJeffreyAction,
+    NeedsJudgmentAction,
+    ParallelRetryAction,
+    MergeAction,
+    WaitForCIAction,
+    EscalationAction,
+    JudgmentResult as _RouterJudgmentResult,
 )
 from orchestration.parallel_retry import is_parseable_ci_failure
 
@@ -143,71 +153,14 @@ class FailureBudget:
 # =============================================================================
 # PART 3: Escalation Actions
 # =============================================================================
+# Action classes and EscalationAction / JudgmentResult are imported directly
+# from escalation_router so that action_executor.execute_action() dispatches
+# correctly via isinstance() checks against the single canonical type hierarchy.
+# Do NOT redefine them here — duplicate definitions produce incompatible types.
 
-
-@dataclass
-class RetryAction:
-    """Action to retry the session with an enriched prompt."""
-    session_id: str
-    project_id: str
-    prompt: str
-    reason: str
-
-
-@dataclass
-class KillAndRespawnAction:
-    """Action to kill a stuck session and respawn a new one."""
-    session_id: str
-    session_to_kill: str
-    project_id: str
-    reason: str
-    task: str
-
-
-@dataclass
-class NotifyJeffreyAction:
-    """Action to notify Jeffrey (human) about the event."""
-    session_id: str
-    message: str
-    pr_url: str | None = None
-    details: dict | None = None
-
-
-@dataclass
-class NeedsJudgmentAction:
-    """Action that requires LLM judgment (non-deterministic)."""
-    event: AOEvent
-    context: dict
-    options: list[str]
-
-
-@dataclass
-class ParallelRetryAction:
-    """Action to attempt parallel fixes for CI failures."""
-    session_id: str
-    project_id: str
-    ci_failure: str
-    diff: str
-    max_strategies: int = 3
-    reason: str = "Parallel retry for CI failure"
-
-
-# Type alias for all escalation actions
-EscalationAction = Union[
-    RetryAction,
-    KillAndRespawnAction,
-    NotifyJeffreyAction,
-    NeedsJudgmentAction,
-    ParallelRetryAction,
-]
-
-
-@dataclass
-class JudgmentResult:
-    """Result of routing an escalation event to an action."""
-    action: EscalationAction
-    confidence: float
-    reasoning: str
+# Re-export aliases for backwards compatibility with callers that import from
+# this module.
+JudgmentResult = _RouterJudgmentResult
 
 
 # =============================================================================
