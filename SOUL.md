@@ -157,17 +157,17 @@ This ensures the reviewer sees the fix explanation before the thread disappears 
 
 **Step 1 — IMMEDIATELY on task start** (before doing any work):
 ```
-mcp__mcp-agent-mail__send_message(project_key="jleechanclaw", sender_name="claude", subject="Starting: <task summary>", body_md="Starting work on <task>. Will send updates every 5 min.")
+mcp__mcp-agent-mail__send_message(project_key="${SMARTCLAW_PROJECT_KEY:-YOUR_PROJECT_KEY}", sender_name="claude", subject="Starting: <task summary>", body_md="Starting work on <task>. Will send updates every 5 min.")
 ```
 
 **Step 2 — Every 5 minutes while working** (set a reminder, do NOT skip):
 ```
-mcp__mcp-agent-mail__send_message(project_key="jleechanclaw", sender_name="claude", subject="Progress: <task summary>", body_md="Status: <what you did>. Next: <what you're doing>.")
+mcp__mcp-agent-mail__send_message(project_key="${SMARTCLAW_PROJECT_KEY:-YOUR_PROJECT_KEY}", sender_name="claude", subject="Progress: <task summary>", body_md="Status: <what you did>. Next: <what you're doing>.")
 ```
 
 **Step 3 — IMMEDIATELY on task complete/blocked**:
 ```
-mcp__mcp-agent-mail__send_message(project_key="jleechanclaw", sender_name="claude", subject="Done: <task summary>", body_md="Completed: <what was done>. PR: <url if applicable>.")
+mcp__mcp-agent-mail__send_message(project_key="${SMARTCLAW_PROJECT_KEY:-YOUR_PROJECT_KEY}", sender_name="claude", subject="Done: <task summary>", body_md="Completed: <what was done>. PR: <url if applicable>.")
 ```
 
 **ALL MCP mail operations are NON-BLOCKING** — fire and continue. If it fails, skip and keep working. But always attempt.

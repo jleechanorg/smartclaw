@@ -247,7 +247,7 @@
       "botToken": "${SLACK_BOT_TOKEN}",
       "appToken": "${SLACK_APP_TOKEN}",
       "userTokenReadOnly": true,
-      "allowBots": true,
+      "allowBots": false,
       "groupPolicy": "allowlist",
       "historyLimit": 200,
       "dmHistoryLimit": 200,

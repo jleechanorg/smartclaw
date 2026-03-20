@@ -533,7 +533,8 @@ def _execute_merge_action(
     import os as _os
     freeze_path = _os.path.expanduser("~/.openclaw/MERGE_FREEZE")
     if _os.path.exists(freeze_path):
-        freeze_msg = open(freeze_path).read().strip()
+        with open(freeze_path) as _f:
+            freeze_msg = _f.read().strip()
         reason = f"MERGE_FREEZE active — {freeze_msg}"
         _log_action(
             action_type="MergeAction",
