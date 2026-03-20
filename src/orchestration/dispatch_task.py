@@ -656,6 +656,7 @@ def _dispatch_cursor_direct(
 ) -> tuple[str, str, str]:
     """Dispatch Cursor via tmux directly, bypassing ai_orch's interactive fallback."""
     worktree_base = os.environ.get("MCTRL_WORKTREE_BASE", _DEFAULT_WORKTREE_BASE)
+    os.makedirs(worktree_base, exist_ok=True)
     if branch:
         worktree_path, _ = resolve_worktree_for_branch(branch, repo_root, worktree_base)
         effective_branch = branch

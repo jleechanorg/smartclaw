@@ -38,7 +38,7 @@ fi
 
 for project in $(echo "$PROJECTS" | tr ',' ' '); do
     echo "[lifecycle-manager] Starting worker for: $project"
-    @HOME@/.nvm/versions/node/current/bin/node @HOME@/bin/ao lifecycle-worker "$project" 2&gt;&amp;1 | while read line; do
+    node @HOME@/bin/ao lifecycle-worker "$project" 2&gt;&amp;1 | while read line; do
         echo "[lifecycle-$project] $line"
     done &amp;
 done
