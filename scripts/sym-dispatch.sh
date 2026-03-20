@@ -16,13 +16,15 @@ if [ ! -S "$SYMPHONY_SOCKET" ]; then
   exit 1
 fi
 
+_json_str() { printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'; }
+
 if [ "${1:-}" = "--plugin" ]; then
   plugin_name="${2:?plugin name required}"
   input_json="${3:?input JSON required}"
-  payload="{\"type\":\"plugin\",\"plugin\":\"$plugin_name\",\"input\":$input_json,\"memory_queue_mode\":\"$SYMPHONY_MEMORY_QUEUE_MODE\"}"
+  payload="{\"type\":\"plugin\",\"plugin\":$(_json_str "$plugin_name"),\"input\":$input_json,\"memory_queue_mode\":$(_json_str "$SYMPHONY_MEMORY_QUEUE_MODE")}"
 else
   task_text="${1:?task text required}"
-  payload="{\"type\":\"task\",\"task\":$(printf '%s' "$task_text" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'),\"memory_queue_mode\":\"$SYMPHONY_MEMORY_QUEUE_MODE\"}"
+  payload="{\"type\":\"task\",\"task\":$(_json_str "$task_text"),\"memory_queue_mode\":$(_json_str "$SYMPHONY_MEMORY_QUEUE_MODE")}"
 fi
 
 echo "$payload" | nc -U "$SYMPHONY_SOCKET"

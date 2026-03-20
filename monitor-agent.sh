@@ -373,8 +373,9 @@ run_token_probes() {
   ) &
 
   # --- minimax token ---
-  local minimax_token
+  local minimax_token minimax_base_url
   minimax_token="$(resolve_secret_ref "$(jq -r '.models.providers."minimax-portal".apiKey // empty' "$cfg" 2>/dev/null || true)")"
+  minimax_base_url="$(jq -r '.models.providers."minimax-portal".baseUrl // "https://api.minimax.io/anthropic"' "$cfg" 2>/dev/null || echo 'https://api.minimax.io/anthropic')"
   (
     if is_placeholder_token "$minimax_token"; then
       printf 'FAIL:models.providers.minimax-portal.apiKey:missing/placeholder\n' > "$td/minimax"
@@ -385,7 +386,7 @@ run_token_probes() {
         -H 'Content-Type: application/json' \
         -d '{"model":"MiniMax-M2.5","max_tokens":8,"messages":[{"role":"user","content":"ping"}]}' \
         -o "$td/minimax.json" -w '%{http_code}' \
-        'https://api.minimax.io/anthropic/v1/messages' 2>/dev/null || true)"
+        "${minimax_base_url}/v1/messages" 2>/dev/null || true)"
       if [[ "$code" =~ ^2 ]]; then
         printf 'PASS:models.providers.minimax-portal.apiKey\n' > "$td/minimax"
       else

@@ -189,17 +189,21 @@ def _log_action(
         details=details,
         reason=reason,
     )
+    payload = {
+        "timestamp": entry.timestamp,
+        "action_type": entry.action_type,
+        "session_id": entry.session_id,
+        "success": entry.success,
+        "details": entry.details,
+        "reason": entry.reason,
+    }
     path = Path(action_log_path).expanduser()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as f:
-        f.write(json.dumps({
-            "timestamp": entry.timestamp,
-            "action_type": entry.action_type,
-            "session_id": entry.session_id,
-            "success": entry.success,
-            "details": entry.details,
-            "reason": entry.reason,
-        }) + "\n")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(payload) + "\n")
+    except (OSError, TypeError, ValueError):
+        logger.exception("Failed to write action log entry to %s", path)
 
 
 def _parse_pr_url(pr_url: str | None) -> tuple[str, str, int] | None:
@@ -331,13 +335,40 @@ def _execute_kill_and_respawn_action(
     """Execute a KillAndRespawnAction: kill session, spawn new one."""
     warning = None
 
-    # Try to kill the session (don't fail if kill fails)
+    # Try to kill the session.
+    # Only proceed if kill succeeded or the session is already gone (benign).
+    # Unexpected kill failures risk duplicate sessions and must be escalated.
+    _BENIGN_KILL_MARKERS = ("not found", "already terminated", "already exited", "does not exist")
     try:
         cli.kill(action.session_to_kill)
-    except AOCommandError:
-        warning = "kill_failed"
+    except AOCommandError as kill_err:
+        stderr_lower = (kill_err.stderr or "").lower()
+        if any(marker in stderr_lower for marker in _BENIGN_KILL_MARKERS):
+            warning = "kill_already_gone"
+        else:
+            # Real kill failure: halt to avoid spawning a duplicate session
+            failure_message = (
+                f"KillAndRespawnAction aborted: kill failed unexpectedly for session "
+                f"{action.session_to_kill}. Spawn skipped to avoid duplicate agents.\n"
+                f"Error: {kill_err.stderr}"
+            )
+            failure_action = NotifyJeffreyAction(
+                session_id=action.session_id,
+                message=failure_message,
+                details={
+                    "action": "KillAndRespawnAction",
+                    "session_to_kill": action.session_to_kill,
+                    "kill_error": kill_err.stderr,
+                },
+            )
+            execute_notify_jeffrey(failure_action, notifier, action_log_path)
+            return ActionResult(
+                success=False,
+                action_type="KillAndRespawnAction",
+                details={"error": f"kill failed: {kill_err.stderr}", "session_to_kill": action.session_to_kill},
+            )
 
-    # Always attempt spawn
+    # Attempt spawn only after confirmed kill (or benign miss)
     try:
         new_session_id = cli.spawn(action.project_id, action.task)
     except AOCommandError as e:
@@ -567,7 +598,11 @@ def _execute_merge_action(
             f"Merge gate check error for {pr_url}: {e}",
             channel=JEFFREY_DM_CHANNEL,
         )
-        return ActionResult(success=False, error=str(e))
+        return ActionResult(
+            success=False,
+            action_type="MergeAction",
+            details={"pr_url": pr_url, "error": str(e)},
+        )
     if not verdict.can_merge:
         blocked_msg = "; ".join(verdict.blocked_reasons)
         _log_action(
@@ -682,7 +717,11 @@ def _execute_parallel_retry_action(
             f"Parallel retry strategy generation failed: {e}",
             channel=JEFFREY_DM_CHANNEL,
         )
-        return ActionResult(success=False, error=str(e))
+        return ActionResult(
+            success=False,
+            action_type="ParallelRetryAction",
+            details={"error": str(e)},
+        )
 
     # Derive error class for outcome recording
     from orchestration.parallel_retry import derive_error_class

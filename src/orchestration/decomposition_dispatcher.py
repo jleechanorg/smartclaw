@@ -13,6 +13,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from orchestration.task_tracker import SubtaskStatus
+
 if TYPE_CHECKING:
     from orchestration.task_tracker import Task, TaskTracker
 
@@ -119,7 +121,7 @@ class DecompositionDispatcher:
                     # Failure path: mark subtask as failed so orchestration
                     # does not redispatch or misreport it as still pending.
                     subtask = subtask_map[subtask_id]
-                    subtask.status = "failed"
+                    subtask.status = SubtaskStatus.FAILED
 
         # Persist state changes (includes blocked subtask status updates)
         self._tracker.save()

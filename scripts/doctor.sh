@@ -478,14 +478,16 @@ if [[ "$live_json_ok" -eq 1 ]]; then
   slack_bot_raw="$(jq -r '.channels.slack.botToken // empty' "$LIVE_OPENCLAW/openclaw.json" 2>/dev/null || true)"
   slack_app_raw="$(jq -r '.channels.slack.appToken // empty' "$LIVE_OPENCLAW/openclaw.json" 2>/dev/null || true)"
   
+  # Env var references (${VAR}) are a supported shape: resolve_secret_ref handles them below.
+  # Only warn so operators know the token isn't inline; don't fail before the live probe.
   if [[ "$slack_bot_raw" =~ ^\$\{.*\}$ ]]; then
-    fail "channels.slack.botToken contains env var placeholder: $slack_bot_raw (must be hardcoded token)"
+    warn "channels.slack.botToken is an env var reference ($slack_bot_raw); will be resolved below"
   else
     pass 'channels.slack.botToken is hardcoded (not an env var reference)'
   fi
-  
+
   if [[ "$slack_app_raw" =~ ^\$\{.*\}$ ]]; then
-    fail "channels.slack.appToken contains env var placeholder: $slack_app_raw (must be hardcoded token)"
+    warn "channels.slack.appToken is an env var reference ($slack_app_raw); will be resolved below"
   else
     pass 'channels.slack.appToken is hardcoded (not an env var reference)'
   fi
@@ -710,7 +712,7 @@ if [[ -f "$REPO_ROOT/scripts/verify-config-from-redacted.sh" ]]; then
   else
     # Only fail if we have all required env vars; otherwise just warn
     missing_redaction_vars=()
-    for var in XAI_API_KEY OPENCLAW_SLACK_BOT_TOKEN OPENCLAW_SLACK_APP_TOKEN OPENCLAW_HOOKS_TOKEN MINIMAX_API_KEY OPENCLAW_GATEWAY_TOKEN OPENCLAW_GATEWAY_REMOTE_TOKEN OPENAI_API_KEY GROQ_API_KEY; do
+    for var in XAI_API_KEY SLACK_BOT_TOKEN SLACK_APP_TOKEN HOOKS_TOKEN MINIMAX_API_KEY GATEWAY_TOKEN REMOTE_TOKEN OPENAI_API_KEY GROQ_API_KEY; do
       if [[ -z "${!var:-}" ]]; then
         missing_redaction_vars+=("$var")
       fi
