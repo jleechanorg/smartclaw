@@ -5,9 +5,7 @@
 
 This repo is a **harness** — not a codebase that agents work on, but the
 environment, constraints, and feedback loops that enable agents to do reliable
-work across projects.
-
-> **Source**: Adapted from jleechanorg/jleechanclaw/docs/HARNESS_ENGINEERING.md
+work across all jleechanorg projects.
 
 ## What Is Harness Engineering?
 
@@ -39,7 +37,8 @@ Reference: [OpenAI: Harness Engineering](https://openai.com/index/harness-engine
 | `skills/` | Custom agent skills (agento, browser, etc.) |
 
 These are the "scaffolding" — agents read them directly and operate within
-their constraints. Changes here take effect immediately.
+their constraints. Changes here take effect immediately because the repo
+root IS `~/.openclaw/`.
 
 ### Layer 2: Deterministic Feedback Loops (agent-orchestrator)
 
@@ -56,15 +55,15 @@ reactions:
 This is the inner feedback loop: agent acts, CI/review state changes, AO
 reacts, agent acts again. No LLM needed for the predictable 80%.
 
-### Layer 3: LLM Judgment
+### Layer 3: LLM Judgment (OpenClaw)
 
-An LLM-based agent (like OpenClaw) sits above the reaction engine and handles
-the 20% that requires judgment — vague reviews, task decomposition, conflicting
-failures, strategy decisions. It has persistent memory, tools, and full project context.
+OpenClaw sits above the reaction engine and handles the 20% that requires
+judgment — vague reviews, task decomposition, conflicting failures, strategy
+decisions. It has persistent memory, tools, and full project context.
 
 This is the outer loop: when deterministic reactions exhaust their budget,
-the system escalates to the LLM. The LLM decides what to do next — retry with a
-different strategy, decompose the problem, or escalate to a human.
+AO escalates to OpenClaw. OpenClaw decides what to do next — retry with a
+different strategy, decompose the problem, or escalate to Jeffrey.
 
 ### Layer 4: Entropy Management
 
@@ -72,11 +71,11 @@ Harnesses degrade over time. Documentation drifts from code. Constraints
 get bypassed. Prompts that worked stop working as models update.
 
 Planned entropy management:
-- **Self-improving prompts** — log which prompts succeed vs fail,
+- **Self-improving prompts** (ORCH-04k) — log which prompts succeed vs fail,
   build a project-specific prompt library
-- **Autonomous PR review** — agents review PRs using memory,
-  CLAUDE.md rules, and historical patterns
-- **Convergence intelligence** — learning, anomaly detection,
+- **Autonomous PR review** (ORCH-apr) — OpenClaw reviews PRs using memory,
+  CLAUDE.md rules, and historical patterns before Jeffrey sees them
+- **Convergence intelligence** (ORCH-cil) — learning, anomaly detection,
   escalation tier tuning based on historical success rates
 
 ## Key Principles
@@ -103,7 +102,7 @@ predictability."
 
 Each headless agent call gets a clean prompt with all context injected
 upfront. No memory of previous attempts — that's the harness's job
-(session metadata + memory). The coding agent never
+(AO session metadata + OpenClaw memory). The coding agent never
 accumulates context, avoiding the context bloat that kills performance
 in long-running agent loops.
 
@@ -112,8 +111,8 @@ in long-running agent loops.
 > "If you over-engineer the control flow, the next model update will break
 > your system."
 
-The orchestration layer is thin and replaceable.
-If a new tool adds native judgment support, or if Claude Agent Teams subsumes
+The orchestration layer (~3k lines of Python) is thin and replaceable.
+If AO adds native judgment support, or if Claude Agent Teams subsumes
 the reaction engine, the Python layer can be removed without touching
 agent configs or project structure.
 
@@ -132,7 +131,7 @@ Based on the NxCode framework:
 |-------|-------------|--------------|
 | **1. Individual** | CLAUDE.md, pre-commit hooks, test suite, naming conventions | Done |
 | **2. Team** | AGENTS.md, CI architectural constraints, shared prompt templates, documentation validation | Done |
-| **3. Organization** | Custom middleware, observability integration, harness versioning, agent performance dashboards, escalation policies | In progress |
+| **3. Organization** | Custom middleware, observability integration, harness versioning, agent performance dashboards, escalation policies | In progress (ORCH-cvg, ORCH-cil) |
 
 ## References
 
