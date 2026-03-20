@@ -99,10 +99,7 @@ def send_guidance_via_mcp_mail(
     if reason:
         payload["reason"] = reason
 
-    # Log guidance sent
-    log_guidance_sent(session_id, guidance_type, payload)
-
-    # Try to send via MCP mail
+    # Try to send via MCP mail; only log as sent on confirmed delivery
     try:
         import subprocess
         result = subprocess.run(
@@ -119,13 +116,14 @@ def send_guidance_via_mcp_mail(
             timeout=10,
         )
         if result.returncode == 0:
-            logger.info(f"Sent {guidance_type} guidance to {session_id}")
+            log_guidance_sent(session_id, guidance_type, payload)
+            logger.info("Sent %s guidance to %s", guidance_type, session_id)
             return True
         else:
-            logger.warning(f"Failed to send guidance to {session_id}: {result.stderr}")
+            logger.warning("Failed to send guidance to %s: %s", session_id, result.stderr)
             return False
     except Exception as e:
-        logger.warning(f"Error sending guidance to {session_id}: {e}")
+        logger.warning("Error sending guidance to %s: %s", session_id, e)
         return False
 
 
@@ -555,7 +553,21 @@ def _execute_merge_action(
 
     # Unified merge gate check - all 6 conditions
     from orchestration.merge_gate import check_merge_ready
-    verdict = check_merge_ready(owner, repo, pr_number)
+    try:
+        verdict = check_merge_ready(owner, repo, pr_number)
+    except Exception as e:
+        _log_action(
+            action_type="MergeAction",
+            session_id=action.session_id,
+            success=False,
+            details={"pr_url": pr_url, "error": f"merge gate check failed: {e}"},
+            action_log_path=action_log_path,
+        )
+        notifier.send_dm(
+            f"Merge gate check error for {pr_url}: {e}",
+            channel=JEFFREY_DM_CHANNEL,
+        )
+        return ActionResult(success=False, error=str(e))
     if not verdict.can_merge:
         blocked_msg = "; ".join(verdict.blocked_reasons)
         _log_action(
@@ -652,11 +664,25 @@ def _execute_parallel_retry_action(
 ) -> ActionResult:
     """Execute a ParallelRetryAction: spawn parallel sessions with different strategies."""
     # Generate fix strategies from CI failure and diff
-    strategies = generate_fix_strategies(
-        ci_failure=action.ci_failure,
-        diff=action.diff,
-        max_strategies=action.max_strategies,
-    )
+    try:
+        strategies = generate_fix_strategies(
+            ci_failure=action.ci_failure,
+            diff=action.diff,
+            max_strategies=action.max_strategies,
+        )
+    except Exception as e:
+        _log_action(
+            action_type="ParallelRetryAction",
+            session_id=action.session_id,
+            success=False,
+            details={"error": f"strategy generation failed: {e}"},
+            action_log_path=action_log_path,
+        )
+        notifier.send_dm(
+            f"Parallel retry strategy generation failed: {e}",
+            channel=JEFFREY_DM_CHANNEL,
+        )
+        return ActionResult(success=False, error=str(e))
 
     # Derive error class for outcome recording
     from orchestration.parallel_retry import derive_error_class

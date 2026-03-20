@@ -107,7 +107,7 @@ This prevents agents from declaring done while review comments remain open.
 ### Mandatory Evidence Review Before Merge (orch-j9e0)
 
 Before declaring a PR merge-ready, you MUST run the two-stage evidence pipeline:
-1. Generate stage 1 bundle: `python -m orchestration.evidence_bundle <owner> <repo> <pr_number> --stage2`
+1. Generate stage 1 bundle: `python -m orchestration.evidence_bundle <owner> <repo> <pr_number> --stage1`
 2. Evidence bundle created at: `docs/evidence/{repo}/PR-{N}/{date}_{time}_utc/`
 3. Stage 1 runs self-review (CI, threads, pytest)
 4. Stage 2 runs independent review (different model family, verifies independence)
