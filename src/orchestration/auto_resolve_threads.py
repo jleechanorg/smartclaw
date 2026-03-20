@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from dataclasses import dataclass
 from typing import Optional
@@ -128,6 +129,14 @@ def get_review_threads(owner: str, repo: str, pr_number: int) -> list[dict]:
         if not comments:
             continue
 
+        # If comment page is incomplete, we cannot safely classify as bot-only.
+        # Fail closed: treat truncated threads as non-bot so they are not silently skipped.
+        if comment_total > len(comments):
+            raise RuntimeError(
+                f"Thread has {comment_total} comments but only {len(comments)} were fetched "
+                f"— cannot safely determine if thread is bot-only"
+            )
+
         # Find first non-bot comment in thread
         c = None
         for candidate in comments:
@@ -182,6 +191,8 @@ def get_files_changed_in_push(
     Returns:
         List of file paths that were changed
     """
+    first_exc: Optional[Exception] = None
+
     # Primary: compare the exact push SHAs when available
     if before_sha and after_sha:
         try:
@@ -192,8 +203,8 @@ def get_files_changed_in_push(
             ])
             if raw.strip():
                 return [line.strip() for line in raw.strip().split("\n") if line.strip()]
-        except Exception:
-            pass
+        except Exception as exc:
+            first_exc = exc
 
     # Fallback: single commit files when only after_sha is known
     if after_sha:
@@ -205,19 +216,99 @@ def get_files_changed_in_push(
             ])
             if raw.strip():
                 return [line.strip() for line in raw.strip().split("\n") if line.strip()]
-        except Exception:
-            pass
+        except Exception as exc:
+            if first_exc is None:
+                first_exc = exc
 
-    # Final fallback: empty list (caller will use PR-level file list instead)
+    # Propagate errors so callers can observe auth/rate-limit/transient failures
+    if first_exc is not None:
+        raise first_exc
+
+    # No SHAs provided or both returned empty — caller falls back to PR-level file list
     return []
 
 
+def _parse_hunk_ranges(patch: str) -> list[tuple[int, int]]:
+    """Parse a unified diff patch string and return (start, end) line ranges for changed hunks.
+
+    Args:
+        patch: Unified diff patch string (from GitHub API ``patch`` field)
+
+    Returns:
+        List of (start_line, end_line) tuples for modified lines in the new file
+    """
+    ranges: list[tuple[int, int]] = []
+    current_line = 0
+    for raw_line in patch.splitlines():
+        m = re.match(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", raw_line)
+        if m:
+            start = int(m.group(1))
+            count = int(m.group(2)) if m.group(2) is not None else 1
+            end = start + max(count - 1, 0)
+            ranges.append((start, end))
+            current_line = start - 1
+        elif raw_line.startswith("+"):
+            current_line += 1
+        elif raw_line.startswith("-"):
+            pass  # removed line, doesn't count in new file
+        else:
+            current_line += 1
+    return ranges
+
+
+def _line_in_hunks(line: Optional[int], hunks: list[tuple[int, int]]) -> bool:
+    """Return True if *line* falls within any of the hunk ranges."""
+    if line is None:
+        return False
+    return any(start <= line <= end for start, end in hunks)
+
+
+def get_changed_file_hunks(
+    owner: str,
+    repo: str,
+    before_sha: Optional[str],
+    after_sha: Optional[str],
+    pr_number: Optional[int],
+) -> dict[str, list[tuple[int, int]]]:
+    """Return a mapping of filename → list of (start, end) hunk ranges.
+
+    Uses the compare endpoint when SHAs are available, falls back to PR files.
+    Returns an empty dict if neither is available.
+    """
+    try:
+        if before_sha and after_sha:
+            raw = gh([
+                "api",
+                f"repos/{owner}/{repo}/compare/{before_sha}...{after_sha}",
+                "--jq", "[.files[] | {filename, patch: (.patch // \"\")}]",
+            ])
+        elif pr_number is not None:
+            raw = gh([
+                "api",
+                f"repos/{owner}/{repo}/pulls/{pr_number}/files?per_page=100",
+                "--paginate",
+                "--jq", "[.[] | {filename, patch: (.patch // \"\")}]",
+            ])
+        else:
+            return {}
+        files = json.loads(raw) if raw.strip() else []
+    except Exception:
+        return {}
+
+    result: dict[str, list[tuple[int, int]]] = {}
+    for f in files:
+        patch = f.get("patch") or ""
+        result[f["filename"]] = _parse_hunk_ranges(patch) if patch else []
+    return result
+
+
 def _get_pr_files_gh(owner: str, repo: str, pr_number: int) -> list[str]:
-    """Get files changed in a PR using gh CLI."""
+    """Get files changed in a PR using gh CLI (paginated)."""
     raw = gh([
         "api",
-        f"repos/{owner}/{repo}/pulls/{pr_number}/files",
-        "--jq", ".[].filename"
+        f"repos/{owner}/{repo}/pulls/{pr_number}/files?per_page=100",
+        "--paginate",
+        "--jq", ".[].filename",
     ])
     if not raw.strip():
         return []
@@ -310,26 +401,19 @@ def auto_resolve_threads_for_pr(
     if not threads:
         return result
 
-    # Step 2: Get files changed in the push (SHAs preferred) or PR
-    try:
-        if before_sha or after_sha:
-            files = get_files_changed_in_push(
-                owner, repo, branch or "", before_sha=before_sha, after_sha=after_sha
-            )
-        else:
-            files = _get_pr_files_gh(owner, repo, pr_number)
-    except Exception as e:
-        result["errors"].append(f"Failed to get changed files: {e}")
-        # Continue with empty file list - will skip all threads
-        files = []
+    # Step 2: Get hunk-level change map (filename → hunk ranges)
+    file_hunks = get_changed_file_hunks(
+        owner, repo,
+        before_sha=before_sha,
+        after_sha=after_sha,
+        pr_number=pr_number,
+    )
 
-    # Convert to set for O(1) lookup
-    changed_files = set(files)
-
-    # Step 3: Resolve threads whose file was modified
+    # Step 3: Resolve threads whose line falls within a changed hunk
     for thread in threads:
         thread_path = thread.get("path")
         thread_id = thread["id"]
+        thread_line = thread.get("line")
 
         # If thread has no file path (general comment), skip it
         if not thread_path:
@@ -337,8 +421,20 @@ def auto_resolve_threads_for_pr(
             result["skipped_threads"].append(thread_id)
             continue
 
-        # Check if the file was modified in the push
-        if thread_path in changed_files:
+        # Skip if file not in the changed set at all
+        if thread_path not in file_hunks:
+            result["skipped"] += 1
+            result["skipped_threads"].append(thread_id)
+            continue
+
+        hunks = file_hunks[thread_path]
+        if not hunks:
+            # File changed but patch unavailable — fall back to file-level match
+            in_hunk = True
+        else:
+            in_hunk = _line_in_hunks(thread_line, hunks)
+
+        if in_hunk:
             # Try to resolve the thread
             if resolve_review_thread(thread_id):
                 result["resolved"] += 1
@@ -348,7 +444,7 @@ def auto_resolve_threads_for_pr(
                 result["skipped_threads"].append(thread_id)
                 result["errors"].append(f"Failed to resolve thread {thread_id}")
         else:
-            # File was not modified - skip this thread
+            # Thread line not in any changed hunk — skip
             result["skipped"] += 1
             result["skipped_threads"].append(thread_id)
 
@@ -375,6 +471,14 @@ def main():
         help="Branch name (optional, will be inferred from PR if not provided)"
     )
     parser.add_argument(
+        "--before-sha",
+        help="Commit SHA before the push (enables push-scoped diffing)"
+    )
+    parser.add_argument(
+        "--after-sha",
+        help="Commit SHA after the push (enables push-scoped diffing)"
+    )
+    parser.add_argument(
         "--dry-run", "-n",
         action="store_true",
         help="Show what would be resolved without actually resolving"
@@ -385,18 +489,30 @@ def main():
     if args.dry_run:
         # Just show threads without resolving
         threads = get_review_threads(args.owner, args.repo, args.pr_number)
-        files = _get_pr_files_gh(args.owner, args.repo, args.pr_number)
-        changed_files = set(files)
+        file_hunks = get_changed_file_hunks(
+            args.owner, args.repo,
+            before_sha=args.before_sha,
+            after_sha=args.after_sha,
+            pr_number=args.pr_number,
+        )
 
         print(f"PR: {args.owner}/{args.repo}#{args.pr_number}")
-        print(f"Changed files: {', '.join(files) or '(none)'}")
+        print(f"Changed files: {', '.join(file_hunks.keys()) or '(none)'}")
         print(f"\nUnresolved threads:")
         for t in threads:
-            status = "WOULD RESOLVE" if t.get("path") in changed_files else "unchanged"
-            print(f"  - {t['path']}:{t.get('line')} ({t['author']}): {t['body'][:50]}... [{status}]")
+            path = t.get("path")
+            line = t.get("line")
+            if path not in file_hunks:
+                status = "unchanged"
+            else:
+                hunks = file_hunks[path]
+                status = "WOULD RESOLVE" if (not hunks or _line_in_hunks(line, hunks)) else "unchanged"
+            print(f"  - {path}:{line} ({t['author']}): {t['body'][:50]}... [{status}]")
     else:
         result = auto_resolve_threads_for_pr(
-            args.owner, args.repo, args.pr_number, args.branch
+            args.owner, args.repo, args.pr_number, args.branch,
+            before_sha=args.before_sha,
+            after_sha=args.after_sha,
         )
         print(f"Resolved: {result['resolved']}")
         print(f"Skipped: {result['skipped']}")
