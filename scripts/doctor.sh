@@ -149,8 +149,10 @@ if [[ "$LOCAL_TZ" == "America/Los_Angeles" ]]; then
   pass 'local timezone is America/Los_Angeles (matches migrated schedule semantics)'
 elif [[ "${OPENCLAW_ALLOW_NON_PT_SCHEDULE:-0}" == "1" ]]; then
   warn "local timezone is '$LOCAL_TZ' (override OPENCLAW_ALLOW_NON_PT_SCHEDULE=1 active)"
-else
+elif [[ "$IS_DARWIN" -eq 1 ]]; then
   fail "local timezone is '$LOCAL_TZ' but migrated schedules are authored for America/Los_Angeles (set OPENCLAW_ALLOW_NON_PT_SCHEDULE=1 to override)"
+else
+  warn "local timezone is '$LOCAL_TZ'; set OPENCLAW_ALLOW_NON_PT_SCHEDULE=1 if schedules differ on this Linux host"
 fi
 
 require_cmd jq
@@ -428,6 +430,9 @@ fi
 gateway_probe_cmd=(env -u OPENCLAW_GATEWAY_TOKEN)
 if ! is_placeholder_token "$live_token"; then
   gateway_probe_cmd=(env OPENCLAW_GATEWAY_TOKEN="$live_token")
+elif ! is_placeholder_token "$plist_token"; then
+  # Fall back to the launchd plist token when openclaw.json has a placeholder
+  gateway_probe_cmd=(env OPENCLAW_GATEWAY_TOKEN="$plist_token")
 fi
 
 status_output="$("${gateway_probe_cmd[@]}" openclaw gateway status 2>&1 || true)"

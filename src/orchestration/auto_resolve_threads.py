@@ -291,6 +291,7 @@ def get_changed_file_hunks(
     Returns an empty dict if none of the above are available.
     """
     try:
+        ndjson = False
         if before_sha and after_sha:
             raw = gh([
                 "api",
@@ -298,12 +299,15 @@ def get_changed_file_hunks(
                 "--jq", "[.files[] | {filename, patch: (.patch // \"\")}]",
             ])
         elif pr_number is not None:
+            # --paginate outputs each page separately; use NDJSON-style filter (no outer [])
+            # so we can split on newlines rather than trying to parse "[...][...]".
             raw = gh([
                 "api",
                 f"repos/{owner}/{repo}/pulls/{pr_number}/files?per_page=100",
                 "--paginate",
-                "--jq", "[.[] | {filename, patch: (.patch // \"\")}]",
+                "--jq", ".[] | {filename, patch: (.patch // \"\")}",
             ])
+            ndjson = True
         elif branch:
             # Compare branch tip against HEAD to surface hunk-level changes
             raw = gh([
@@ -313,7 +317,12 @@ def get_changed_file_hunks(
             ])
         else:
             return {}
-        files = json.loads(raw) if raw.strip() else []
+        if not raw.strip():
+            files = []
+        elif ndjson:
+            files = [json.loads(line) for line in raw.strip().split("\n") if line.strip()]
+        else:
+            files = json.loads(raw)
     except Exception:
         return {}
 

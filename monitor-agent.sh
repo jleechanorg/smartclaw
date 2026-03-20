@@ -323,7 +323,7 @@ run_token_probes() {
     else
       code="$(curl -sS --max-time "$timeout" -o "$td/gateway.json" -w '%{http_code}' \
         -H "Authorization: Bearer $gateway_token" -H 'Accept: application/json' \
-        http://127.0.0.1:18789/health 2>/dev/null || true)"
+        "$HTTP_GATEWAY_URL" 2>/dev/null || true)"
       if [ "$code" = "200" ] && jq -e '.ok == true' "$td/gateway.json" >/dev/null 2>&1; then
         printf 'PASS:gateway.auth.token\n' > "$td/gateway"
       else
@@ -725,7 +725,7 @@ run_thread_reply_probe || true
 run_memory_lookup_probe || true
 
 PHASE1_REMEDIATION_ACTIONS=()
-if [ "$PHASE1_REMEDIATION_ENABLED" = "1" ]; then
+if [ "$PHASE1_REMEDIATION_ENABLED" = "1" ] && [ "$(uname)" = "Darwin" ]; then
   if [ "$HTTP_GATEWAY_RC" -ne 0 ]; then
     # SAFE: use launchctl directly — never 'gateway restart/install' which may regenerate plist and wipe real secrets
     launchctl unload "$HOME/Library/LaunchAgents/ai.openclaw.gateway.plist" >> "$LOG_FILE" 2>&1 || true
@@ -936,8 +936,13 @@ if [ "$DOCTOR_SH_ENABLED" = "1" ]; then
   if [ "$SHOULD_RUN_DOCTOR_SH" -eq 1 ]; then
     if DOCTOR_SH_PATH="$(resolve_doctor_sh_path)"; then
       DOCTOR_SH_RAN=1
-      # Skip inference probe: monitor already runs a canary E2E test for LLM reachability.
-      DOCTOR_SH_OUTPUT="$(OPENCLAW_DOCTOR_SKIP_INFERENCE=1 bash "$DOCTOR_SH_PATH" 2>&1)"
+      # Skip inference probe in doctor.sh only when the monitor itself runs an inference probe;
+      # if the monitor's own probe is disabled, let doctor.sh perform the LLM round-trip.
+      if [ "$INFERENCE_PROBE_ENABLED" = "1" ]; then
+        DOCTOR_SH_OUTPUT="$(OPENCLAW_DOCTOR_SKIP_INFERENCE=1 bash "$DOCTOR_SH_PATH" 2>&1)"
+      else
+        DOCTOR_SH_OUTPUT="$(bash "$DOCTOR_SH_PATH" 2>&1)"
+      fi
       DOCTOR_SH_RC=$?
       if [ "$DOCTOR_SH_RC" -eq 0 ]; then
         DOCTOR_SH_LEVEL="good"
