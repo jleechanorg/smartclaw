@@ -55,7 +55,7 @@ def get_review_threads(owner: str, repo: str, pr_number: int) -> list[dict]:
 
     Args:
         owner: Repository owner (e.g., "jleechanorg")
-        repo: Repository name (e.g., "jleechanclaw")
+        repo: Repository name (e.g., "smartclaw")
         pr_number: PR number
 
     Returns:

@@ -67,7 +67,7 @@ echo "[agento-manager] Starting notifier..."
 NOTIFIER_SCRIPT="${AO_NOTIFIER_SCRIPT:-$HOME/.openclaw/scripts/agento-notifier.py}"
 if [[ -f "$NOTIFIER_SCRIPT" ]]; then
     echo "[agento-manager] Starting notifier from $NOTIFIER_SCRIPT..."
-    /opt/homebrew/bin/python3 "$NOTIFIER_SCRIPT"
+    python3 "$NOTIFIER_SCRIPT"
 else
     echo "[agento-manager] ERROR: Notifier script not found at $NOTIFIER_SCRIPT"
     exit 1
@@ -76,9 +76,9 @@ fi</string>
 	<key>RunAtLoad</key>
 	<true/>
 	<key>StandardErrorPath</key>
-	<string>/tmp/agento-manager.err.log</string>
+	<string>@HOME@/.openclaw/logs/agento-manager.err.log</string>
 	<key>StandardOutPath</key>
-	<string>/tmp/agento-manager.log</string>
+	<string>@HOME@/.openclaw/logs/agento-manager.log</string>
 	<key>WorkingDirectory</key>
 	<string>@HOME@</string>
 </dict>

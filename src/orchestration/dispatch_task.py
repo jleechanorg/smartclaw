@@ -57,7 +57,7 @@ def register_agent_mcp_mail(
 
     Args:
         session_name: The AO session ID (e.g., 'ao-session-pr-237')
-        project: Project name (e.g., 'jleechanclaw')
+        project: Project name (e.g., 'smartclaw')
         pr_number: Optional PR number for display name
         agent_cli: Agent CLI program ('claude', 'codex', 'cursor')
 

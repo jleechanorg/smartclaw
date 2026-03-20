@@ -30,15 +30,16 @@ echo "Coverage threshold: ${COVERAGE_THRESHOLD}%"
 echo ""
 
 # Function to run tests with error handling
+# Arguments: test_name emoji cmd [args...]
 run_test() {
     local test_name="$1"
-    local command="$2"
-    local emoji="$3"
+    local emoji="$2"
+    shift 2
 
     echo -e "\n${BLUE}${emoji} Running ${test_name}...${NC}"
-    echo "Command: $command"
+    echo "Command: $*"
 
-    if bash -c "$command"; then
+    if "$@"; then
         echo -e "${GREEN}✅ ${test_name}: PASSED${NC}"
         return 0
     else
@@ -54,21 +55,21 @@ overall_status=0
 case "$TEST_MODE" in
     "fast"|"unit")
         echo -e "${BLUE}⚡ Running fast unit tests${NC}"
-        if ! run_test "Unit Tests" "pnpm test:fast" "⚡"; then
+        if ! run_test "Unit Tests" "⚡" pnpm test:fast; then
             overall_status=1
         fi
         ;;
 
     "e2e")
         echo -e "${BLUE}🔄 Running end-to-end tests${NC}"
-        if ! run_test "E2E Tests" "pnpm test:e2e" "🔄"; then
+        if ! run_test "E2E Tests" "🔄" pnpm test:e2e; then
             overall_status=1
         fi
         ;;
 
     "coverage")
         echo -e "${BLUE}📊 Running tests with coverage${NC}"
-        if ! run_test "Coverage Tests" "pnpm test:coverage" "📊"; then
+        if ! run_test "Coverage Tests" "📊" pnpm test:coverage; then
             overall_status=1
         fi
 
@@ -84,25 +85,25 @@ case "$TEST_MODE" in
 
         # Build first
         echo -e "\n${BLUE}🔨 Building project${NC}"
-        if ! run_test "Build" "pnpm build" "🔨"; then
+        if ! run_test "Build" "🔨" pnpm build; then
             overall_status=1
         fi
 
         # Run all tests
-        if ! run_test "Full Test Suite" "pnpm test" "🧪"; then
+        if ! run_test "Full Test Suite" "🧪" pnpm test; then
             overall_status=1
         fi
 
         # Run coverage
         echo -e "\n${BLUE}📊 Generating coverage report${NC}"
-        if ! run_test "Coverage Report" "pnpm test:coverage" "📊"; then
+        if ! run_test "Coverage Report" "📊" pnpm test:coverage; then
             overall_status=1
         fi
         ;;
 
     "docker")
         echo -e "${BLUE}🐳 Running Docker-based tests${NC}"
-        if ! run_test "Docker Tests" "pnpm test:docker:all" "🐳"; then
+        if ! run_test "Docker Tests" "🐳" pnpm test:docker:all; then
             overall_status=1
         fi
         ;;

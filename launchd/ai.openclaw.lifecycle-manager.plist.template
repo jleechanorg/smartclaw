@@ -48,9 +48,9 @@ wait</string>
 	<key>RunAtLoad</key>
 	<true/>
 	<key>StandardErrorPath</key>
-	<string>/tmp/ao-lifecycle-manager.err.log</string>
+	<string>@HOME@/.openclaw/logs/ao-lifecycle-manager.err.log</string>
 	<key>StandardOutPath</key>
-	<string>/tmp/ao-lifecycle-manager.log</string>
+	<string>@HOME@/.openclaw/logs/ao-lifecycle-manager.log</string>
 	<key>WorkingDirectory</key>
 	<string>@HOME@</string>
 	<key>ThrottleInterval</key>

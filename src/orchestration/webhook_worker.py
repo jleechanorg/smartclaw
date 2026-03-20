@@ -36,7 +36,7 @@ def _repo_to_project_key(repo_full_name: str) -> str:
                 return key
     except Exception:
         pass
-    # Fallback: last path component (e.g. "jleechanorg/jleechanclaw" → "jleechanclaw")
+    # Fallback: last path component (e.g. "owner/repo" → "repo")
     return repo_full_name.split("/")[-1]
 
 

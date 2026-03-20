@@ -58,7 +58,7 @@ def parse_tmux_session_line(line: str) -> Optional[Dict[str, Any]]:
     Parse a tmux list-sessions line to extract session info.
     
     Expected format:
-    jc-123  /tmp/worktrees/jleechanclaw/pr-123  (1) (04/02 14:30:25) (0)  /tmp/worktrees/jleechanclaw/pr-123 [branch: fix-bug]
+    jc-123  /tmp/worktrees/smartclaw/pr-123  (1) (04/02 14:30:25) (0)  /tmp/worktrees/smartclaw/pr-123 [branch: fix-bug]
     
     Returns dict with:
     - session_name: str
