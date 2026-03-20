@@ -55,7 +55,6 @@ def register_agent_mcp_mail(
     """
     try:
         import json
-        import subprocess
 
         # Map agent_cli to program name
         program_map = {

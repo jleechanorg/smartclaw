@@ -53,14 +53,19 @@ jobs:
 
             for (const pr of prs) {
               // Skip if we already pinged within the dedup window to avoid comment spam
-              const { data: recentComments } = await github.rest.issues.listComments({
-                owner, repo, issue_number: pr.number, per_page: 20,
+              // Use paginate to get recent comments; stop early once past the dedup window
+              let alreadyPinged = false;
+              const allComments = await github.paginate(github.rest.issues.listComments, {
+                owner, repo, issue_number: pr.number, per_page: 100,
               });
-              const alreadyPinged = recentComments.some(c =>
-                c.user.login === 'github-actions[bot]' &&
-                c.body.trim() === body &&
-                Date.now() - new Date(c.created_at).getTime() < dedupeWindowMs
-              );
+              for (const c of allComments.reverse()) {
+                const age = Date.now() - new Date(c.created_at).getTime();
+                if (age > dedupeWindowMs) break; // comments are oldest-first, so stop when past window
+                if (c.user.login === 'github-actions[bot]' && c.body.trim() === body) {
+                  alreadyPinged = true;
+                  break;
+                }
+              }
               if (alreadyPinged) {
                 core.info(`Already pinged CodeRabbit on PR #${pr.number} within dedup window; skipping.`);
                 continue;
