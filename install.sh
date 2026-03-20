@@ -69,8 +69,12 @@ fi
 
 echo
 echo "==> Installing smartclaw"
-"$PYTHON_BIN" -m pip install --upgrade --no-cache-dir . || {
+# Use --user to avoid PEP 668 externally-managed-environment errors on modern distros.
+# If inside an active virtualenv, --user is harmless (pip ignores it in venvs).
+"$PYTHON_BIN" -m pip install --upgrade --no-cache-dir --user . || {
     echo "ERROR: Failed to install package" >&2
+    echo "Tip: If this fails, activate a virtual environment first:" >&2
+    echo "  python3 -m venv .venv && source .venv/bin/activate && bash install.sh" >&2
     exit 1
 }
 

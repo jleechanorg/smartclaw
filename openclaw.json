@@ -176,11 +176,11 @@
     "elevated": {
       "enabled": false,
       "allowFrom": {
-        "slack": ["*"],
-        "whatsapp": ["*"],
-        "mcp": ["*"],
-        "telegram": ["*"],
-        "googlechat": ["*"]
+        "slack": [],
+        "whatsapp": [],
+        "mcp": [],
+        "telegram": [],
+        "googlechat": []
       }
     },
     "exec": {
