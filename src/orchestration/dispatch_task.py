@@ -560,13 +560,15 @@ def _unique_session_name(bead_id: str, session_name: str) -> str:
 
 def _make_async_session_name(agent_cli: str, repo_root: str) -> str:
     cwd_hash = hashlib.md5(os.path.realpath(repo_root).encode()).hexdigest()[:6]
-    return f"ai-{agent_cli}-{cwd_hash}"
+    uid = uuid.uuid4().hex[:6]
+    return f"ai-{agent_cli}-{cwd_hash}-{uid}"
 
 
 def _create_new_worktree(repo_root: str, worktree_base: str) -> tuple[str, str]:
     """Create a fresh worktree + branch for direct CLI dispatch."""
     os.makedirs(worktree_base, exist_ok=True)
-    branch = f"ai-orch-{int(time.time()) % 100000}"
+    uid = uuid.uuid4().hex[:6]
+    branch = f"ai-orch-{int(time.time()) % 100000}-{uid}"
     worktree_path = os.path.join(worktree_base, branch)
     result = subprocess.run(
         ["git", "worktree", "add", "-b", branch, worktree_path],
@@ -894,6 +896,11 @@ def main() -> None:
         default=".tracking/bead_session_registry.jsonl",
         help="Path to bead session registry JSONL",
     )
+    parser.add_argument(
+        "--branch",
+        default="",
+        help="Branch name to target (optional; enables branch-targeted dispatch)",
+    )
     args = parser.parse_args()
 
     try:
@@ -905,6 +912,7 @@ def main() -> None:
             agent_cli=args.agent_cli,
             repo_root=args.repo_root,
             registry_path=args.registry_path,
+            branch=args.branch,
         )
         print(f"dispatched bead={mapping.bead_id} session={mapping.session_name} worktree={mapping.worktree_path}")
     except Exception as exc:
