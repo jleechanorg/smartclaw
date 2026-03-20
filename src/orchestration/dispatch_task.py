@@ -91,14 +91,14 @@ def register_agent_mcp_mail(
         )
 
         if result.returncode == 0:
-            logger.info(f"Registered agent {session_name} with MCP mail")
+            logger.info("Registered agent %s with MCP mail", session_name)
             return True
         else:
-            logger.warning(f"MCP mail registration failed: {result.stderr}")
+            logger.warning("MCP mail registration failed: %s", result.stderr)
             return False
 
     except Exception as e:
-        logger.warning(f"MCP mail registration error (non-blocking): {e}")
+        logger.warning("MCP mail registration error (non-blocking): %s", e)
         return False
 
 
@@ -358,7 +358,8 @@ def _resolve_target_repo(task: str, default_repo_root: str) -> tuple[str, str]:
     """Resolve the target repo for cross-repo tasks.
 
     Returns (repo_root, worktree_path) for the target repo.
-    worktree_path is only set when a pre-existing worktree is intentionally reused.
+    worktree_path is always "" — it is returned for future extensibility when
+    pre-existing worktree reuse is implemented.
     If no resolvable cross-repo target exists, returns ("", "").
     """
     if not _is_cross_repo_task(task):
