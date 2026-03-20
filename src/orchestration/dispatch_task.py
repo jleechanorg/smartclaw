@@ -325,7 +325,7 @@ _CROSS_REPO_CONTEXT = """
 ## CROSS-REPO PR PATTERN (IMPORTANT)
 When the task involves making a PR to a DIFFERENT REPO than your current worktree:
 - DO NOT clone the target repo into a subdirectory
-- DO NOT work in the current jleechanclaw worktree
+- DO NOT work in the current harness worktree
 - Instead: create a NEW worktree FOR the target repo as a sibling directory
 - Work directly in that repo's worktree
 - Commit and push directly to that repo

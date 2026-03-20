@@ -8,7 +8,7 @@
     "PATH": "${PATH}",
     "MISSION_CONTROL_BASE_URL": "http://localhost:9010",
     "MISSION_CONTROL_BOARD_ID": "${BOARD_ID}",
-    "OPENCLAW_RAW_STREAM": "1",
+    "OPENCLAW_RAW_STREAM": "0",
     "OPENCLAW_RAW_STREAM_PATH": "/tmp/openclaw/raw-stream.jsonl",
     "XAI_API_KEY": "${XAI_API_KEY}",
     "OPENCLAW_SLACK_BOT_TOKEN": "${SLACK_BOT_TOKEN}",
@@ -233,9 +233,8 @@
   "hooks": {
     "enabled": true,
     "token": "${HOOKS_TOKEN}",
-    "allowRequestSessionKey": true,
+    "allowRequestSessionKey": false,
     "allowedSessionKeyPrefixes": [
-      "hook:",
       "hook:ao:",
       "hook:mctrl:"
     ]
@@ -260,8 +259,8 @@
         "inheritParent": true,
         "initialHistoryLimit": 50
       },
-      "dmPolicy": "open",
-      "allowFrom": ["*"]
+      "dmPolicy": "allowlist",
+      "allowFrom": []
     }
   },
   "gateway": {
