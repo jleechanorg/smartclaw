@@ -921,54 +921,6 @@ If mode is diagnose_only, return:
   _PHASE2_BG_PID=$!
 fi
 
-if [ "$FORCE_PROBLEM" -eq 1 ] && [ "$PHASE2_ENABLED" = "1" ] && [ "$PHASE2_AUTOFIX_ENABLED" = "1" ] && [ "$PHASE2_RC" -eq 0 ]; then
-  PROBE_REQUEST_OUTPUT="$("$OPENCLAW_BIN" message read --channel slack --target "$PROBE_SLACK_TARGET" --limit 1 --json 2>&1)"
-  PROBE_REQUEST_RC=$?
-  PROBE_REQUEST_SUMMARY="$(printf '%s\n' "$PROBE_REQUEST_OUTPUT" | rg -m1 '"ts"|"timestampUtc"|"thread_ts"|^Error|^gateway connect failed' || true)"
-  if [ -z "$PROBE_REQUEST_SUMMARY" ]; then
-    PROBE_REQUEST_SUMMARY="$(printf '%s\n' "$PROBE_REQUEST_OUTPUT" | head -n 1)"
-  fi
-  PROBE_REQUEST_SUMMARY="$(printf '%s\n' "$PROBE_REQUEST_SUMMARY" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | cut -c1-240)"
-
-  GATEWAY_PROBE_TEXT="OpenClaw monitor recheck after phase 2: $(date '+%Y-%m-%d %H:%M:%S %Z')"
-  GATEWAY_PROBE_OUTPUT="$("$OPENCLAW_BIN" message send --channel slack --target "$GATEWAY_PROBE_TARGET" --message "$GATEWAY_PROBE_TEXT" --json 2>&1)"
-  GATEWAY_PROBE_RC=$?
-  GATEWAY_PROBE_SUMMARY="$(printf '%s\n' "$GATEWAY_PROBE_OUTPUT" | rg -m1 '"messageId"|"ts"|"ok"|^Error|^gateway connect failed' || true)"
-  if [ -z "$GATEWAY_PROBE_SUMMARY" ]; then
-    GATEWAY_PROBE_SUMMARY="$(printf '%s\n' "$GATEWAY_PROBE_OUTPUT" | head -n 1)"
-  fi
-  GATEWAY_PROBE_SUMMARY="$(printf '%s\n' "$GATEWAY_PROBE_SUMMARY" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | cut -c1-240)"
-
-  HTTP_GATEWAY_OUTPUT="$(
-    curl -sS -X GET "$HTTP_GATEWAY_URL" \
-      -H "X-OpenClaw-Monitor-Message: [monitor-http-probe-post-phase2] $(date '+%Y-%m-%d %H:%M:%S %Z')" \
-      -H "Accept: application/json" \
-      -w '\nHTTP_STATUS:%{http_code}' 2>&1
-  )"
-  HTTP_GATEWAY_RC=$?
-  HTTP_GATEWAY_SUMMARY="$(printf '%s\n' "$HTTP_GATEWAY_OUTPUT" | rg -m1 'HTTP_STATUS:|\"ok\"|\"status\"|^curl:|^Error' || true)"
-  if [ -z "$HTTP_GATEWAY_SUMMARY" ]; then
-    HTTP_GATEWAY_SUMMARY="$(printf '%s\n' "$HTTP_GATEWAY_OUTPUT" | head -n 1)"
-  fi
-  HTTP_GATEWAY_SUMMARY="$(printf '%s\n' "$HTTP_GATEWAY_SUMMARY" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | cut -c1-240)"
-  HTTP_GATEWAY_STATUS="$(printf '%s\n' "$HTTP_GATEWAY_OUTPUT" | rg -o 'HTTP_STATUS:[0-9]+' | tail -n1 | cut -d: -f2)"
-  if [ -z "$HTTP_GATEWAY_STATUS" ]; then
-    HTTP_GATEWAY_STATUS="0"
-  fi
-  if [ "$HTTP_GATEWAY_STATUS" -lt 200 ] || [ "$HTTP_GATEWAY_STATUS" -ge 300 ]; then
-    HTTP_GATEWAY_RC=1
-  fi
-
-  run_token_probes || true
-  run_thread_reply_probe || true
-  run_memory_lookup_probe || true
-  collect_force_reasons
-  FORCE_PROBLEM=0
-  if [ "${#FORCE_REASONS[@]}" -gt 0 ]; then
-    FORCE_PROBLEM=1
-  fi
-fi
-
 DOCTOR_SH_RAN=0
 DOCTOR_SH_RC=0
 DOCTOR_SH_PATH=""
@@ -1061,6 +1013,54 @@ if [ "${_PHASE2_BG_PID:-}" != "" ]; then
     PHASE2_REMEDIATION_ACTIONS+=("phase2_invoked_ok mode=$PHASE2_MODE via=ai_orch")
   else
     PHASE2_REMEDIATION_ACTIONS+=("phase2_invoked_failed rc=$PHASE2_RC via=ai_orch")
+  fi
+fi
+
+if [ "$FORCE_PROBLEM" -eq 1 ] && [ "$PHASE2_ENABLED" = "1" ] && [ "$PHASE2_AUTOFIX_ENABLED" = "1" ] && [ "$PHASE2_RC" -eq 0 ]; then
+  PROBE_REQUEST_OUTPUT="$("$OPENCLAW_BIN" message read --channel slack --target "$PROBE_SLACK_TARGET" --limit 1 --json 2>&1)"
+  PROBE_REQUEST_RC=$?
+  PROBE_REQUEST_SUMMARY="$(printf '%s\n' "$PROBE_REQUEST_OUTPUT" | rg -m1 '"ts"|"timestampUtc"|"thread_ts"|^Error|^gateway connect failed' || true)"
+  if [ -z "$PROBE_REQUEST_SUMMARY" ]; then
+    PROBE_REQUEST_SUMMARY="$(printf '%s\n' "$PROBE_REQUEST_OUTPUT" | head -n 1)"
+  fi
+  PROBE_REQUEST_SUMMARY="$(printf '%s\n' "$PROBE_REQUEST_SUMMARY" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | cut -c1-240)"
+
+  GATEWAY_PROBE_TEXT="OpenClaw monitor recheck after phase 2: $(date '+%Y-%m-%d %H:%M:%S %Z')"
+  GATEWAY_PROBE_OUTPUT="$("$OPENCLAW_BIN" message send --channel slack --target "$GATEWAY_PROBE_TARGET" --message "$GATEWAY_PROBE_TEXT" --json 2>&1)"
+  GATEWAY_PROBE_RC=$?
+  GATEWAY_PROBE_SUMMARY="$(printf '%s\n' "$GATEWAY_PROBE_OUTPUT" | rg -m1 '"messageId"|"ts"|"ok"|^Error|^gateway connect failed' || true)"
+  if [ -z "$GATEWAY_PROBE_SUMMARY" ]; then
+    GATEWAY_PROBE_SUMMARY="$(printf '%s\n' "$GATEWAY_PROBE_OUTPUT" | head -n 1)"
+  fi
+  GATEWAY_PROBE_SUMMARY="$(printf '%s\n' "$GATEWAY_PROBE_SUMMARY" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | cut -c1-240)"
+
+  HTTP_GATEWAY_OUTPUT="$(
+    curl -sS -X GET "$HTTP_GATEWAY_URL" \
+      -H "X-OpenClaw-Monitor-Message: [monitor-http-probe-post-phase2] $(date '+%Y-%m-%d %H:%M:%S %Z')" \
+      -H "Accept: application/json" \
+      -w '\nHTTP_STATUS:%{http_code}' 2>&1
+  )"
+  HTTP_GATEWAY_RC=$?
+  HTTP_GATEWAY_SUMMARY="$(printf '%s\n' "$HTTP_GATEWAY_OUTPUT" | rg -m1 'HTTP_STATUS:|\"ok\"|\"status\"|^curl:|^Error' || true)"
+  if [ -z "$HTTP_GATEWAY_SUMMARY" ]; then
+    HTTP_GATEWAY_SUMMARY="$(printf '%s\n' "$HTTP_GATEWAY_OUTPUT" | head -n 1)"
+  fi
+  HTTP_GATEWAY_SUMMARY="$(printf '%s\n' "$HTTP_GATEWAY_SUMMARY" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | cut -c1-240)"
+  HTTP_GATEWAY_STATUS="$(printf '%s\n' "$HTTP_GATEWAY_OUTPUT" | rg -o 'HTTP_STATUS:[0-9]+' | tail -n1 | cut -d: -f2)"
+  if [ -z "$HTTP_GATEWAY_STATUS" ]; then
+    HTTP_GATEWAY_STATUS="0"
+  fi
+  if [ "$HTTP_GATEWAY_STATUS" -lt 200 ] || [ "$HTTP_GATEWAY_STATUS" -ge 300 ]; then
+    HTTP_GATEWAY_RC=1
+  fi
+
+  run_token_probes || true
+  run_thread_reply_probe || true
+  run_memory_lookup_probe || true
+  collect_force_reasons
+  FORCE_PROBLEM=0
+  if [ "${#FORCE_REASONS[@]}" -gt 0 ]; then
+    FORCE_PROBLEM=1
   fi
 fi
 
