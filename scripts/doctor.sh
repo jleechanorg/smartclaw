@@ -607,6 +607,15 @@ if [[ "$live_json_ok" -eq 1 ]]; then
   fi
 fi
 
+# Resolve a usable timeout command: prefer GNU timeout, fall back to gtimeout (macOS/coreutils)
+if command -v timeout >/dev/null 2>&1; then
+  TIMEOUT_CMD="timeout"
+elif command -v gtimeout >/dev/null 2>&1; then
+  TIMEOUT_CMD="gtimeout"
+else
+  TIMEOUT_CMD=""
+fi
+
 # Live end-to-end probes (Slack send, MCP tools/list, gateway inference)
 if command -v openclaw >/dev/null 2>&1; then
   PROBE_TIMEOUT=15
@@ -626,12 +635,16 @@ if command -v openclaw >/dev/null 2>&1; then
   OPENCLAW_MCP_BIN="$(npm root -g 2>/dev/null)/openclaw-mcp/dist/index.js"
   if [[ -f "$OPENCLAW_MCP_BIN" ]]; then
     mcp_init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"doctor","version":"0.1.0"}}}'
-    mcp_out="$(printf '%s\n' "$mcp_init" | timeout "$PROBE_TIMEOUT" node "$OPENCLAW_MCP_BIN" 2>&1)"
-    mcp_rc=$?
-    if printf '%s\n' "$mcp_out" | grep -q '"protocolVersion"'; then
-      pass "OpenClaw MCP adapter initialize handshake succeeded"
+    if [[ -z "$TIMEOUT_CMD" ]]; then
+      warn "OpenClaw MCP adapter probe skipped — neither 'timeout' nor 'gtimeout' available (install GNU coreutils)"
     else
-      fail "OpenClaw MCP adapter probe failed (rc=$mcp_rc): $(printf '%s\n' "$mcp_out" | grep -v '^\[openclaw' | head -1)"
+      mcp_out="$(printf '%s\n' "$mcp_init" | $TIMEOUT_CMD "$PROBE_TIMEOUT" node "$OPENCLAW_MCP_BIN" 2>&1)"
+      mcp_rc=$?
+      if printf '%s\n' "$mcp_out" | grep -q '"protocolVersion"'; then
+        pass "OpenClaw MCP adapter initialize handshake succeeded"
+      else
+        fail "OpenClaw MCP adapter probe failed (rc=$mcp_rc): $(printf '%s\n' "$mcp_out" | grep -v '^\[openclaw' | head -1)"
+      fi
     fi
   else
     warn "OpenClaw MCP binary not found at expected path; skipped MCP adapter probe"
@@ -645,15 +658,19 @@ if command -v openclaw >/dev/null 2>&1; then
   if [[ "${OPENCLAW_DOCTOR_SKIP_INFERENCE:-0}" == "1" ]]; then
     warn "Gateway inference probe skipped (OPENCLAW_DOCTOR_SKIP_INFERENCE=1)"
   else
-    infer_out="$(timeout "$INFER_TIMEOUT" openclaw agent --agent main --thinking off \
-      --timeout "$INFER_TIMEOUT" --message "Reply with exactly one word: pong" 2>&1)"
-    infer_rc=$?
-    if [[ "$infer_rc" -eq 0 && -n "$infer_out" ]]; then
-      pass "Gateway inference probe succeeded (response: $(printf '%s' "$infer_out" | tr '\n' ' ' | cut -c1-40))"
-    elif [[ "$infer_rc" -eq 124 ]]; then
-      warn "Gateway inference probe timed out after ${INFER_TIMEOUT}s — gateway is running but model cold-start is slow"
+    if [[ -z "$TIMEOUT_CMD" ]]; then
+      warn "Gateway inference probe skipped — neither 'timeout' nor 'gtimeout' available (install GNU coreutils)"
     else
-      fail "Gateway inference probe failed (rc=$infer_rc): $(printf '%s\n' "$infer_out" | head -1)"
+      infer_out="$($TIMEOUT_CMD "$INFER_TIMEOUT" openclaw agent --agent main --thinking off \
+        --timeout "$INFER_TIMEOUT" --message "Reply with exactly one word: pong" 2>&1)"
+      infer_rc=$?
+      if [[ "$infer_rc" -eq 0 && -n "$infer_out" ]]; then
+        pass "Gateway inference probe succeeded (response: $(printf '%s' "$infer_out" | tr '\n' ' ' | cut -c1-40))"
+      elif [[ "$infer_rc" -eq 124 ]]; then
+        warn "Gateway inference probe timed out after ${INFER_TIMEOUT}s — gateway is running but model cold-start is slow"
+      else
+        fail "Gateway inference probe failed (rc=$infer_rc): $(printf '%s\n' "$infer_out" | head -1)"
+      fi
     fi
   fi
 
@@ -661,21 +678,25 @@ if command -v openclaw >/dev/null 2>&1; then
   if [[ "${OPENCLAW_DOCTOR_SKIP_MEMORY:-0}" == "1" ]]; then
     warn "Memory lookup probe skipped (OPENCLAW_DOCTOR_SKIP_MEMORY=1)"
   else
-    memory_out="$(timeout 30 openclaw memory search "test" 2>&1)"
-    memory_rc=$?
-    # Check for NODE_MODULE_VERSION mismatch errors (better-sqlite3)
-    if printf '%s\n' "$memory_out" | grep -qi "NODE_MODULE_VERSION\|MODULE_VERSION\|better-sqlite3"; then
-      fail "Memory lookup failed: better-sqlite3 Node module version mismatch detected"
-    elif [[ "$memory_rc" -ne 0 ]]; then
-      fail "Memory lookup command failed (rc=$memory_rc)"
-    elif printf '%s\n' "$memory_out" | grep -qE '^\s*[0-9]+\.'; then
-      # Results start with a score like "0.531" — memory search working
-      pass "Memory lookup probe succeeded (found results)"
-    elif printf '%s\n' "$memory_out" | grep -qi "No matches"; then
-      # "No matches" means search works but corpus is empty - this is OK
-      pass "Memory lookup probe succeeded (search functional, corpus empty)"
+    if [[ -z "$TIMEOUT_CMD" ]]; then
+      warn "Memory lookup probe skipped — neither 'timeout' nor 'gtimeout' available (install GNU coreutils)"
     else
-      warn "Memory lookup returned no searchable results (may be empty corpus)"
+      memory_out="$($TIMEOUT_CMD 30 openclaw memory search "test" 2>&1)"
+      memory_rc=$?
+      # Check for NODE_MODULE_VERSION mismatch errors (better-sqlite3)
+      if printf '%s\n' "$memory_out" | grep -qi "NODE_MODULE_VERSION\|MODULE_VERSION\|better-sqlite3"; then
+        fail "Memory lookup failed: better-sqlite3 Node module version mismatch detected"
+      elif [[ "$memory_rc" -ne 0 ]]; then
+        fail "Memory lookup command failed (rc=$memory_rc)"
+      elif printf '%s\n' "$memory_out" | grep -qE '^\s*[0-9]+\.'; then
+        # Results start with a score like "0.531" — memory search working
+        pass "Memory lookup probe succeeded (found results)"
+      elif printf '%s\n' "$memory_out" | grep -qi "No matches"; then
+        # "No matches" means search works but corpus is empty - this is OK
+        pass "Memory lookup probe succeeded (search functional, corpus empty)"
+      else
+        warn "Memory lookup returned no searchable results (may be empty corpus)"
+      fi
     fi
   fi
 fi

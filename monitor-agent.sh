@@ -343,7 +343,7 @@ run_token_probes() {
         -H "Authorization: Bearer $slack_bot_token" \
         -H 'Content-Type: application/x-www-form-urlencoded' \
         -o "$td/slack_bot.json" -w '%{http_code}' \
-        'https://slack.com/api/auth.test' 2>/dev/null || true)"
+        "$SLACK_API_BASE/auth.test" 2>/dev/null || true)"
       if [ "$code" = "200" ] && jq -e '.ok == true' "$td/slack_bot.json" >/dev/null 2>&1; then
         printf 'PASS:channels.slack.botToken\n' > "$td/slack_bot"
       else
@@ -363,7 +363,7 @@ run_token_probes() {
         -H "Authorization: Bearer $slack_app_token" \
         -H 'Content-Type: application/x-www-form-urlencoded' \
         -o "$td/slack_app.json" -w '%{http_code}' \
-        'https://slack.com/api/apps.connections.open' 2>/dev/null || true)"
+        "$SLACK_API_BASE/apps.connections.open" 2>/dev/null || true)"
       if [ "$code" = "200" ] && jq -e '.ok == true' "$td/slack_app.json" >/dev/null 2>&1; then
         printf 'PASS:channels.slack.appToken\n' > "$td/slack_app"
       else

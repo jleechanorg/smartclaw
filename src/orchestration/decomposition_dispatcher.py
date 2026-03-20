@@ -9,6 +9,7 @@ This module provides the DecompositionDispatcher class which handles:
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -93,27 +94,34 @@ class DecompositionDispatcher:
             return []
 
         results: list[DispatchResult] = []
-        active_count = 0
 
         # Update task status to in_progress after spawning begins
         task.status = "in_progress"
 
-        for subtask in task.subtasks:
-            # Respect parallelism limit: decrement counter to allow next spawn
-            # (synchronous implementation — no async waiting needed)
-            if active_count >= self._max_parallel:
-                active_count -= 1
+        # Dispatch subtasks with bounded concurrency via a thread pool.
+        # Each spawn() call may block on network I/O, so threads provide real
+        # parallelism up to max_parallel.
+        subtask_map = {st.subtask_id: st for st in task.subtasks}
+        with ThreadPoolExecutor(max_workers=self._max_parallel) as executor:
+            future_to_subtask_id = {
+                executor.submit(self._spawn_with_retry, st.subtask_id, st.description): st.subtask_id
+                for st in task.subtasks
+            }
+            for future in as_completed(future_to_subtask_id):
+                subtask_id = future_to_subtask_id[future]
+                result = future.result()
+                results.append(result)
 
-            # Try to spawn with retry
-            result = self._spawn_with_retry(subtask.subtask_id, subtask.description)
-            results.append(result)
+                if result.session_id is not None:
+                    # Success path: link session to subtask
+                    self._tracker.link_session(subtask_id, result.session_id)
+                elif result.blocked:
+                    # Failure path: mark subtask as failed so orchestration
+                    # does not redispatch or misreport it as still pending.
+                    subtask = subtask_map[subtask_id]
+                    subtask.status = "failed"
 
-            if result.session_id is not None:
-                # Link session to subtask
-                self._tracker.link_session(subtask.subtask_id, result.session_id)
-                active_count += 1
-
-        # Persist state changes
+        # Persist state changes (includes blocked subtask status updates)
         self._tracker.save()
         return results
 
@@ -133,7 +141,7 @@ class DecompositionDispatcher:
         """
         # Transient failure types that are safe to retry without risk of duplicate sessions.
         # Configuration bugs, bad arguments, and permission errors are not transient and
-        # should propagate immediately rather than being silently downgraded to blocked=True.
+        # are immediately downgraded to blocked=True without a retry attempt.
         _TRANSIENT = (TimeoutError, ConnectionError, OSError)
 
         try:
@@ -144,7 +152,7 @@ class DecompositionDispatcher:
                 error=None,
                 blocked=False,
             )
-        except _TRANSIENT as e:
+        except _TRANSIENT:
             # Retry once on transient transport/timeout errors
             try:
                 session_id = self._ao_cli.spawn(self._project_id, subtask_id)
@@ -162,6 +170,14 @@ class DecompositionDispatcher:
                     error=str(retry_error),
                     blocked=True,
                 )
+        except Exception as e:
+            # Non-transient failure: do not retry, mark blocked immediately
+            return DispatchResult(
+                subtask_id=subtask_id,
+                session_id=None,
+                error=str(e),
+                blocked=True,
+            )
 
 
 def dispatch_subtasks(

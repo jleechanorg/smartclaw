@@ -129,13 +129,14 @@ def test_parallel_limit_custom_value(temp_state_dir, tasks_file, mock_ao_cli) ->
 
 
 def test_retry_on_first_spawn_failure(temp_state_dir, tasks_file, mock_ao_cli) -> None:
-    """Failed spawn should be retried once before marking blocked."""
+    """Transient failure on first spawn should be retried once."""
     from orchestration.task_tracker import TaskTracker
 
     tracker = TaskTracker(tasks_path=tasks_file)
     task_id = tracker.create_task("Test task", ["S1"])
 
-    mock_ao_cli.spawn.side_effect = [Exception("AO CLI error"), "session-retry"]
+    # OSError is a transient failure type that triggers a retry
+    mock_ao_cli.spawn.side_effect = [OSError("network error"), "session-retry"]
 
     dispatcher = DecompositionDispatcher(tracker=tracker, ao_cli=mock_ao_cli, max_parallel=4)
     results = dispatcher.dispatch_subtasks(task_id)
@@ -146,13 +147,14 @@ def test_retry_on_first_spawn_failure(temp_state_dir, tasks_file, mock_ao_cli) -
 
 
 def test_mark_blocked_after_retry_exhausted(temp_state_dir, tasks_file, mock_ao_cli) -> None:
-    """Subtask should be marked blocked after retry also fails."""
+    """Subtask should be marked blocked after transient retry also fails."""
     from orchestration.task_tracker import TaskTracker
 
     tracker = TaskTracker(tasks_path=tasks_file)
     task_id = tracker.create_task("Test task", ["S1"])
 
-    mock_ao_cli.spawn.side_effect = [Exception("Error 1"), Exception("Error 2")]
+    # Both failures are transient: first triggers retry, second exhausts it
+    mock_ao_cli.spawn.side_effect = [OSError("Error 1"), OSError("Error 2")]
 
     dispatcher = DecompositionDispatcher(tracker=tracker, ao_cli=mock_ao_cli, max_parallel=4)
     results = dispatcher.dispatch_subtasks(task_id)
@@ -169,15 +171,33 @@ def test_multiple_subtasks_some_blocked(temp_state_dir, tasks_file, mock_ao_cli)
     tracker = TaskTracker(tasks_path=tasks_file)
     task_id = tracker.create_task("Test task", ["S1", "S2", "S3"])
 
-    mock_ao_cli.spawn.side_effect = ["session-001", Exception("Error"), Exception("Error"), "session-003"]
+    # S2 fails with a non-transient exception (immediately blocked, no retry).
+    # Use a function-based side_effect to handle parallel execution correctly.
+    call_counts: dict[str, int] = {}
+
+    def spawn_side_effect(project_id: object, subtask_id: str) -> str:
+        call_counts[subtask_id] = call_counts.get(subtask_id, 0) + 1
+        if "S1" in subtask_id or subtask_id.endswith("-0"):
+            return "session-001"
+        if "S2" in subtask_id or subtask_id.endswith("-1"):
+            raise Exception("non-transient error")  # noqa: TRY002
+        return "session-003"
+
+    mock_ao_cli.spawn.side_effect = spawn_side_effect
 
     dispatcher = DecompositionDispatcher(tracker=tracker, ao_cli=mock_ao_cli, max_parallel=4)
     results = dispatcher.dispatch_subtasks(task_id)
 
-    assert results[0].session_id == "session-001"
-    assert results[0].blocked is False
-    assert results[1].blocked is True
-    assert results[2].session_id == "session-003"
+    # Results may arrive in any order due to parallel dispatch; key by subtask_id
+    by_id = {r.subtask_id: r for r in results}
+    s1_id = next(st.subtask_id for st in tracker.get_task(task_id).subtasks if "S1" in st.description)
+    s2_id = next(st.subtask_id for st in tracker.get_task(task_id).subtasks if "S2" in st.description)
+    s3_id = next(st.subtask_id for st in tracker.get_task(task_id).subtasks if "S3" in st.description)
+
+    assert by_id[s1_id].session_id == "session-001"
+    assert by_id[s1_id].blocked is False
+    assert by_id[s2_id].blocked is True
+    assert by_id[s3_id].session_id == "session-003"
 
 
 # ---------------------------------------------------------------------------

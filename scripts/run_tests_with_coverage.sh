@@ -55,39 +55,41 @@ overall_status=0
 case "$TEST_MODE" in
     "fast")
         echo -e "${BLUE}⚡ Running fast tests${NC}"
-        if ! run_test "Fast Tests" "⚡" pnpm test:fast; then
+        if ! run_test "Fast Tests" "⚡" python -m pytest src/tests/ -q --no-header; then
             overall_status=1
         fi
         ;;
 
     "unit")
         echo -e "${BLUE}🧪 Running unit tests${NC}"
-        if ! run_test "Unit Tests" "🧪" pnpm test:unit; then
+        if ! run_test "Unit Tests" "🧪" python -m pytest src/tests/ -q; then
             overall_status=1
         fi
         ;;
 
     "e2e")
         echo -e "${BLUE}🔄 Running end-to-end tests${NC}"
-        if ! run_test "E2E Tests" "🔄" pnpm test:e2e; then
+        if ! run_test "E2E Tests" "🔄" python -m pytest src/tests/ -q -m "e2e or integration"; then
             overall_status=1
         fi
         ;;
 
     "coverage")
         echo -e "${BLUE}📊 Running tests with coverage${NC}"
-        if ! run_test "Coverage Tests" "📊" pnpm test:coverage; then
+        if ! run_test "Coverage Tests" "📊" python -m pytest src/tests/ \
+                --cov=orchestration --cov-report=term-missing --cov-report=json \
+                -q; then
             overall_status=1
         fi
 
         # Check coverage thresholds
-        if [ -f "coverage/coverage-summary.json" ]; then
+        if [ -f "coverage.json" ]; then
             echo -e "\n${BLUE}📈 Coverage Summary:${NC}"
             if command -v jq &>/dev/null; then
-                jq '.total' coverage/coverage-summary.json
+                jq '.totals' coverage.json
 
                 # Enforce the threshold — fail the build if lines coverage is below it.
-                actual_pct=$(jq '.total.lines.pct // 0' coverage/coverage-summary.json)
+                actual_pct=$(jq '.totals.percent_covered // 0' coverage.json)
                 # Use awk for floating-point comparison (bash arithmetic only handles integers).
                 if awk -v actual="$actual_pct" -v threshold="$COVERAGE_THRESHOLD" \
                         'BEGIN { exit (actual >= threshold) ? 0 : 1 }'; then
@@ -97,7 +99,7 @@ case "$TEST_MODE" in
                     overall_status=1
                 fi
             else
-                echo "Install jq to view summary, or open coverage/index.html"
+                echo "Install jq to view summary, or open htmlcov/index.html"
                 echo "WARNING: Cannot enforce coverage threshold without jq."
             fi
         fi
@@ -128,7 +130,7 @@ case "$TEST_MODE" in
 
     "docker")
         echo -e "${BLUE}🐳 Running Docker-based tests${NC}"
-        if ! run_test "Docker Tests" "🐳" pnpm test:docker:all; then
+        if ! run_test "Docker Tests" "🐳" python -m pytest src/tests/ -q --tb=short; then
             overall_status=1
         fi
         ;;
@@ -160,7 +162,7 @@ fi
 
 echo -e "\n${BLUE}📊 Test Summary:${NC}"
 echo "  • Mode: $TEST_MODE"
-echo "  • Framework: vitest"
+echo "  • Framework: pytest"
 echo "  • Coverage threshold: ${COVERAGE_THRESHOLD}%"
 
 exit $overall_status
