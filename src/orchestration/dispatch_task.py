@@ -35,7 +35,7 @@ from orchestration.session_registry import BeadSessionMapping, upsert_mapping
 logger = logging.getLogger(__name__)
 
 # Legacy fallback project key for MCP mail registration.
-LEGACY_DEFAULT_PROJECT_KEY = "jleechanclaw"
+LEGACY_DEFAULT_PROJECT_KEY = ""
 
 
 def get_default_project_key() -> str:

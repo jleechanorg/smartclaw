@@ -13,7 +13,7 @@ import subprocess
 
 logger = logging.getLogger(__name__)
 
-LEGACY_DEFAULT_PROJECT_KEY = "jleechanclaw"
+LEGACY_DEFAULT_PROJECT_KEY = ""
 SEND_TIMEOUT = 10  # seconds
 
 
