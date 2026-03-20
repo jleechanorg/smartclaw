@@ -53,9 +53,16 @@ overall_status=0
 
 # Run tests based on mode
 case "$TEST_MODE" in
-    "fast"|"unit")
-        echo -e "${BLUE}⚡ Running fast unit tests${NC}"
-        if ! run_test "Unit Tests" "⚡" pnpm test:fast; then
+    "fast")
+        echo -e "${BLUE}⚡ Running fast tests${NC}"
+        if ! run_test "Fast Tests" "⚡" pnpm test:fast; then
+            overall_status=1
+        fi
+        ;;
+
+    "unit")
+        echo -e "${BLUE}🧪 Running unit tests${NC}"
+        if ! run_test "Unit Tests" "🧪" pnpm test:unit; then
             overall_status=1
         fi
         ;;
@@ -76,7 +83,11 @@ case "$TEST_MODE" in
         # Check coverage thresholds
         if [ -f "coverage/coverage-summary.json" ]; then
             echo -e "\n${BLUE}📈 Coverage Summary:${NC}"
-            cat coverage/coverage-summary.json | jq '.total' 2>/dev/null || echo "Coverage summary available in coverage/index.html"
+            if command -v jq &>/dev/null; then
+                jq '.total' coverage/coverage-summary.json
+            else
+                echo "Install jq to view summary, or open coverage/index.html"
+            fi
         fi
         ;;
 
@@ -123,7 +134,11 @@ if [[ $overall_status -eq 0 ]]; then
     # Show coverage report location if available
     if [ -f "coverage/index.html" ]; then
         echo -e "${BLUE}📊 Coverage report: coverage/index.html${NC}"
-        echo -e "${YELLOW}   Open with: open coverage/index.html${NC}"
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            echo -e "${YELLOW}   Open with: open coverage/index.html${NC}"
+        else
+            echo -e "${YELLOW}   Open with: xdg-open coverage/index.html${NC}"
+        fi
     fi
 else
     echo -e "${RED}❌ SOME TESTS FAILED${NC}"

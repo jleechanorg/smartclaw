@@ -29,22 +29,11 @@ import time
 import uuid
 from pathlib import Path
 
+from orchestration.mcp_mail import get_default_project_key
 from orchestration.openclaw_notifier import notify_openclaw, notify_slack_started
 from orchestration.session_registry import BeadSessionMapping, upsert_mapping
 
 logger = logging.getLogger(__name__)
-
-# Legacy fallback project key for MCP mail registration.
-LEGACY_DEFAULT_PROJECT_KEY = ""
-
-
-def get_default_project_key() -> str:
-    """Resolve default MCP project key from environment."""
-    return (
-        os.environ.get("SMARTCLAW_PROJECT_KEY", "").strip()
-        or os.environ.get("OPENCLAW_PROJECT_KEY", "").strip()
-        or LEGACY_DEFAULT_PROJECT_KEY
-    )
 
 
 def register_agent_mcp_mail(
@@ -294,8 +283,8 @@ def _get_start_sha(worktree_path: str) -> str:
             )
             if result.returncode == 0:
                 return result.stdout.strip()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("git rev-parse attempt failed in %s: %s", worktree_path, e)
         time.sleep(1)
     return ""
 
@@ -862,11 +851,10 @@ def dispatch(
     # Extract PR number from bead_id if available (e.g., ORCH-123 -> 123)
     pr_number = None
     if bead_id:
-        import re
         match = re.search(r'(\d+)$', bead_id)
         if match:
             pr_number = match.group(1)
-    project_name = repo_root.split("/")[-1] if repo_root else "unknown"
+    project_name = Path(repo_root).name if repo_root else "unknown"
     register_agent_mcp_mail(
         session_name=session_name,
         project=project_name,

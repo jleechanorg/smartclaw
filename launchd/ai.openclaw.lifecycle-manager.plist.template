@@ -26,7 +26,8 @@ Replaces legacy per-project lifecycle plists.</string>
 	<array>
 		<string>/bin/bash</string>
 		<string>-c</string>
-		<string>source @HOME@/.bashrc
+		<string>source @HOME@/.bash_profile 2>/dev/null || source @HOME@/.bashrc 2>/dev/null || true
+mkdir -p @HOME@/.openclaw/logs
 
 # Lifecycle manager - spawns workers for each configured project
 PROJECTS="${AO_LIFECYCLE_PROJECTS:-${OPENCLAW_LIFECYCLE_PROJECTS:-}}"
