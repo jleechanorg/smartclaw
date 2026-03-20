@@ -6,6 +6,24 @@
 
 ---
 
+## Table of Contents
+
+- [What is smartclaw?](#what-is-smartclaw)
+- [What's in this repository?](#whats-in-this-repository)
+- [Architecture](#architecture)
+- [Harness Engineering Philosophy](#harness-engineering-philosophy)
+- [Quickstart](#quickstart)
+- [Dependencies](#dependencies)
+- [Setup Prerequisites](#setup-prerequisites)
+- [Installation](#installation)
+- [Configuration Files](#configuration-files)
+- [Security Note: Secrets](#security-note-secrets)
+- [Maturity Model](#maturity-model)
+- [References](#references)
+- [Support](#support)
+
+---
+
 ## Source from jleechanclaw
 
 > This document adapts content from the private jleechanorg/jleechanclaw harness. See source references inline below.
@@ -34,6 +52,39 @@ SmartClaw is an **AI agent orchestration package** that provides:
 **When to use smartclaw**: Quick ad-hoc agent tasks, CLI passthrough, simple async execution.
 
 **When to use Agent-Orchestrator**: Multi-agent coordination, A2A messaging, complex task graphs, production automation.
+
+---
+
+## What's in this repository?
+
+This repository mixes implementation code, runtime scripts, and design docs for the SmartClaw/OpenClaw harness stack.
+
+### Core code
+
+- `src/orchestration/`: orchestration runtime modules (dispatch, escalation, webhook, retries, evidence, reviewer flow)
+- `src/tests/`: Python tests focused on orchestration modules under `src/orchestration/`
+- `tests/`: broader integration and hardening tests
+
+### Runtime and operations
+
+- `install.sh`: bootstrap installer for local dependencies
+- `monitor-agent.sh`: proactive health and Slack/gateway monitoring loop
+- `health-check.sh`, `startup-check.sh`, `run-scheduled-job.sh`: operational health and scheduler helpers
+- `scripts/`: install, doctor, backup, and automation scripts for local services
+- `launchd/`: macOS LaunchAgent plist templates for managed background services
+
+### Configuration and policy
+
+- `openclaw.json`: main runtime config template (models, tools, channels, gateway, hooks)
+- `agent-orchestrator.yaml`: agent-orchestrator config template
+- `.github/`: automation workflows
+- `.beads/`: issue-tracking artifacts
+
+### Documentation and planning
+
+- `docs/`: engineering docs, runbooks, and architecture research
+- `roadmap/`: design proposals and future implementation plans
+- `README.md`, `SOUL.md`, `TOOLS.md`: project overview and operating guidance
 
 ---
 
