@@ -45,11 +45,12 @@ fi
 
 echo "pip: available ✓"
 
-# Check for tmux (optional but recommended)
+# Check for tmux (required for async agent mode)
 if command -v tmux >/dev/null 2>&1; then
     echo "tmux: available ✓"
 else
-    echo "WARNING: tmux not found. Async mode requires tmux." >&2
+    echo "ERROR: tmux is required. Install from https://github.com/tmux/tmux/wiki/Installing" >&2
+    exit 1
 fi
 
 # Check for git
@@ -60,11 +61,12 @@ else
     exit 1
 fi
 
-# Check for gh (optional)
+# Check for gh (required for GitHub integration)
 if command -v gh >/dev/null 2>&1; then
     echo "gh: available ✓"
 else
-    echo "WARNING: gh CLI not found. GitHub integration will be limited." >&2
+    echo "ERROR: gh CLI is required. Install from https://cli.github.com/" >&2
+    exit 1
 fi
 
 echo

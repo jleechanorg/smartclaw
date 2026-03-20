@@ -14,12 +14,15 @@ Replaces legacy per-project lifecycle plists.</string>
 		<key>PYTHONUNBUFFERED</key>
 		<string>1</string>
 		<key>AO_LIFECYCLE_PROJECTS</key>
-		<string></string>
+		<string>REPLACE_WITH_PROJECT_LIST</string>
 		<key>OPENCLAW_LIFECYCLE_PROJECTS</key>
-		<string></string>
+		<string>REPLACE_WITH_PROJECT_LIST</string>
 	</dict>
 	<key>KeepAlive</key>
-	<true/>
+	<dict>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
 	<key>Label</key>
 	<string>ai.openclaw.lifecycle-manager</string>
 	<key>ProgramArguments</key>
@@ -31,16 +34,28 @@ mkdir -p @HOME@/.openclaw/logs
 
 # Lifecycle manager - spawns workers for each configured project
 PROJECTS="${AO_LIFECYCLE_PROJECTS:-${OPENCLAW_LIFECYCLE_PROJECTS:-}}"
-if [ -z "$PROJECTS" ]; then
+if [ -z "$PROJECTS" ] || [ "$PROJECTS" = "REPLACE_WITH_PROJECT_LIST" ]; then
     echo "[lifecycle-manager] No projects configured. Set AO_LIFECYCLE_PROJECTS or OPENCLAW_LIFECYCLE_PROJECTS."
-    exit 1
+    exit 0
 fi
+
+# Signal handling: forward SIGTERM/SIGINT to all worker PIDs then wait
+WORKER_PIDS=()
+cleanup() {
+    echo "[lifecycle-manager] Shutting down workers..."
+    for pid in "${WORKER_PIDS[@]}"; do
+        kill "$pid" 2>/dev/null || true
+    done
+    wait
+}
+trap cleanup SIGTERM SIGINT EXIT
 
 for project in $(echo "$PROJECTS" | tr ',' ' '); do
     echo "[lifecycle-manager] Starting worker for: $project"
     node @HOME@/bin/ao lifecycle-worker "$project" 2&gt;&amp;1 | while read line; do
         echo "[lifecycle-$project] $line"
     done &amp;
+    WORKER_PIDS+=($!)
 done
 
 # Wait for all workers

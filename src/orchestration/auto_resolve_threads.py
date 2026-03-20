@@ -269,11 +269,15 @@ def get_changed_file_hunks(
     before_sha: Optional[str],
     after_sha: Optional[str],
     pr_number: Optional[int],
+    branch: Optional[str] = None,
 ) -> dict[str, list[tuple[int, int]]]:
     """Return a mapping of filename → list of (start, end) hunk ranges.
 
-    Uses the compare endpoint when SHAs are available, falls back to PR files.
-    Returns an empty dict if neither is available.
+    Priority order:
+    1. Push SHAs (before/after) — most precise
+    2. PR files endpoint — when no SHAs
+    3. Branch compare (branch...HEAD) — when only branch is provided
+    Returns an empty dict if none of the above are available.
     """
     try:
         if before_sha and after_sha:
@@ -288,6 +292,13 @@ def get_changed_file_hunks(
                 f"repos/{owner}/{repo}/pulls/{pr_number}/files?per_page=100",
                 "--paginate",
                 "--jq", "[.[] | {filename, patch: (.patch // \"\")}]",
+            ])
+        elif branch:
+            # Compare branch tip against HEAD to surface hunk-level changes
+            raw = gh([
+                "api",
+                f"repos/{owner}/{repo}/compare/{branch}...HEAD",
+                "--jq", "[.files[] | {filename, patch: (.patch // \"\")}]",
             ])
         else:
             return {}
@@ -407,6 +418,7 @@ def auto_resolve_threads_for_pr(
         before_sha=before_sha,
         after_sha=after_sha,
         pr_number=pr_number,
+        branch=branch,
     )
 
     # Step 3: Resolve threads whose line falls within a changed hunk
@@ -429,10 +441,12 @@ def auto_resolve_threads_for_pr(
 
         hunks = file_hunks[thread_path]
         if not hunks:
-            # File changed but patch unavailable — fall back to file-level match
-            in_hunk = True
-        else:
-            in_hunk = _line_in_hunks(thread_line, hunks)
+            # Patch unavailable (e.g. binary file or large diff) — fail closed.
+            # Do not auto-resolve threads in files without line-level hunk data.
+            result["skipped"] += 1
+            result["skipped_threads"].append(thread_id)
+            continue
+        in_hunk = _line_in_hunks(thread_line, hunks)
 
         if in_hunk:
             # Try to resolve the thread
@@ -494,6 +508,7 @@ def main():
             before_sha=args.before_sha,
             after_sha=args.after_sha,
             pr_number=args.pr_number,
+            branch=args.branch,
         )
 
         print(f"PR: {args.owner}/{args.repo}#{args.pr_number}")
@@ -506,7 +521,8 @@ def main():
                 status = "unchanged"
             else:
                 hunks = file_hunks[path]
-                status = "WOULD RESOLVE" if (not hunks or _line_in_hunks(line, hunks)) else "unchanged"
+                # Fail closed: skip if no patch data (same as live mode)
+                status = "WOULD RESOLVE" if (hunks and _line_in_hunks(line, hunks)) else "unchanged"
             print(f"  - {path}:{line} ({t['author']}): {t['body'][:50]}... [{status}]")
     else:
         result = auto_resolve_threads_for_pr(
