@@ -173,11 +173,15 @@ def list_jc_sessions() -> List[Dict[str, Any]]:
             worktree_path = None
             if session_path and os.path.isdir(session_path):
                 worktree_path = session_path
-            
+
+            # Infer branch from worktree directory name (dispatch_task creates the
+            # worktree at <worktree_base>/<branch>, so the basename is the branch).
+            branch = os.path.basename(worktree_path) if worktree_path else None
+
             sessions.append({
                 'session_name': session_name,
                 'worktree_path': worktree_path,
-                'branch': None,  # Would need additional parsing
+                'branch': branch,
                 'session_age_seconds': age_seconds
             })
         
