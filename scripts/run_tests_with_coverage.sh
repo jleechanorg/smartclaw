@@ -104,23 +104,25 @@ case "$TEST_MODE" in
         ;;
 
     "all")
-        echo -e "${BLUE}🚀 Running full test suite${NC}"
+        echo -e "${BLUE}🚀 Running full test suite with coverage${NC}"
 
-        # Build first
-        echo -e "\n${BLUE}🔨 Building project${NC}"
-        if ! run_test "Build" "🔨" pnpm build; then
+        # Run pytest with coverage in one pass (avoids running the full suite twice)
+        if ! run_test "Full Test Suite + Coverage" "🧪" python -m pytest src/tests/ \
+                --cov=orchestration --cov-report=term-missing --cov-report=json \
+                -q; then
             overall_status=1
         fi
 
-        # Run all tests
-        if ! run_test "Full Test Suite" "🧪" pnpm test; then
-            overall_status=1
-        fi
-
-        # Run coverage
-        echo -e "\n${BLUE}📊 Generating coverage report${NC}"
-        if ! run_test "Coverage Report" "📊" pnpm test:coverage; then
-            overall_status=1
+        # Enforce coverage threshold when jq is available
+        if command -v jq &>/dev/null && [ -f coverage.json ]; then
+            actual_pct=$(jq '.totals.percent_covered // 0' coverage.json)
+            if awk -v actual="$actual_pct" -v threshold="$COVERAGE_THRESHOLD" \
+                    'BEGIN { exit (actual >= threshold) ? 0 : 1 }'; then
+                echo -e "${GREEN}Coverage ${actual_pct}% meets threshold ${COVERAGE_THRESHOLD}%${NC}"
+            else
+                echo -e "${RED}Coverage ${actual_pct}% is below threshold ${COVERAGE_THRESHOLD}%${NC}"
+                overall_status=1
+            fi
         fi
         ;;
 

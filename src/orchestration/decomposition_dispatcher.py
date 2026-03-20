@@ -131,7 +131,11 @@ class DecompositionDispatcher:
         Returns:
             DispatchResult with session_id if successful, or blocked if failed
         """
-        # First attempt
+        # Transient failure types that are safe to retry without risk of duplicate sessions.
+        # Configuration bugs, bad arguments, and permission errors are not transient and
+        # should propagate immediately rather than being silently downgraded to blocked=True.
+        _TRANSIENT = (TimeoutError, ConnectionError, OSError)
+
         try:
             session_id = self._ao_cli.spawn(self._project_id, subtask_id)
             return DispatchResult(
@@ -140,8 +144,8 @@ class DecompositionDispatcher:
                 error=None,
                 blocked=False,
             )
-        except Exception as e:
-            # Retry once
+        except _TRANSIENT as e:
+            # Retry once on transient transport/timeout errors
             try:
                 session_id = self._ao_cli.spawn(self._project_id, subtask_id)
                 return DispatchResult(
