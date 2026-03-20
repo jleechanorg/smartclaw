@@ -68,26 +68,23 @@ else
 fi
 
 echo
-echo "==> Installing jleechanorg-orchestration"
-"$PYTHON_BIN" -m pip install --upgrade --no-cache-dir jleechanorg-orchestration || {
+echo "==> Installing smartclaw"
+"$PYTHON_BIN" -m pip install --upgrade --no-cache-dir . || {
     echo "ERROR: Failed to install package" >&2
     exit 1
 }
 
 echo
 echo "==> Verifying installation"
-if command -v ai_orch >/dev/null 2>&1; then
-    echo "ai_orch: installed ✓"
-    ai_orch --version || true
-else
-    echo "WARNING: ai_orch not found in PATH. You may need to restart your shell."
-fi
+"$PYTHON_BIN" -c "import orchestration; print('smartclaw: installed ✓')" || {
+    echo "WARNING: smartclaw package not found."
+}
 
 echo
 echo "==> Next steps"
 echo "  1. Verify agent CLIs are installed: claude, codex, gemini, etc."
 echo "  2. Configure credentials for your agent CLIs"
-echo "  3. Run: ai_orch --help"
-echo "  4. Try: ai_orch 'hello world'"
+echo "  3. Import and use: python -c 'from orchestration import ...'"
+echo "  4. See README.md for usage examples"
 echo
 echo "==> Done!"
