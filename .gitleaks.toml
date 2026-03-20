@@ -1,0 +1,27 @@
+# gitleaks configuration for jleechanclaw repo
+# https://github.com/gitleaks/gitleaks
+
+title = "jleechanclaw gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known safe placeholders and intentionally-tracked device credentials"
+regexTarget = "match"
+regexes = [
+  # Explicit placeholder values in openclaw-config/
+  '''PLACEHOLDER-botToken''',
+  '''PLACEHOLDER-appToken''',
+  # Mission Control local test token
+  '''your-local-auth-token-here''',
+]
+paths = [
+  # LLM evaluation fixtures — contain no real secrets
+  '''testing_llm/artifacts/.*\.json''',
+  # Device pairing and identity — machine-specific credentials, intentionally in this personal backup repo
+  '''openclaw-config/devices/.*''',
+  '''openclaw-config/identity/.*''',
+  # Session logs in openclaw backups — gitignored but scanned with --no-git
+  '''\.openclaw-backups/.*''',
+]

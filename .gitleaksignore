@@ -1,0 +1,6 @@
+# Fingerprints for known-safe test fixtures
+# These are fake/placeholder values used in unit tests to simulate leaked-credential diffs
+
+# test_pr_review_decision.py: simulates a diff containing a fake API key to verify
+# that the PR reviewer escalates on credential-touching diffs
+src/tests/test_pr_review_decision.py:generic-api-key:73
