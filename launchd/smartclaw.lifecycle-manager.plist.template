@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Comment</key>
+	<string>Consolidated OpenClaw Lifecycle Manager - manages lifecycle workers for all projects.
+Replaces 2 separate plists:
+- com.agentorchestrator.lifecycle-jleechanclaw.plist
+- com.agentorchestrator.lifecycle-worldarchitect.plist</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME</key>
+		<string>@HOME@</string>
+		<key>PATH</key>
+		<string>@NODE_BIN_DIR@:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+		<key>PYTHONUNBUFFERED</key>
+		<string>1</string>
+		<key>AO_LIFECYCLE_PROJECTS</key>
+		<string>jleechanclaw,worldarchitect</string>
+	</dict>
+	<key>KeepAlive</key>
+	<true/>
+	<key>Label</key>
+	<string>ai.smartclaw.lifecycle-manager</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>-c</string>
+		<string>source @HOME@/.bashrc
+
+# Lifecycle manager - spawns workers for each configured project
+PROJECTS="${AO_LIFECYCLE_PROJECTS:-jleechanclaw,worldarchitect}"
+
+for project in $(echo "$PROJECTS" | tr ',' ' '); do
+    echo "[lifecycle-manager] Starting worker for: $project"
+    @NODE_PATH@ @HOME@/bin/ao lifecycle-worker "$project" 2&gt;&amp;1 | while read line; do
+        echo "[lifecycle-$project] $line"
+    done &amp;
+done
+
+# Wait for all workers
+wait</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/tmp/ao-lifecycle-manager.err.log</string>
+	<key>StandardOutPath</key>
+	<string>/tmp/ao-lifecycle-manager.log</string>
+	<key>WorkingDirectory</key>
+	<string>@HOME@</string>
+	<key>ThrottleInterval</key>
+	<integer>30</integer>
+</dict>
+</plist>

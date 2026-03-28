@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>ai.smartclaw.health-check</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>${HOME}/.smartclaw/health-check.sh</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>/Users/jleechan</string>
+    <key>PATH</key>
+    <string>${HOME}/.nvm/versions/node/current/bin:${HOME}/Library/pnpm:${HOME}/.bun/bin:${HOME}/.local/bin:${HOME}/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>OPENCLAW_HEALTH_CURL_TIMEOUT</key>
+    <string>8</string>
+    <key>OPENCLAW_POST_ACTION_WAIT_SECONDS</key>
+    <string>4</string>
+    <key>OPENCLAW_ESCALATION_COOLDOWN_SECONDS</key>
+    <string>3600</string>
+  </dict>
+
+  <key>StartInterval</key>
+  <integer>300</integer>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>${HOME}/.smartclaw/logs/health-check.log</string>
+  <key>StandardErrorPath</key>
+  <string>${HOME}/.smartclaw/logs/health-check.log</string>
+</dict>
+</plist>
