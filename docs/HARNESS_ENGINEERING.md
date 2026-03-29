@@ -5,7 +5,7 @@
 
 This repo is a **harness** — not a codebase that agents work on, but the
 environment, constraints, and feedback loops that enable agents to do reliable
-work across all jleechanorg projects.
+work across all projects.
 
 ## What Is Harness Engineering?
 

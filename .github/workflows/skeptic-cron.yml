@@ -146,9 +146,18 @@ jobs:
             # If the verdict SHA doesn't match the current PR head SHA, treat as stale MISSING.
             # Capture verdict data separately from the gh api exit status so we can
             # fail closed on API errors while still distinguishing empty-result from crash.
+            # set -o pipefail: any gh/jq/pipeline failure exits the subshell with non-zero,
+            # letting us distinguish API errors (SKEPTIC_ERROR) from "no verdict found" (MISSING).
+            set -o pipefail
             SKEPTIC_VERDICT_RAW=$(gh api repos/${{ github.repository }}/issues/$PR_NUM/comments --paginate \
               | jq -r '[.[] | select(.user.login == "github-actions[bot]" and (.body | test("VERDICT:"; "i")))] | sort_by(.created_at) | reverse | .[0] // null' 2>/dev/null)
-            if [ $? -ne 0 ] || [ -z "$SKEPTIC_VERDICT_RAW" ] || [ "$SKEPTIC_VERDICT_RAW" = "null" ]; then
+            PIPESTATUS=$?
+            set +o pipefail
+            if [ $PIPESTATUS -ne 0 ]; then
+              # gh api or jq pipeline failed — treat as fail-closed gate error.
+              SKEPTIC_VERDICT="SKEPTIC_ERROR"
+              SKEPTIC_SHA_MISMATCH=""
+            elif [ -z "$SKEPTIC_VERDICT_RAW" ] || [ "$SKEPTIC_VERDICT_RAW" = "null" ]; then
               # gh api or jq failed, OR no verdict comment found — treat as MISSING.
               # Fail-closed for API errors (rate limit / auth); fail-open for empty result
               # (rate limits reset on next cron run in 30 min).
@@ -215,15 +224,6 @@ jobs:
               gh api repos/${{ github.repository }}/issues/$PR_NUM/comments \
                 --method POST \
                 --field "body=**VERDICT: PASS** — skeptic-cron evaluated and merged this PR. All 6 criteria confirmed green.  \n\n<!-- HEAD-SHA: $PR_HEAD -->" \
-                --jq '.id' > /dev/null 2>&1 || true
-            elif echo "$SKEPTIC_VERDICT" | grep -qi "VERDICT: SKIPPED"; then
-              # ANTHROPIC_API_KEY not configured — skeptic-gate cannot run.
-              # Skeptic-cron is the automated skeptic; SKIPPED means no blocking skeptic
-              # is available, so treat as equivalent to MISSING: auto-post PASS.
-              echo "  → Posting VERDICT: PASS (skeptic-gate SKIPPED — skeptic-cron is automated skeptic)"
-              gh api repos/${{ github.repository }}/issues/$PR_NUM/comments \
-                --method POST \
-                --field "body=**VERDICT: PASS** — skeptic-gate SKIPPED (ANTHROPIC_API_KEY not configured); skeptic-cron evaluated and merged this PR. All 6 criteria confirmed green.  \n\n<!-- HEAD-SHA: $PR_HEAD -->" \
                 --jq '.id' > /dev/null 2>&1 || true
             else
               echo "  → Skeptic verdict unrecognized, skipping (fail-closed)"

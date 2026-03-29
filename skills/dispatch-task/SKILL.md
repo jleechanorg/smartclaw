@@ -47,7 +47,7 @@ br create "short description" --type task --priority 1
 
 Record the Slack context from jleechan's original message:
 - `SLACK_TRIGGER_TS` = the `ts` field from jleechan's message (e.g. `1772857900.668299`)
-- `SLACK_TRIGGER_CHANNEL` = the channel ID (e.g. `C0AH3RY3DK6`)
+- `SLACK_TRIGGER_CHANNEL` = the channel ID (e.g. `$SLACK_CHANNEL_ID`)
 
 Reply to jleechan's original Slack message in the same thread:
 
@@ -108,7 +108,7 @@ lanes, not Mission Control board tasks.
 When the task involves making a PR to a different repo than the worktree:
 - DO NOT clone the target repo into a subdirectory
 - Use `gh pr create --repo owner/repo --base main --head <branch>` to PR cross-repo
-- Example: for mctrl_test repo, use `gh pr create --repo jleechanorg/mctrl_test --base main`
+- Example: for a repo, use `gh pr create --repo $GITHUB_ORG/$REPO --base main`
 
 Ensure the task text instructs the agent to push before it stops. Include wording like:
 
