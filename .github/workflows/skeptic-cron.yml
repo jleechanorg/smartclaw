@@ -72,6 +72,10 @@ jobs:
             #   Fallback: CR posted "AUTOMATION COMPLETE — STATUS: READY FOR MERGE" as an issue/PR
             #   comment (covers CR incremental-review stalls where formal state=COMMENTED but CR
             #   has explicitly confirmed the PR is ready). In either case, CR has genuinely approved.
+            # PR_HEAD must be fetched first — both CR_READY (Gate 3 fallback) and BUGBOT_ERRORS (Gate 4)
+            # depend on it; referencing it before assignment causes the jq $pr_head filter to match
+            # empty-string on first iteration and the previous PR's SHA on later iterations.
+            PR_HEAD=$(gh api repos/${{ github.repository }}/pulls/$PR_NUM --jq '.head.sha')
             # Collect all pages first via --paginate, then jq the full array (avoids per-page jq with --paginate --jq).
             CR_STATE=$(gh api repos/${{ github.repository }}/pulls/$PR_NUM/reviews --paginate \
               | jq -s 'add | [.[] | select(.user.login == "coderabbitai[bot]")] | sort_by(.submitted_at) | reverse | .[0].state // "none"' 2>/dev/null || echo "none")
@@ -90,9 +94,6 @@ jobs:
                 echo "  [3] CR: $CR_STATE"
               fi
             fi
-
-            # PR_HEAD is used by both the bugbot filter (Gate 4) and skeptic SHA check (Gate 7).
-            PR_HEAD=$(gh api repos/${{ github.repository }}/pulls/$PR_NUM --jq '.head.sha')
 
             # 4. Bugbot clean (cursor[bot]) — fail-closed: any API error blocks the gate.
             # Filter: only count cursor[bot] comments with HIGH or CRITICAL severity labels.
