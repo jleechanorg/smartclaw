@@ -4,8 +4,14 @@ import json
 import os
 import socket
 import sys
+import tempfile
 
-SOCKET_PATH = os.environ.get("CMUX_SOCKET_PATH", "/tmp/cmux.sock")
+_default_sock = os.environ.get("XDG_RUNTIME_DIR")
+if _default_sock:
+    _default_sock = os.path.join(_default_sock, "cmux.sock")
+else:
+    _default_sock = os.path.join(tempfile.gettempdir(), "cmux.sock")
+SOCKET_PATH = os.environ.get("CMUX_SOCKET_PATH", _default_sock)
 
 
 def rpc(method, params=None, req_id=1):
@@ -15,17 +21,18 @@ def rpc(method, params=None, req_id=1):
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
             sock.connect(SOCKET_PATH)
             sock.sendall(json.dumps(payload).encode("utf-8") + b"\n")
-            # Read until newline delimiter to avoid truncation of newline-delimited JSON.
-            chunks = []
+            # Accumulate bytes until newline delimiter is present in buffer, then
+            # split at the first newline so only that JSON line is decoded.
+            buffer = b""
             while True:
                 chunk = sock.recv(65536)
                 if not chunk:
                     break
-                chunks.append(chunk)
-                if chunk.endswith(b"\n"):
+                buffer += chunk
+                if b"\n" in buffer:
                     break
-            response = b"".join(chunks).decode("utf-8")
-            return json.loads(response)
+            line = buffer.split(b"\n", 1)[0].decode("utf-8")
+            return json.loads(line)
     except (FileNotFoundError, ConnectionRefusedError) as e:
         return {"error": f"Socket not available: {SOCKET_PATH}", "details": str(e)}
 
@@ -40,7 +47,11 @@ def main():
     method = sys.argv[1]
     params = {}
     if len(sys.argv) > 2:
-        params = json.loads(sys.argv[2])
+        try:
+            params = json.loads(sys.argv[2])
+        except (json.JSONDecodeError, ValueError) as e:
+            print(f"Error: invalid JSON in params argument: {e}", file=sys.stderr)
+            sys.exit(1)
 
     result = rpc(method, params)
     print(json.dumps(result, indent=2))
