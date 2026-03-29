@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Comment</key>
+    <string>Unified AO Manager — manages all agento components via ao-manager.sh.
+Replaces individual plists:
+- com.agentorchestrator.lifecycle-agent-orchestrator  (lifecycle-workers)
+- ai.agento.orchestrators                             (orchestrator tmux sessions)
+- ai.agento.dashboard                                (dashboard — started by first project)
+- ai.agento.notifier                                 (notifier — via ao-manager-notifier.sh)
+
+Install: ln -sf ~/.smartclaw/launchd/ai.agento.manager.plist ~/Library/LaunchAgents/
+Or: ./scripts/install-ao-manager.sh</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>@HOME@</string>
+        <key>PATH</key>
+        <string>@NODE_BIN_DIR@:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:@HOME@/bin:/opt/homebrew/bin</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+        <key>AO_CONFIG_PATH</key>
+        <string>@HOME@/.smartclaw/agent-orchestrator.yaml</string>
+        <key>AO_BIN</key>
+        <string>@HOME@/bin/ao</string>
+        <!-- Tokens read from openclaw.json / shell environment at runtime -->
+    </dict>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>Label</key>
+    <string>ai.agento.manager</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>@HOMEBREW_BASH@</string>
+        <string>@HOME@/.smartclaw/scripts/ao-manager.sh</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/ao-manager.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/ao-manager.err.log</string>
+
+    <key>WorkingDirectory</key>
+    <string>@HOME@/.smartclaw</string>
+
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+</dict>
+</plist>
