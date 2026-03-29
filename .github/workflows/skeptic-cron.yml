@@ -82,7 +82,7 @@ jobs:
               # Fallback: CR posted AUTOMATION COMPLETE / READY FOR MERGE comment
               # Note: CR "AUTOMATION COMPLETE" comments are on the issue, not the PR review thread.
               CR_READY=$(gh api repos/${{ github.repository }}/issues/$PR_NUM/comments --paginate 2>/dev/null \
-                | jq -s 'add | [.[] | select(.user.login == "coderabbitai[bot]" and (.body | test("AUTOMATION COMPLETE.*READY FOR MERGE|VERDICT.*READY FOR MERGE"; "i")))] | length' 2>/dev/null || echo "0")
+                | jq -s --arg pr_head "$PR_HEAD" 'add | [.[] | select(.user.login == "coderabbitai[bot]" and (.body | test("AUTOMATION COMPLETE.*READY FOR MERGE|VERDICT.*READY FOR MERGE"; "i")) and (.body | test($pr_head; "i")))] | length' 2>/dev/null || echo "0")
               if [[ "$CR_READY" != "0" ]]; then
                 echo "  [3] CR: PASS (READY FOR MERGE comment — CR incremental stall fallback)"
                 CR_PASS="true"
@@ -129,17 +129,21 @@ jobs:
               GATE5_FAIL="true"
             fi
 
-            # 6. Evidence (evidence-review-bot) — optional: only block on explicit FAIL state.
-            # evidence-review-bot only produces APPROVED or DISMISSED/CHANGES_REQUESTED review
-            # states. Anything else (none, COMMENTED, PENDING) means it has not run yet = N/A.
+            # 6. Evidence (evidence-review-bot) — fail-closed for code PRs.
+            # evidence-review-bot only produces APPROVED or DISMISSED/CHANGES_REQUESTED as terminal
+            # states. none = bot has not run yet (N/A for docs-only PRs, FAIL for code PRs).
+            # COMMENTED/PENDING = bot is running or stalled — treat as FAIL for code PRs.
             EVIDENCE=$(gh api repos/${{ github.repository }}/pulls/$PR_NUM/reviews --paginate \
               | jq -s -r 'add | [.[] | select(.user.login == "evidence-review-bot")] | sort_by(.submitted_at) | reverse | .[0].state // "none"' 2>/dev/null || echo "none")
             if [[ "$EVIDENCE" == "APPROVED" ]]; then
               echo "  [6] Evidence: PASS"
-            elif [[ "$EVIDENCE" == "DISMISSED" || "$EVIDENCE" == "CHANGES_REQUESTED" ]]; then
-              echo "  [6] Evidence: FAIL ($EVIDENCE)"
             else
-              echo "  [6] Evidence: N/A ($EVIDENCE)"
+              # DISMISSED/CHANGES_REQUESTED: evidence-review-bot explicitly failed.
+              # none/COMMENTED/PENDING: bot has not run or is still running.
+              # For smartclaw this gate is informational (no evidence-review-bot configured),
+              # but hardcode FAIL so any future evidence configuration fail-closes correctly.
+              echo "  [6] Evidence: FAIL ($EVIDENCE)"
+              GATE6_FAIL="true"
             fi
 
             # 7. Skeptic verdict (github-actions[bot] VERDICT comment) — pick LATEST, not oldest
@@ -228,7 +232,8 @@ jobs:
               gh api repos/${{ github.repository }}/issues/$PR_NUM/comments \
                 --method POST \
                 --field "body=**VERDICT: PASS** — skeptic-cron evaluated and merged this PR. All 7 criteria confirmed green.  \n\n<!-- HEAD-SHA: $PR_HEAD -->" \
-                --jq '.id' > /dev/null 2>&1 || true
+                --jq '.id' > /dev/null 2>&1 \
+                || { echo "  → Failed to post skeptic verdict comment, skipping (fail-closed)"; continue; }
             else
               echo "  → Skeptic verdict unrecognized, skipping (fail-closed)"
               continue
