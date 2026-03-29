@@ -1,7 +1,7 @@
 ---
 name: dispatch-task
 version: 1.0.0
-description: Dispatch a bead-tracked task to an ai_orch agent session, register the mapping, and ack in Slack thread.
+description: Dispatch a bead-tracked task via ao spawn/ao send, register the mapping, and ack in Slack thread.
 ---
 
 # dispatch-task
@@ -12,6 +12,21 @@ Use this skill when jleechan asks you to work on a task and you decide to dispat
 
 - jleechan asks you to implement, fix, or investigate something that warrants spawning an agent
 - You have decided the task merits a full agent run (not a quick inline answer)
+- This applies regardless of how the request arrived: Slack, HTTP gateway, cron, or inline prompt
+
+## NEVER use `sessions_spawn` for coding tasks
+
+`sessions_spawn` is openclaw's internal nested-agent tool. It does NOT create a git worktree, does NOT handle PR lifecycle, pastes prompts without auto-submitting Enter, and allows silent task rewriting. **It is banned for any task involving code, files, or PRs.**
+
+Always use this skill and the `ao` CLI (agent-orchestrator), not OpenClaw's nested `sessions_spawn`.
+
+## Task description: preserve + expand, never condense
+
+Build the task body you pass to `ao send` (via `--file`) in two parts:
+1. **User's original text verbatim** — copy it exactly, do not shorten or paraphrase
+2. **Memory expansion** — append relevant findings from `/mem-search` or the memory MCP: past failures, known gotchas, patterns that apply to this task
+
+Final task = original text + appended memory context. Never replace the user's words with a summary. If the original is long, that is intentional.
 
 ## Steps
 
@@ -21,8 +36,8 @@ Use this skill when jleechan asks you to work on a task and you decide to dispat
 # If bead exists:
 br update ORCH-xxx --status in_progress
 
-# If new task:
-br create -p P1 -t task --title "short description"
+# If new task (match CLAUDE.md / PROJECTS_BEADS.md):
+br create "short description" --type task --priority 1
 # Note the ORCH-xxx ID from output
 ```
 
@@ -30,11 +45,13 @@ br create -p P1 -t task --title "short description"
 
 **This is the Deterministic Slack Thread Response Contract.**
 
+Record the Slack context from jleechan's original message:
+- `SLACK_TRIGGER_TS` = the `ts` field from jleechan's message (e.g. `1772857900.668299`)
+- `SLACK_TRIGGER_CHANNEL` = the channel ID (e.g. `$SLACK_CHANNEL_ID`)
+
 Reply to jleechan's original Slack message in the same thread:
 
 > On it. Spawning agent for **ORCH-xxx** — will reply here when done.
-
-Record the `ts` of jleechan's original message as `SLACK_TRIGGER_TS`.
 
 **Proof-First Requirement**: When the supervisor posts completion, it MUST include at least one reviewable proof URL (PR, commit, or artifact):
 - PR URL: `https://github.com/OWNER/REPO/pull/NUMBER`
@@ -51,26 +68,36 @@ It SHOULD include multiple proof URLs when available (for example, PR + commit).
 
 Inject relevant learnings into the task prompt to prevent repeat failures.
 
-### 4. Dispatch via mctrl
+### 4. Dispatch via ao
+
+First, determine the ao project ID from the bead or context:
 
 ```bash
-cd ~/project_jleechanclaw/mctrl
-
-PYTHONPATH=src python -m orchestration.dispatch_task \
-  --bead-id ORCH-xxx \
-  --task "full task description for the agent (enriched with memory learnings)" \
-  --slack-trigger-ts "$SLACK_TRIGGER_TS" \
-  --slack-trigger-channel "$SLACK_TRIGGER_CHANNEL" \
-  --agent-cli claude
+# Look up which project the bead belongs to
+ao projects list        # shows all configured projects and their IDs
+br show ORCH-xxx        # bead description often names the repo/project
 ```
 
-If Jeffrey explicitly requests `codex`, change the command to `--agent-cli codex`. Do not fall back to ACP Codex or a separate subagent path before attempting the mctrl dispatch. If the codex dispatch command fails, report the failure instead of claiming the task was queued.
+Example IDs that sometimes appear in configs include `jleechanclaw`, `worldai`, `mctrl`, and `agent-orchestrator`. Always confirm the correct ID with `ao projects list` and the bead/repo context—do not pick one from this list by guesswork.
 
-This will:
-- Run `ai_orch run --async --worktree` to spawn a new tmux session + git worktree
-- Record `start_sha` (HEAD at spawn time) for accurate commit detection
-- Write the BeadSessionMapping to `.tracking/bead_session_registry.jsonl`
-- The supervisor loop will watch the session and notify you when it finishes
+If jleechan explicitly requests Codex (or another agent CLI), use the override flags your `ao spawn` supports (`ao spawn --help`); defaults live under `defaults.agent` in `agent-orchestrator.yaml`. Do not fall back to `sessions_spawn`.
+
+Then spawn and send:
+
+```bash
+# 1. Create worktree + session
+ao spawn ORCH-xxx -p <project-id>
+
+# 2. Send task verbatim (auto-submits — no manual Enter needed)
+TASK_FILE=$(mktemp)
+trap 'rm -f "$TASK_FILE"' EXIT
+cat > "$TASK_FILE" <<'TASK'
+<full task description enriched with memory learnings>
+TASK
+ao send <session-name> --file "$TASK_FILE"
+```
+
+If ao spawn or ao send fails, report the failure instead of claiming the task was queued.
 
 For GitHub/PR automation, the lifecycle lane should map directly into this
 dispatch path. `comment-validation`, `fix-comment`, and `fixpr` are mctrl
@@ -81,25 +108,22 @@ lanes, not Mission Control board tasks.
 When the task involves making a PR to a different repo than the worktree:
 - DO NOT clone the target repo into a subdirectory
 - Use `gh pr create --repo owner/repo --base main --head <branch>` to PR cross-repo
-- Example: for mctrl_test repo, use `gh pr create --repo jleechanorg/mctrl_test --base main`
+- Example: for a repo, use `gh pr create --repo $GITHUB_ORG/$REPO --base main`
 
-The dispatcher will ensure the task text instructs the agent to push before it
-stops. If your task text does not already include that, `dispatch_task.dispatch()`
-appends it automatically. You may also include wording like:
+Ensure the task text instructs the agent to push before it stops. Include wording like:
 
 > After making and committing the change, run `git push origin <branch>` and only then stop.
 
 ### 5. Confirm dispatch
 
-The command prints:
-```
-dispatched bead=ORCH-xxx session=ai-claude-xxxxxx worktree=/tmp/ai-orch-worktrees/...
+The `ao spawn` command prints the session name. Note it for tracking.
+
+Update bead notes with the session name **and Slack context** so the supervisor knows which thread to reply to:
+```bash
+br update ORCH-xxx --append-notes "Dispatched to session <session-name>. slack_trigger_ts=<SLACK_TRIGGER_TS> slack_trigger_channel=<SLACK_TRIGGER_CHANNEL>. Supervisor watching."
 ```
 
-Update bead notes:
-```bash
-br update ORCH-xxx --append-notes "Dispatched to session ai-claude-xxxxxx. Supervisor watching."
-```
+The mctrl supervisor reads `slack_trigger_ts` and `slack_trigger_channel` from bead notes to post the completion reply in the correct Slack thread.
 
 ## What happens next (automatic)
 
@@ -113,9 +137,6 @@ The mctrl supervisor loop (`ai.mctrl.supervisor` launchd agent) runs every 30s a
 
 ## Notes
 
-- `SLACK_TRIGGER_TS` is the Slack `ts` field from jleechan's message (e.g. `1772857900.668299`)
-- `SLACK_TRIGGER_CHANNEL` is the Slack channel ID for that same message (e.g. `C0AH3RY3DK6`)
-- Always use `--async --worktree` flags so each task gets an isolated git worktree
+- `ao spawn` creates an isolated git worktree for each task automatically (configured in `agent-orchestrator.yaml`)
 - Finished means remote-reviewable on a configured remote, not merely committed locally inside the worktree
-- The registry is at `.tracking/bead_session_registry.jsonl` in the mctrl repo
-- If dispatch_task fails, check that `ai_orch` is on PATH and the mctrl repo is at `~/project_jleechanclaw/mctrl`
+- If `ao spawn` fails, check that `ao` is on PATH and agent-orchestrator is properly configured

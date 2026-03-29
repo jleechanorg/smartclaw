@@ -1,301 +1,132 @@
-# smartclaw
+# SmartClaw
 
-> **⚠️ WARNING: This is a non-working prototype / Work In Progress (WIP)**
->
-> This repository is under active development. Features may be incomplete, broken, or subject to change without notice. Do not use in production.
+**⚠️ WORK IN PROGRESS - Prototype**
 
----
+This is an experimental reference implementation of the OpenClaw autonomous orchestrator system. It is not yet fully functional.
 
-## Table of Contents
+## What is SmartClaw?
 
-- [What is smartclaw?](#what-is-smartclaw)
-- [What's in this repository?](#whats-in-this-repository)
-- [Architecture](#architecture)
-- [Harness Engineering Philosophy](#harness-engineering-philosophy)
-- [Quickstart](#quickstart)
-- [Dependencies](#dependencies)
-- [Setup Prerequisites](#setup-prerequisites)
-- [Installation](#installation)
-- [Configuration Files](#configuration-files)
-- [Security Note: Secrets](#security-note-secrets)
-- [Maturity Model](#maturity-model)
-- [References](#references)
-- [Support](#support)
+SmartClaw is a lightweight autonomous agent orchestrator that handles day-to-day development tasks across jleechanorg projects. It integrates with Claude Code, GitHub, and Slack to provide:
 
----
+- Automated PR creation and management
+- Session-based agent orchestration
+- Health monitoring and alerting
+- Backup automation
 
-## Source from jleechanclaw
+## SmartClaw vs Agent-Orchestrator
 
-> This document adapts content from the private jleechanorg/jleechanclaw harness. See source references inline below.
+| Feature | SmartClaw (this repo) | Agent-Orchestrator (jleechanclaw) |
+|---------|----------------------|-----------------------------------|
+| Status | Prototype / WIP | Production |
+| Scope | Reference implementation | Full production system |
+| Complexity | Minimal | Complete |
+| Stability | Experimental | Hardened |
 
----
-
-## What is smartclaw?
-
-SmartClaw is an **AI agent orchestration package** that provides:
-
-- **CLI Passthrough**: Direct invocation of agent CLIs (Claude, Codex, Gemini, MiniMax, Cursor)
-- **Async tmux Mode**: Spawn detached sessions for long-running tasks
-- **Task Dispatcher**: Programmatic multi-agent orchestration
-- **Worktree Support**: Auto-create git worktrees for isolated agent contexts
-
-### What This Package Does vs Agent-Orchestrator
-
-| Aspect | smartclaw | Agent-Orchestrator |
-|--------|-----------|-------------------|
-| **Purpose** | Task execution via CLI wrappers | Multi-agent coordination & messaging |
-| **Interface** | CLI (`ai_orch`) + Python API | Redis-backed A2A protocols |
-| **Session Mgmt** | tmux-based isolation | Dynamic agent lifecycle |
-| **Use Case** | Single-task execution | Complex multi-agent workflows |
-| **Status** | WIP/Prototype | More mature |
-
-**When to use smartclaw**: Quick ad-hoc agent tasks, CLI passthrough, simple async execution.
-
-**When to use Agent-Orchestrator**: Multi-agent coordination, A2A messaging, complex task graphs, production automation.
-
----
-
-## What's in this repository?
-
-This repository mixes implementation code, runtime scripts, and design docs for the SmartClaw/OpenClaw harness stack.
-
-### Core code
-
-- `src/orchestration/`: orchestration runtime modules (dispatch, escalation, webhook, retries, evidence, reviewer flow)
-- `src/tests/`: Python tests focused on orchestration modules under `src/orchestration/`
-- `tests/`: broader integration and hardening tests
-
-### Runtime and operations
-
-- `install.sh`: bootstrap installer for local dependencies
-- `monitor-agent.sh`: proactive health and Slack/gateway monitoring loop
-- `health-check.sh`, `startup-check.sh`, `run-scheduled-job.sh`: operational health and scheduler helpers
-- `scripts/`: install, doctor, backup, and automation scripts for local services
-- `launchd/`: macOS LaunchAgent plist templates for managed background services
-
-### Configuration and policy
-
-- `openclaw.json`: main runtime config template (models, tools, channels, gateway, hooks)
-- `agent-orchestrator.yaml`: agent-orchestrator config template
-- `.github/`: automation workflows
-- `.beads/`: issue-tracking artifacts
-
-### Documentation and planning
-
-- `docs/`: engineering docs, runbooks, and architecture research
-- `roadmap/`: design proposals and future implementation plans
-- `README.md`, `SOUL.md`, `TOOLS.md`: project overview and operating guidance
-
----
-
-## Architecture
-
-### Source: jleechanclaw ORCHESTRATION_DESIGN.md
-
-The orchestration system follows a layered approach:
-
-```
-Human (Developer)
-       ▲
-       │ escalation (budget exhausted, ambiguity)
-       ▼
-┌─────────────────────────────────────────────────────┐
-│          LLM Brain (OpenClaw-style)                  │
-│  • memory: project memories, feedback                │
-│  • judgment: deterministic rules first, LLM second   │
-│  • learning: outcome ledger feeds next decision      │
-└─────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────┐
-│    Agent-Orchestrator (AO) — lifecycle + reactions   │
-│  • session manager: spawn, send, kill, liveness    │
-│  • scm-github: PR detection, CI parsing              │
-│  • reactions: ci-failed, changes-requested, etc.    │
-└─────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────┐
-│   Headless Agents (claude, codex, gemini)            │
-│   Fresh context per call (no accumulated state)       │
-└─────────────────────────────────────────────────────┘
-```
-
-### Core Principle: Deterministic First, LLM for Judgment
-
-> Source: jleechanclaw docs/HARNESS_ENGINEERING.md
-
-The orchestration handles the predictable 80% deterministically. The LLM handles the 20% that requires judgment.
-
-| Signal | Handler | Decision Maker |
-|--------|---------|----------------|
-| CI failed ≤ retry cap | `ci-failed` → `send-to-agent` | AO deterministic |
-| Review comment received | `changes-requested` → `send-to-agent` | AO deterministic |
-| Agent stuck > threshold | `agent-stuck` → kill + respawn | Deterministic |
-| Retry budget exhausted | escalate with failure summary | LLM → Human |
-| Vague review needing interpretation | interpret + dispatch fix | LLM |
-| New feature → subtask decomposition | plan + spawn parallel | LLM |
-
----
-
-## Harness Engineering Philosophy
-
-> Source: jleechanclaw docs/HARNESS_ENGINEERING.md
-
-Harness engineering shifts human engineers from writing code to designing:
-
-1. **Environments** — isolated workspaces, tool access, credentials
-2. **Constraints** — architectural rules, CLAUDE.md policies, dependency layering
-3. **Feedback loops** — CI reactions, review automation, escalation policies
-4. **Intent specifications** — prompts, task descriptions, acceptance criteria
-
-### Key Principles
-
-#### 1. Documentation Is Infrastructure
-
-> "From the agent's perspective, anything it can't access in-context doesn't exist."
-
-CLAUDE.md, AGENTS.md are not documentation — they are infrastructure. They are read by agents on every turn and directly control agent behavior.
-
-#### 2. Deterministic First, LLM for Judgment
-
-Don't use an LLM when a rule will do. CI failed? That's deterministic. Review comment? Deterministic. The LLM is called only when the deterministic router has no rule.
-
-#### 3. Fresh Context, Not Accumulated Context
-
-Each headless agent call gets a clean prompt with all context injected upfront. No memory of previous attempts — that's the harness's job.
-
-#### 4. Build Rippable Harnesses
-
-> "If you over-engineer the control flow, the next model update will break your system."
-
-The orchestration layer is thin and replaceable. If a new tool adds native judgment support, the Python layer can be removed without touching agent configs.
-
-#### 5. LLM Decides, Server Executes
-
-For AI-driven features: the LLM gets full context and makes decisions. The server executes actions. Don't strip information "to optimize."
-
----
-
-## Quickstart
-
-```bash
-# Install dependencies
-./install.sh
-
-# Run a task (passthrough mode)
-ai_orch "explain this code"
-
-# Run a task (async tmux mode)
-ai_orch --async "implement feature X"
-```
-
----
+**SmartClaw is a stripped-down reference** for understanding the OpenClaw architecture. For production use, refer to [jleechanclaw](https://github.com/jleechanorg/jleechanclaw).
 
 ## Dependencies
 
 ### Required
 
-| Dependency | Version | Purpose |
-|------------|---------|---------|
-| Python | 3.11+ | Runtime |
-| tmux | latest | Session isolation |
-| git | latest | VCS operations |
-| gh | latest | GitHub CLI |
+- **Python 3.11+** - Runtime environment
+- **Git** - Version control
+- **rsync** - Backup operations
 
-### Optional (Agent CLIs)
+### Optional
 
-| CLI | Purpose |
-|-----|---------|
-| `claude` | Anthropic Claude Code |
-| `codex` | OpenAI Codex CLI |
-| `gemini` | Google Gemini CLI |
-| `minimax` | MiniMax CLI |
-| `cursor` | Cursor Agent CLI |
-
----
-
-## Setup Prerequisites
-
-1. **Python 3.11+** installed
-2. **tmux** installed and running
-3. **Git** configured with GitHub access
-4. **gh CLI** authenticated (`gh auth status`)
-5. At least one agent CLI installed
-
----
+- **Slack** - Notifications and alerts (requires tokens)
+- **Claude Code** - AI coding assistant
+- **GitHub CLI (gh)** - PR operations
 
 ## Installation
 
 ```bash
+# Clone the repository
+git clone https://github.com/jleechanorg/smartclaw.git
+cd smartclaw
+
+# Run the installation script
 ./install.sh
 ```
 
-This script will:
-- Detect available Python interpreters
-- Install the `jleechanorg-orchestration` package
-- Verify installation
+## Setup
 
-### Safety & Idempotency
+### Environment Variables
 
-- **No destructive actions**: Does not modify system files, crontab, or existing configurations
-- **Idempotent**: Safe to run multiple times
-- **Non-intrusive**: Only installs Python package
+Create a `.env` file or set these in your shell:
 
----
+```bash
+# Slack Configuration
+export OPENCLAW_SLACK_BOT_TOKEN="xoxb-..."
+export OPENCLAW_SLACK_APP_TOKEN="xapp-..."
+export SLACK_USER_TOKEN="xoxp-..."
 
-## Configuration Files
+# Slack Identity
+export JLEECHAN_SLACK_USER_ID="U0000000000"
+export OPENCLAW_BOT_USER_ID="U0000000000"
 
-This repo includes configuration templates adapted from jleechanclaw:
+# Slack Channels
+export AGENTO_CHANNEL="C0000000000"
+export SLACK_TEST_CHANNEL="C0000000000"
+export JLEECHAN_DM_CHANNEL="D0000000000"
 
-| File | Purpose |
-|------|---------|
-| `openclaw.json` | Runtime configuration template |
-| `agent-orchestrator.yaml` | Agent orchestrator config template |
-| `docs/HARNESS_ENGINEERING.md` | Harness engineering philosophy |
-| `roadmap/ORCHESTRATION_DESIGN.md` | Orchestration design document |
+# Gateway
+export OPENCLAW_URL="http://127.0.0.1:18789"
+export OPENCLAW_GATEWAY_TOKEN="<token>"
 
-> **Note**: These are templates. Copy and customize for your environment. Never commit secrets.
+# Agent Orchestrator
+export OPENCLAW_AO_HOOK_TOKEN="<token>"
+```
 
----
+### Finding Slack IDs
 
-## Security Note: Secrets
+To find channel/user IDs in Slack:
+1. Open the channel or conversation
+2. Right-click → "Copy link"
+3. The ID is the last segment (starts with `C` for channels, `D` for DMs, `U` for users)
 
-> **⚠️ Never commit secrets to this repository**
+## Safety & Security
 
-- API keys, tokens, and credentials must be stored in environment variables
-- Use `.env` files (ignored by git) for local development
-- When using agent CLIs, ensure credentials are configured outside this package
+### ⚠️ Important Warnings
 
----
+1. **Never commit secrets** - Use environment variables, never hardcode tokens in code
+2. **Audit tokens regularly** - Rotate Slack and API tokens periodically
+3. **Restrict permissions** - Use minimal required scopes for Slack/GitHub tokens
+4. **Monitor activity** - Check logs for unexpected behavior
 
-## Maturity Model
+### Token Security
 
-> Source: jleechanclaw docs/HARNESS_ENGINEERING.md
+| Token Type | Risk Level | Recommendation |
+|------------|------------|----------------|
+| Slack Bot Token (`xoxb-...`) | High | Keep private, rotate monthly |
+| Slack User Token (`xoxp-...`) | High | Keep private, never commit |
+| GitHub Token | High | Use fine-grained tokens with minimal scope |
+| Gateway Token | Medium | Internal only, not exposed externally |
 
-Based on the NxCode framework:
+### Backup Security
 
-| Level | What You Have | Status |
-|-------|---------------|--------|
-| **1. Individual** | CLAUDE.md, pre-commit hooks, test suite | ✅ Available |
-| **2. Team** | AGENTS.md, CI constraints, shared prompts | ✅ Available |
-| **3. Organization** | Custom middleware, observability, escalation policies | 🔄 Future |
+Backups automatically redact sensitive data:
+- API keys and tokens
+- Environment variables
+- Credential files
 
----
+Always verify backup integrity before restoring.
 
-## References
+## Development
 
-- [OpenAI: Harness Engineering](https://openai.com/index/harness-engineering/)
-- [Martin Fowler: Harness Engineering](https://martinfowler.com/articles/exploring-gen-ai/harness-engineering.html)
-- [NxCode: Complete Guide to Harness Engineering](https://www.nxcode.io/resources/news/harness-engineering-complete-guide-ai-agent-codex-2026)
-- [Composio: Agent Orchestrator](https://github.com/ComposioHQ/agent-orchestrator)
+```bash
+# Run tests
+./scripts/test.sh
 
----
+# Check code quality
+./scripts/lint.sh
+```
 
-## Support
+## License
 
-This is a WIP prototype. For issues, check:
+MIT License - See [LICENSE](./LICENSE) for details.
 
-1. Agent CLI installation (`ai_orch --help`)
-2. tmux availability (`tmux -V`)
-3. Python version (`python3 --version`)
+## Related Projects
+
+- [jleechanclaw](https://github.com/jleechanorg/jleechanclaw) - Production Agent Orchestrator
+- [worldarchitect.ai](https://github.com/jleechanorg/worldarchitect.ai) - D&D 5e AI Platform

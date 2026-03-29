@@ -5,7 +5,7 @@
 
 This repo is a **harness** — not a codebase that agents work on, but the
 environment, constraints, and feedback loops that enable agents to do reliable
-work across all jleechanorg projects.
+work across all projects.
 
 ## What Is Harness Engineering?
 
@@ -38,7 +38,7 @@ Reference: [OpenAI: Harness Engineering](https://openai.com/index/harness-engine
 
 These are the "scaffolding" — agents read them directly and operate within
 their constraints. Changes here take effect immediately because the repo
-root IS `~/.openclaw/`.
+root IS `~/.smartclaw/`.
 
 ### Layer 2: Deterministic Feedback Loops (agent-orchestrator)
 
