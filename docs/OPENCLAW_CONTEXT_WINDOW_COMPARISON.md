@@ -1,48 +1,54 @@
-# Context Window Comparison (Jeffrey's OpenClaw System)
+# Context Window Comparison (Business Focus: OpenClaw + worldarchitect.ai)
 
 ```text
-OPENCLAW (Orchestrator)                         AO WORKERS (Coding Agents)
+OPENCLAW (Business Orchestrator)                AO WORKERS (Execution Agents)
 ────────────────────────────────────────        ────────────────────────────────────────
 
 ┌──────────────────────────────────────┐        ┌──────────────────────────────────────┐
-│ RUNTIME + CHANNEL CONTEXT            │        │ TASK CONTEXT                         │
-│ • Slack channel/thread routing       │        │ • User task text (verbatim)         │
-│ • Gateway session + reply targeting  │        │ • Repo/worktree branch              │
-│ • Heartbeat + scheduled nudges       │        │ • PR-specific review feedback        │
+│ BUSINESS CONTEXT                     │        │ DELIVERY CONTEXT                     │
+│ • AI RPG product goals               │        │ • Issue/PR scope for one change      │
+│ • Player retention + engagement      │        │ • Repo branch + code files           │
+│ • Revenue/pricing priorities         │        │ • Tests + CI checks                  │
+│ • Roadmap sequencing                 │        │ • Reviewer comments to resolve       │
 └──────────────────────────────────────┘        └──────────────────────────────────────┘
 ┌──────────────────────────────────────┐        ┌──────────────────────────────────────┐
-│ POLICY + OPERATING RULES             │        │ CODE EXECUTION SURFACE               │
-│ • SOUL.md commitments                │        │ • Files/code/tests in worktree       │
-│ • AGENTS.md guardrails               │        │ • git commit / push / PR updates     │
-│ • TOOLS.md local runtime notes       │        │ • CI retry loops / fix-forward       │
+│ DECISION SYSTEM                      │        │ IMPLEMENTATION SYSTEM                │
+│ • Prioritizes what matters now       │        │ • Writes/fixes code quickly          │
+│ • Converts goals -> concrete tasks   │        │ • Pushes commits + updates PRs       │
+│ • Chooses when to escalate/block     │        │ • Iterates until checks pass         │
 └──────────────────────────────────────┘        └──────────────────────────────────────┘
 ┌──────────────────────────────────────┐        ┌──────────────────────────────────────┐
-│ MEMORY SYSTEM                        │        │ MERGE-GATE TARGETS                   │
-│ • MEMORY.md (curated long-term)      │        │ • CI passing                         │
-│ • memory/YYYY-MM-DD.md (daily log)   │        │ • CodeRabbit approved                │
-│ • learned patterns + prior failures  │        │ • Bugbot clean + comments resolved   │
-└──────────────────────────────────────┘        │ • Evidence + Skeptic pass (code PR) │
-┌──────────────────────────────────────┐        └──────────────────────────────────────┘
-│ AUTOMATION CONTROL                   │        ┌──────────────────────────────────────┐
-│ • openclaw gateway + launchd jobs    │        │ LIMITS                               │
-│ • cron/jobs.json scheduler           │        │ • No long-term memory between runs   │
-│ • dispatch -> ao spawn/send          │        │ • Depends on prompt/context quality  │
-└──────────────────────────────────────┘        │ • Escalates ambiguity to orchestrator│
-                                                └──────────────────────────────────────┘
+│ MEMORY + OPERATING HISTORY           │        │ CODE + QUALITY TARGETS               │
+│ • MEMORY.md (durable patterns)       │        │ • App behavior correctness           │
+│ • daily logs (wins/failures)         │        │ • Type/test/lint health              │
+│ • prior CI/review failure patterns   │        │ • Merge-gate compliance              │
+└──────────────────────────────────────┘        └──────────────────────────────────────┘
+┌──────────────────────────────────────┐        ┌──────────────────────────────────────┐
+│ AUTOMATION + CONTROL                 │        │ LIMITS                               │
+│ • Slack/Gateway command center       │        │ • Narrow scope per run               │
+│ • launchd + scheduler loops          │        │ • Limited long-horizon context       │
+│ • dispatch to AO for implementation  │        │ • Needs clear objective + constraints│
+└──────────────────────────────────────┘        └──────────────────────────────────────┘
 
 OPENCLAW IS GOOD AT:                            AO WORKERS ARE GOOD AT:
-• Cross-tool orchestration                      • Fast implementation in repo scope
-• Applying durable policy rules                 • Executing tests + fixing CI
-• Memory-driven prioritization                  • Iterating on PR feedback
-• Channel-aware status + escalation             • Shipping concrete code deltas
+• Product/ops prioritization                    • Fast coding + refactors
+• Connecting business goals to execution        • Test-fix loops and CI recovery
+• Cross-repo coordination and routing           • Resolving concrete review items
+• Durable memory of what worked                 • Shipping focused PR increments
 
 OPENCLAW RISK ZONES:                            AO WORKER RISK ZONES:
-• Missing early ack can look silent             • Can stall without clear constraints
-• Thread/context overload if not pruned         • Narrow view outside given context
-• Needs tool auth for external writes           • No native cross-session memory
+• Over-broad context can slow decisions         • Can optimize locally, miss strategy
+• Needs reliable tool/auth plumbing             • Can stall without clear acceptance criteria
+• Must keep priorities explicit                 • No durable cross-session product memory
 ```
+
+## worldarchitect.ai mapping (AI RPG)
+
+- **Business lane (OpenClaw):** decides whether to prioritize player experience, progression reliability, security hardening, or release velocity for the AI RPG.
+- **Execution lane (AO workers):** implements the selected change in `worldarchitect.ai`, drives CI/review to green, and returns proof (PR/commits/checks).
+- **Feedback loop:** production/review outcomes are captured in memory and used by OpenClaw to improve the next prioritization decision.
 
 ## Notes
 
-- Uses **openclaw** naming (not Zoe) and maps to Jeffrey's live setup.
-- Grounded in current workspace conventions: `SOUL.md`, `AGENTS.md`, `TOOLS.md`, `MEMORY.md`, launchd, and AO dispatch patterns.
+- Uses **openclaw** naming (not Zoe).
+- Reframed for business outcomes first, then engineering execution.
