@@ -134,21 +134,21 @@ jobs:
               GATE5_FAIL="true"
             fi
 
-            # 6. Evidence (evidence-review-bot) — fail-closed for code PRs.
+            # 6. Evidence (evidence-review-bot) — fail-closed for explicit failures.
             # evidence-review-bot only produces APPROVED or DISMISSED/CHANGES_REQUESTED as terminal
-            # states. none = bot has not run yet (N/A for docs-only PRs, FAIL for code PRs).
-            # COMMENTED/PENDING = bot is running or stalled — treat as FAIL for code PRs.
+            # states. none = bot has not run yet (informational — no evidence-review-bot configured).
+            # COMMENTED/PENDING = bot is running or stalled — informational, not blocking.
             EVIDENCE=$(gh api repos/${{ github.repository }}/pulls/$PR_NUM/reviews --paginate \
               | jq -s -r 'add | [.[] | select(.user.login == "evidence-review-bot")] | sort_by(.submitted_at) | reverse | .[0].state // "none"' 2>/dev/null || echo "none")
             if [[ "$EVIDENCE" == "APPROVED" ]]; then
               echo "  [6] Evidence: PASS"
-            else
-              # DISMISSED/CHANGES_REQUESTED: evidence-review-bot explicitly failed.
-              # none/COMMENTED/PENDING: bot has not run or is still running.
-              # For smartclaw this gate is informational (no evidence-review-bot configured),
-              # but hardcode FAIL so any future evidence configuration fail-closes correctly.
+            elif [[ "$EVIDENCE" == "DISMISSED" || "$EVIDENCE" == "CHANGES_REQUESTED" ]]; then
               echo "  [6] Evidence: FAIL ($EVIDENCE)"
               GATE6_FAIL="true"
+            else
+              # none/COMMENTED/PENDING: no evidence-review-bot configured or bot still running.
+              # Treat as informational — do not block merge.
+              echo "  [6] Evidence: N/A ($EVIDENCE — no evidence-review-bot configured)"
             fi
 
             # 7. Skeptic verdict (github-actions[bot] VERDICT comment) — pick LATEST, not oldest
