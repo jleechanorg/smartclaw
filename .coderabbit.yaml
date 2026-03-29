@@ -1,0 +1,13 @@
+# CodeRabbit configuration
+# Docs: https://docs.coderabbit.ai/configuration/
+#
+# Key change: CR must post APPROVED (not COMMENTED) when satisfied.
+# This makes condition 3 ("CodeRabbit approved") a real GitHub approval.
+language: en-US
+reviews:
+  # Post APPROVED review when no blocking issues found
+  approve: true
+  # Post CHANGES_REQUESTED when blocking issues found
+  request_changes_workflow: true
+  auto_review:
+    enabled: true
