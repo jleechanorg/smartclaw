@@ -1,0 +1,64 @@
+# CodeRabbit configuration for jleechanorg/smartclaw
+# Enables formal APPROVED/CHANGES_REQUESTED review states required by skeptic-cron Gate 3
+# Without reviews.request_changes_workflow: true, CR can only post COMMENTED (blocks Gate 3)
+
+version: "1"
+
+review:
+  profiles:
+    - name: review-profile
+      choice: full
+
+  high_level_summary:
+    open_when: all_checks_pass
+    poem: false
+    collapse_walkthrough: false
+
+  title_hint_for_line:
+    before_message: "[Suggestion] "
+
+  review_status: true
+  auto_title_placeholder: "[{{branch}}|{{ticket}}] {{title}}"
+
+  multiple_crv_single_walkthrough: true
+  show_walkthrough: true
+  notable_changes: true
+
+  prompt:
+    - WalkthroughConfig
+    - AlgorithmConfig
+
+  sequence_diagrams: true
+  glancev2: true
+  gk: true
+
+  # CR needs this enabled to post APPROVED/CHANGES_REQUESTED reviews
+  # Without it, CR only posts COMMENTED reviews (blocks skeptic-cron Gate 3)
+  reviews:
+    request_changes_workflow: true
+    high_level_summary: true
+    poem: true
+    review_status: true
+    collapse_walkthrough: false
+    auto_title_placeholder: "[{{branch}}|{{ticket}}] {{title}}"
+    update_files_definition_paths: []
+    path_filters:
+      "**/*.md": exclude
+    high_level_summary_placeholder: "[Summary] "
+
+  chat:
+    auto_reply: false
+
+  annotation:
+    syntax_errors: global_crv_files
+    link_to_issue_policy: global_crv_files
+    unresolved_annotation_transparency: global_crv_files
+    collapse_walkthrough: global_crv_files
+    show_walkthrough_condition: global_crv_files
+
+  status_bar:
+    total_viewing_width: 1200
+
+  tools:
+    heap_size: 5000
+    shaper: true
