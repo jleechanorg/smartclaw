@@ -1,81 +1,32 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# SmartClaw Installation Script
-# Quick setup for the SmartClaw prototype
-#
-# Usage:
-#   ./install.sh
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TARGET_PARENT="${1:-$HOME}"
+AO_DIR="$TARGET_PARENT/agent-orchestrator"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$SCRIPT_DIR"
+cat <<'MSG'
+smartclaw install helper
+------------------------
+This repo is not an OpenClaw fork.
+It is a copy of local settings/config + integration with jleechanorg/agent-orchestrator.
+MSG
 
-echo "=== SmartClaw Installation ==="
-echo "Repository: $REPO_ROOT"
-echo "⚠️  This is a WORK IN PROGRESS prototype - not for production use"
-echo
+echo "[1/3] smartclaw repo: $ROOT_DIR"
+echo "[2/3] checking dependency: jleechanorg/agent-orchestrator"
 
-# Check prerequisites
-echo "[1/3] Checking prerequisites..."
-
-if ! command -v python3 >/dev/null 2>&1; then
-    echo "ERROR: python3 is required but not installed" >&2
-    exit 1
-fi
-echo "  ✓ python3: $(python3 --version)"
-
-if ! command -v git >/dev/null 2>&1; then
-    echo "ERROR: git is required but not installed" >&2
-    exit 1
-fi
-echo "  ✓ git: $(git --version)"
-
-if command -v rsync >/dev/null 2>&1; then
-    echo "  ✓ rsync: available"
+if [[ -d "$AO_DIR/.git" ]]; then
+  echo "✓ Found existing agent-orchestrator at: $AO_DIR"
 else
-    echo "  ⚠ rsync not found (optional - needed for backups)"
+  echo "→ Cloning jleechanorg/agent-orchestrator into: $AO_DIR"
+  git clone https://github.com/jleechanorg/agent-orchestrator.git "$AO_DIR"
 fi
 
-echo
+echo "[3/3] done"
+cat <<EOF
 
-# Check environment
-echo "[2/3] Checking environment..."
-
-if [[ -f "$REPO_ROOT/.env" ]]; then
-    echo "  ✓ .env file found"
-elif [[ -f "$HOME/.smartclaw.env" ]]; then
-    echo "  ✓ Found ~/.smartclaw.env"
-    echo "  → Linking to repository..."
-    ln -sf "$HOME/.smartclaw.env" "$REPO_ROOT/.env"
-else
-    echo "  ⚠ No .env file found"
-    echo "  → Creating example .env..."
-    cp "$REPO_ROOT/.env.example" "$REPO_ROOT/.env" 2>/dev/null || \
-        echo "OPENCLAW_SLACK_BOT_TOKEN=xoxb-example" > "$REPO_ROOT/.env"
-    echo "  ! Please edit .env with your credentials"
-fi
-
-echo
-
-# Installation complete
-echo "[3/3] Installation complete!"
-echo
-
-echo "Next steps:"
-echo "  1. Edit .env with your Slack/GitHub tokens"
-echo "  2. Review README.md for configuration"
-echo "  3. Run: source ~/.bashrc  # or ~/.zshrc"
-echo
-
-echo "For help, see:"
-echo "  - README.md"
-echo "  - https://github.com/jleechanorg/smartclaw"
-echo
-
-# Verify the .env is gitignored
-if [[ -f "$REPO_ROOT/.env" ]] && ! grep -q "^\.env$" "$REPO_ROOT/.gitignore" 2>/dev/null; then
-    echo "WARNING: .env is not in .gitignore - secrets may be committed!"
-    echo "Add '.env' to .gitignore before committing"
-fi
-
-echo "✓ SmartClaw installation complete"
+Next steps:
+- Review launchd templates in: $ROOT_DIR/launchd
+- Review skills in: $ROOT_DIR/skills
+- Ensure your OpenClaw runtime points to the smartclaw config you want to use
+EOF

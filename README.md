@@ -1,38 +1,40 @@
 # smartclaw
 
-`smartclaw` is a lightweight, public harness repo for running an OpenClaw-based automation setup on macOS.
+`smartclaw` is **not an OpenClaw fork**.
 
-It includes:
-- launchd templates for scheduler/health/lifecycle processes
-- reusable OpenClaw skills used by this setup
-- reference docs for harness engineering and zero-touch operation
+It is a copy of the settings/configuration Jeffrey uses, plus integration wiring for Agent Orchestrator.
 
-## Dependency: Agent Orchestrator (AO)
+## Required dependency
 
-This setup relies on **`jleechanorg/agent-orchestrator`**, a fork of AO that provides agent session orchestration and lifecycle management.
+This setup explicitly **needs** the `jleechanorg/agent-orchestrator` repository:
 
-- Repo: https://github.com/jleechanorg/agent-orchestrator
+- https://github.com/jleechanorg/agent-orchestrator
+
+`smartclaw` expects AO-style lifecycle/session orchestration behavior from that repo.
+
+## Quick install
+
+Use the included installer:
+
+```bash
+./install.sh
+```
+
+Or run manually:
+
+1. Clone this repo
+2. Clone `jleechanorg/agent-orchestrator`
+3. Wire launchd templates / skills from this repo into your local setup
 
 ## What is in this repo
 
-- `launchd/`
-  - `smartclaw.scheduler.plist.template` — runs OpenClaw's scheduler (`gateway run-scheduler`) against `cron/jobs.json`
-  - `smartclaw.agento-manager.plist.template` — manages AO lifecycle workers/manager loops
-  - `smartclaw.lifecycle-manager.plist.template` — lifecycle service template
-  - `smartclaw.health-check.plist.template` — periodic health-check service template
-  - `smartclaw.monitor-agent.plist` / `smartclaw.health-check.plist` — concrete examples
-- `skills/`
-  - `dispatch-task/` — AO dispatch workflow skill
-  - `cmux/` — cmux control skill
-  - `antigravity-computer-use/` and `claude-code-computer-use/` — computer-use automation pointers/guidance
-  - `er.md` — evidence review workflow
-- `docs/`
-  - `HARNESS_ENGINEERING.md`
-  - `ZERO_TOUCH.md`
+- `launchd/` — scheduler/health/lifecycle plist templates and examples
+- `skills/` — reusable skill definitions for this setup
+- `docs/` — harness engineering + zero-touch notes
 
 ## Scope
 
-This repository is intentionally focused on **harness/config patterns** (skills, launchd wiring, operational docs), not product application code.
+This repository is intentionally focused on local harness/config patterns, not product application code.
 
 ## License
 
