@@ -88,7 +88,7 @@ update_metadata_key() {
 # Detect: gh pr create
 if [[ "$command" =~ ^gh[[:space:]]+pr[[:space:]]+create ]]; then
   # Extract PR URL from output
-  pr_url=$(echo "$output" | grep -Eo 'https://github[.]com/[^/]+/[^/]+/pull/[0-9]+' | head -1)
+  pr_url=$(echo "$output" | grep -Eo 'https://github[.]com/[^/]+/[^/]+/pull/[0-9]+' | head -1 || true)
 
   if [[ -n "$pr_url" ]]; then
     update_metadata_key "pr" "$pr_url"
