@@ -1,5 +1,29 @@
 # OpenClaw Setup Guide
 
+## Table of Contents
+
+### First-Time Setup
+1. [Install OpenClaw](#install)
+2. [Onboard & configure openclaw.json](#openclawingjson-required-patches)
+3. [Install as launchd service](#install) _(included in install step)_
+4. [Set up gog (Google OAuth CLI)](#gog-google-oauth-cli)
+5. [Git track ~/.openclaw/](#git-tracking)
+6. [Launchd backup job](#launchd-backup)
+
+### Staging Setup _(already have OpenClaw running)_
+1. [Onboard staging profile](#staging-alongside-main)
+2. [Patch ~/.openclaw-staging/openclaw.json](#openclawingjson-required-patches)
+3. [Install as separate launchd service](#staging-alongside-main) _(included in staging step)_
+4. [Verify both gateways](#staging-alongside-main)
+5. [Git track ~/.openclaw-staging/](#git-tracking)
+6. [Launchd backup for staging](#launchd-backup)
+
+### Reference
+- [Key paths](#key-paths)
+- [Full step-by-step Google Doc](https://docs.google.com/document/d/1VIGahkFRQgfSq2dBZSp5HU6LZOWCEHyPtXrBcGasFwI/edit)
+
+---
+
 Full setup instructions are maintained as a living Google Doc with two tabs:
 
 **→ https://docs.google.com/document/d/1VIGahkFRQgfSq2dBZSp5HU6LZOWCEHyPtXrBcGasFwI/edit**
