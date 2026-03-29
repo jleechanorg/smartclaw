@@ -8,10 +8,11 @@ For a fresh machine with no existing OpenClaw installation.
 2. [Install OpenClaw](#2-install-openclaw)
 3. [Onboard](#3-onboard)
 4. [Patch openclaw.json](#4-patch-openclawingjson)
-5. [Install as launchd service](#5-install-as-launchd-service)
-6. [Set up gog (Google OAuth CLI)](#6-set-up-gog-google-oauth-cli)
-7. [Git track ~/.openclaw/](#7-git-track-openclaw)
-8. [Launchd backup job](#8-launchd-backup-job)
+5. [Create Slack App](#5-create-slack-app)
+6. [Install as launchd service](#6-install-as-launchd-service)
+7. [Set up gog (Google OAuth CLI)](#7-set-up-gog-google-oauth-cli)
+8. [Git track ~/.openclaw/](#8-git-track-openclaw)
+9. [Launchd backup job](#9-launchd-backup-job)
 
 ---
 
@@ -86,7 +87,79 @@ with open(path, 'w') as f:
 
 ---
 
-## 5. Install as launchd service
+## 5. Create Slack App
+
+Each OpenClaw instance needs its own Slack app to avoid token conflicts. If two gateways share one bot token, Slack delivers events to both WebSocket connections causing race conditions and dropped messages.
+
+Go to `https://api.slack.com/apps` → **Create New App** → **From an app manifest** → select your workspace → paste:
+
+```json
+{
+  "display_information": {
+    "name": "openclaw",
+    "description": "OpenClaw AI agent gateway",
+    "background_color": "#2c2d30"
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "openclaw",
+      "always_online": true
+    }
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "app_mentions:read",
+        "channels:history",
+        "channels:read",
+        "chat:write",
+        "files:read",
+        "files:write",
+        "groups:history",
+        "groups:read",
+        "im:history",
+        "im:read",
+        "im:write",
+        "reactions:read",
+        "reactions:write",
+        "team:read",
+        "users:read",
+        "users:read.email"
+      ]
+    }
+  },
+  "settings": {
+    "event_subscriptions": {
+      "bot_events": [
+        "app_mention",
+        "message.channels",
+        "message.groups",
+        "message.im"
+      ]
+    },
+    "interactivity": { "is_enabled": false },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": true,
+    "token_rotation_enabled": false
+  }
+}
+```
+
+After creating:
+1. **Install to Workspace** (left sidebar → Install App → Install to Workspace → Allow)
+2. Copy **Bot User OAuth Token** (`xoxb-...`) from OAuth & Permissions
+3. **Basic Information** → **App-Level Tokens** → Generate with `connections:write` scope → copy `xapp-...` token
+
+Add tokens to `openclaw.json` (Step 4) and to `~/.bashrc`:
+
+```bash
+export OPENCLAW_SLACK_BOT_TOKEN="xoxb-..."
+export OPENCLAW_SLACK_APP_TOKEN="xapp-..."
+```
+
+---
+
+## 6. Install as launchd service
 
 ```bash
 openclaw gateway install
@@ -110,7 +183,7 @@ tail -f ~/.openclaw/logs/gateway.log
 
 ---
 
-## 6. Set up gog (Google OAuth CLI)
+## 7. Set up gog (Google OAuth CLI)
 
 gog manages Google OAuth tokens headlessly for Drive, Gmail, Calendar, Docs, etc.
 
@@ -145,7 +218,7 @@ gog docs list-tabs <docId>   # get tab IDs
 
 ---
 
-## 7. Git track ~/.openclaw/
+## 8. Git track ~/.openclaw/
 
 ```bash
 cd ~/.openclaw
@@ -169,7 +242,7 @@ git push -u origin main
 
 ---
 
-## 8. Launchd backup job
+## 9. Launchd backup job
 
 Runs at 3am daily, archives config (secrets excluded) to `~/.openclaw-backups/`.
 
