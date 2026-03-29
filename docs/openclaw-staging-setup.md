@@ -111,12 +111,18 @@ After creating:
 Add tokens to `~/.bashrc` (alongside the production tokens):
 
 ```bash
-# OpenClaw STAGING Slack tokens (app openclaw_staging, keep secure, never commit)
+# Gateway reads from openclaw.json directly, but env fallback names are:
+# SLACK_BOT_TOKEN / SLACK_APP_TOKEN (only one set can be active per shell)
+# For multi-gateway setups, set tokens in openclaw.json and use custom aliases:
+
+# Staging Slack tokens (app openclaw_staging, keep secure, never commit)
 export OPENCLAW_STAGING_SLACK_BOT_TOKEN="xoxb-..."
 export OPENCLAW_STAGING_SLACK_APP_TOKEN="xapp-..."
 ```
 
 Also add to `~/.profile` for scripts that source it.
+
+> **Note:** The gateway reads tokens from `openclaw.json`, not env vars. The env vars above are for your own scripts. The canonical env fallback names recognized by OpenClaw are `SLACK_BOT_TOKEN` / `SLACK_APP_TOKEN`, but since you can only have one set per shell, multi-gateway setups should rely on `openclaw.json` for token differentiation.
 
 ---
 
@@ -178,6 +184,11 @@ with open(path) as f:
     d = json.load(f)
 
 # Staging responds in all channels but only when @mentioned
+# WARNING: This replaces any existing per-channel config.
+# If you have custom per-channel settings, merge them instead of overwriting:
+#   existing = d['channels']['slack'].get('channels', {})
+#   existing['*'] = {'allow': True, 'requireMention': True}
+#   d['channels']['slack']['channels'] = existing
 d['channels']['slack']['channels'] = {
     '*': {'allow': True, 'requireMention': True}
 }

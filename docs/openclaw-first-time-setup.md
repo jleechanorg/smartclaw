@@ -27,7 +27,7 @@ node --version   # v22.x
 ```
 
 - A Slack workspace where you are an admin (to create a bot)
-- gog CLI for Google integrations (optional, Step 6)
+- gog CLI for Google integrations (optional, Step 7)
 
 ---
 
@@ -150,11 +150,18 @@ After creating:
 2. Copy **Bot User OAuth Token** (`xoxb-...`) from OAuth & Permissions
 3. **Basic Information** → **App-Level Tokens** → Generate with `connections:write` scope → copy `xapp-...` token
 
-Add tokens to `openclaw.json` (Step 4) and to `~/.bashrc`:
+Add tokens to `openclaw.json` (Step 4 python patch or manually under `channels.slack.botToken` / `channels.slack.appToken`).
+
+Optionally export to `~/.bashrc` for scripts that need them:
 
 ```bash
-export OPENCLAW_SLACK_BOT_TOKEN="xoxb-..."
-export OPENCLAW_SLACK_APP_TOKEN="xapp-..."
+# Gateway reads from openclaw.json directly, but env fallback names are:
+export SLACK_BOT_TOKEN="xoxb-..."
+export SLACK_APP_TOKEN="xapp-..."
+
+# Custom aliases for your own scripts (NOT read by gateway):
+export OPENCLAW_SLACK_BOT_TOKEN="$SLACK_BOT_TOKEN"
+export OPENCLAW_SLACK_APP_TOKEN="$SLACK_APP_TOKEN"
 ```
 
 ---
