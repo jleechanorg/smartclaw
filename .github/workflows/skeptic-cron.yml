@@ -114,8 +114,12 @@ jobs:
             # Pass Gate 5 when CR has approved — CR's APPROVED verdict supersedes the
             # unresolved non-nit comment count (CR has already reviewed and approved the PR).
             # API errors (UNRESOLVED == -1) always fail — never bypassed by CR_PASS.
+            # Stale comments: exclude comments whose original_commit_id differs from the current PR head
+            # SHA — these are comments on OLD code (e.g. from a prior branch sync or rebased history).
+            # Only comments on the current HEAD count toward the unresolved total.
             UNRESOLVED=$(gh api repos/${{ github.repository }}/pulls/$PR_NUM/comments --paginate \
-              | jq -s -r 'add | [.[] | select(.in_reply_to_id == null) | select(.body | test("^(nit:|nitpick)"; "i") | not)] | length' 2>/dev/null || echo "-1")
+              | jq -s --arg pr_head "$PR_HEAD" -r \
+              'add | [.[] | select(.in_reply_to_id == null) | select(.body | test("^(nit:|nitpick)"; "i") | not) | select(.original_commit_id == $pr_head or .original_commit_id == null)] | length' 2>/dev/null || echo "-1")
             if [[ "$UNRESOLVED" == "-1" ]]; then
               echo "  [5] Comments: ERROR (API fetch failed)"
               GATE5_FAIL="true"
