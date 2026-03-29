@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Comment</key>
+	<string>Consolidated OpenClaw Lifecycle Manager - manages lifecycle workers for all projects.
+Replaces legacy per-project lifecycle plists.</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME</key>
+		<string>@HOME@</string>
+		<key>PATH</key>
+		<string>@HOME@/.nvm/versions/node/current/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+		<key>PYTHONUNBUFFERED</key>
+		<string>1</string>
+		<key>AO_LIFECYCLE_PROJECTS</key>
+		<string>REPLACE_WITH_PROJECT_LIST</string>
+		<key>OPENCLAW_LIFECYCLE_PROJECTS</key>
+		<string>REPLACE_WITH_PROJECT_LIST</string>
+	</dict>
+	<key>KeepAlive</key>
+	<dict>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
+	<key>Label</key>
+	<string>ai.openclaw.lifecycle-manager</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>-c</string>
+		<string>source @HOME@/.bash_profile 2>/dev/null || source @HOME@/.bashrc 2>/dev/null || true
+mkdir -p @HOME@/.openclaw/logs
+
+# Lifecycle manager - spawns workers for each configured project
+PROJECTS="${AO_LIFECYCLE_PROJECTS:-${OPENCLAW_LIFECYCLE_PROJECTS:-}}"
+if [ -z "$PROJECTS" ] || [ "$PROJECTS" = "REPLACE_WITH_PROJECT_LIST" ]; then
+    echo "[lifecycle-manager] No projects configured. Set AO_LIFECYCLE_PROJECTS or OPENCLAW_LIFECYCLE_PROJECTS."
+    exit 0
+fi
+
+# Signal handling: forward SIGTERM/SIGINT to all worker PIDs then wait
+WORKER_PIDS=()
+cleanup() {
+    echo "[lifecycle-manager] Shutting down workers..."
+    for pid in "${WORKER_PIDS[@]}"; do
+        kill "$pid" 2>/dev/null || true
+    done
+    wait
+}
+trap cleanup SIGTERM SIGINT EXIT
+
+for project in $(echo "$PROJECTS" | tr ',' ' '); do
+    echo "[lifecycle-manager] Starting worker for: $project"
+    node @HOME@/bin/ao lifecycle-worker "$project" 2&gt;&amp;1 | while read line; do
+        echo "[lifecycle-$project] $line"
+    done &amp;
+    WORKER_PIDS+=($!)
+done
+
+# Wait for all workers
+wait</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>@HOME@/.openclaw/logs/ao-lifecycle-manager.err.log</string>
+	<key>StandardOutPath</key>
+	<string>@HOME@/.openclaw/logs/ao-lifecycle-manager.log</string>
+	<key>WorkingDirectory</key>
+	<string>@HOME@</string>
+	<key>ThrottleInterval</key>
+	<integer>30</integer>
+</dict>
+</plist>

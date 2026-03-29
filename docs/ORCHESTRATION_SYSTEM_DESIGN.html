@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11.13.0/dist/mermaid.min.js" integrity="sha384-tI0sDqjGJcqrQ8e/XKiQGS+ee11v5knTNWx2goxMBxe4DO9U0uKlfxJtYB9ILZ4j" crossorigin="anonymous"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenClaw Orchestration System — Design Document</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --bg2: #161b22;
+      --bg3: #21262d;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent2: #3fb950;
+      --accent3: #f78166;
+      --accent4: #d2a8ff;
+      --code-bg: #1f2937;
+      --table-header: #1c2128;
+      --link: #58a6ff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.65;
+    }
+
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ---- Sidebar ---- */
+    .sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 24px 0;
+    }
+
+    .sidebar-title {
+      padding: 0 20px 16px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 8px;
+    }
+
+    .sidebar nav a {
+      display: block;
+      padding: 6px 20px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13px;
+      border-left: 2px solid transparent;
+      transition: all 0.15s;
+    }
+
+    .sidebar nav a:hover,
+    .sidebar nav a.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: rgba(88, 166, 255, 0.07);
+    }
+
+    .sidebar nav a.sub {
+      padding-left: 36px;
+      font-size: 12px;
+    }
+
+    /* ---- Main content ---- */
+    .main {
+      flex: 1;
+      max-width: 900px;
+      padding: 48px 56px;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-bottom: 40px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h2 {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text);
+      margin-top: 52px;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--accent4);
+      margin-top: 28px;
+      margin-bottom: 10px;
+    }
+
+    p {
+      margin-bottom: 14px;
+      color: var(--text);
+    }
+
+    ul, ol {
+      margin: 10px 0 14px 24px;
+      color: var(--text);
+    }
+
+    li {
+      margin-bottom: 6px;
+    }
+
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ---- Code ---- */
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 18px;
+      overflow-x: auto;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12.5px;
+      line-height: 1.55;
+      margin: 14px 0 20px;
+      color: #cdd9e5;
+    }
+
+    code {
+      background: var(--code-bg);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12.5px;
+      color: #cdd9e5;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+      border-radius: 0;
+      font-size: inherit;
+    }
+
+    /* ---- Tables ---- */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0 24px;
+      font-size: 13.5px;
+    }
+
+    th {
+      background: var(--table-header);
+      color: var(--text-muted);
+      font-weight: 600;
+      text-align: left;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    td {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+    /* ---- Status badges ---- */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .badge-green { background: rgba(63, 185, 80, 0.15); color: var(--accent2); border: 1px solid rgba(63, 185, 80, 0.3); }
+    .badge-red   { background: rgba(247, 129, 102, 0.15); color: var(--accent3); border: 1px solid rgba(247, 129, 102, 0.3); }
+    .badge-blue  { background: rgba(88, 166, 255, 0.15); color: var(--accent); border: 1px solid rgba(88, 166, 255, 0.3); }
+
+    /* ---- Callout boxes ---- */
+    .callout {
+      border-left: 3px solid var(--accent);
+      background: rgba(88, 166, 255, 0.06);
+      padding: 12px 16px;
+      border-radius: 0 6px 6px 0;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+
+    .callout.note { border-color: var(--accent4); background: rgba(210, 168, 255, 0.06); }
+
+    /* ---- Diagram container ---- */
+    .diagram {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      margin: 20px 0;
+    }
+
+    .diagram pre {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 12px;
+      color: #cdd9e5;
+      margin: 0;
+    }
+
+    /* ---- Tenet cards ---- */
+    .tenet-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      margin: 16px 0 28px;
+    }
+
+    .tenet-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 20px;
+    }
+
+    .tenet-card h4 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+
+    .tenet-card p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    /* ---- Section anchors ---- */
+    section { scroll-margin-top: 24px; }
+
+    /* ---- Flow steps ---- */
+    .flow-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .flow-num {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: var(--bg);
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .flow-content { flex: 1; padding-top: 2px; }
+    .flow-content strong { color: var(--text); }
+    .flow-content p { margin-bottom: 4px; color: var(--text-muted); font-size: 13.5px; }
+
+    @media (max-width: 900px) {
+      .sidebar { display: none; }
+      .main { padding: 28px 20px; max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-title">OpenClaw Orchestration</div>
+    <nav>
+      <a href="#background">Background</a>
+      <a href="#goals">Goals &amp; Tenets</a>
+      <a href="#explanation">System Explanation</a>
+      <a href="#replace-yourself" class="sub">Replace Yourself</a>
+      <a href="#memory" class="sub">Memory</a>
+      <a href="#deterministic" class="sub">Deterministic First</a>
+      <a href="#feedback-loop" class="sub">Feedback Loop</a>
+      <a href="#color-legend">Color Legend</a>
+      <a href="#high-level">High-Level Diagram</a>
+      <a href="#low-level">Low-Level Diagram</a>
+      <a href="#components">Component Reference</a>
+      <a href="#ingress-layer" class="sub">Ingress Layer</a>
+      <a href="#dispatch" class="sub">Dispatch Layer</a>
+      <a href="#escalation" class="sub">Escalation Layer</a>
+      <a href="#review" class="sub">Review Layer</a>
+      <a href="#memory-layer" class="sub">Memory Layer</a>
+      <a href="#pr-flow">Data Flow: PR Lifecycle</a>
+      <a href="#ao-flow">Data Flow: AO Escalation</a>
+      <a href="#merge-contract">Merge-Readiness Contract</a>
+      <a href="#status">Implementation Status</a>
+      <a href="#north-star">North Star</a>
+    </nav>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <h1>OpenClaw Orchestration System</h1>
+    <div class="subtitle">Design Document &nbsp;·&nbsp; Last updated: 2026-03-15 &nbsp;·&nbsp; Status: Living document</div>
+
+    <!-- ===== NORTH STAR ===== -->
+    <section id="north-star">
+      <h2>North Star: What Full Autonomy Looks Like</h2>
+      <p>When the system is complete:</p>
+      <ol>
+        <li><strong>Jeffrey opens a PR</strong> → system handles everything until merge-ready</li>
+        <li><strong>GitHub notification feed is empty</strong> → system surfaces only escalations and final approvals</li>
+        <li><strong>The system gets smarter</strong> → outcome ledger means second CI failure on same error class is fixed faster than the first</li>
+        <li><strong>Feedback persists</strong> → corrections from developer shape every future judgment call without re-instruction</li>
+        <li><strong>Parallel strategies</strong> → instead of 3 sequential retries (30 min), 3 parallel strategies (10 min)</li>
+        <li><strong>Proactive triage</strong> → GitHub notifications across all repos automatically triaged into AO sessions (ORCH-w3i1)</li>
+        <li><strong>Anomaly detection</strong> → if the same error class keeps escalating, system creates a bead and notifies before Jeffrey asks (ORCH-cn8y)</li>
+      </ol>
+      <div class="callout">
+        The end state: Jeffrey reviews a Slack message that says "PR #173 is merge-ready" and hits merge. The 2 hours of CI debugging and comment-fixing in between never touched his attention.
+      </div>
+    </section>
+
+    <!-- ===== BACKGROUND ===== -->
+    <section id="background">
+      <h2>Background</h2>
+      <p>Software development is mostly waiting: waiting for CI, waiting for reviews, waiting
+      to remember what you were doing last week, waiting to context-switch back into a PR
+      you opened two days ago.</p>
+      <p>This system exists to eliminate that waiting for a solo developer by building an
+      autonomous agent loop that handles the predictable 80% of the development cycle —
+      CI failures, PR review comments, merge conflicts, CodeRabbit approvals — and only
+      surfaces work to the human when genuine judgment is required.</p>
+      <p>The system is built on top of three real tools:</p>
+      <ul>
+        <li><strong>OpenClaw</strong> — LLM-powered agent runtime with persistent memory, webhooks, and skill dispatch</li>
+        <li><strong>agent-orchestrator (AO)</strong> — session lifecycle manager: spawns/kills headless agent sessions in tmux worktrees, monitors CI/review state, auto-remediates deterministically</li>
+        <li><strong>Headless agents</strong> — <code>claude-code</code>, <code>codex</code>, or <code>gemini</code> sessions running inside AO worktrees, each with fresh context and a specific task</li>
+      </ul>
+      <div class="callout">
+        OpenClaw sits <em>above</em> the AO loop. It has persistent memory across sessions and makes the same decisions the developer would make — routing CI failures to retries, interpreting vague review comments, deciding when a PR needs human eyes. AO does the grunt work; OpenClaw provides the judgment.
+      </div>
+    </section>
+
+    <!-- ===== GOALS ===== -->
+    <section id="goals">
+      <h2>Goals &amp; Tenets</h2>
+
+      <div class="tenet-grid">
+        <div class="tenet-card">
+          <h4>1. Replace Yourself</h4>
+          <p>Jeffrey only sees work when it genuinely needs human judgment or final approval. Everything else is handled autonomously — CI fix, review comment, CodeRabbit approval, merge-readiness gate.</p>
+        </div>
+        <div class="tenet-card">
+          <h4>2. Memory Makes It Smarter</h4>
+          <p>Three memory tiers compound across every task: project conventions, developer feedback corrections, and an outcome ledger of which fix strategies won or lost.</p>
+        </div>
+        <div class="tenet-card">
+          <h4>3. Deterministic First, LLM for Judgment</h4>
+          <p>Routine reactions (retry after CI fail, kill stuck session) are deterministic. The LLM handles the 20% that requires interpretation, strategy, or risk judgment.</p>
+        </div>
+        <div class="tenet-card">
+          <h4>4. Fail Closed, Escalate Explicitly</h4>
+          <p>The system never silently fails. Budget exhaustion or low confidence (&lt;0.6) always escalates to the developer with full context, never acts on a bad guess.</p>
+        </div>
+        <div class="tenet-card">
+          <h4>5. Config-First, Code Last</h4>
+          <p>Before writing Python, check if OpenClaw config handles it — cron, memory, webhooks, skills. New code in <code>src/orchestration/</code> is only justified for genuinely missing capabilities.</p>
+        </div>
+      </div>
+
+      <h3>Decision Matrix: Who Decides What</h3>
+      <table>
+        <thead>
+          <tr><th>Signal</th><th>Who decides</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>CI failed ≤ retry cap</td><td>AO deterministic rule</td></tr>
+          <tr><td>Review comment received</td><td>AO deterministic rule</td></tr>
+          <tr><td>CI failed, budget ≥ 2, parseable error</td><td>OpenClaw spawns parallel fix strategies</td></tr>
+          <tr><td>Agent session idle &gt; threshold</td><td>OpenClaw kills and respawns</td></tr>
+          <tr><td>Retry budget exhausted</td><td>OpenClaw escalates to developer</td></tr>
+          <tr><td>PR approved + CI green</td><td>OpenClaw LLM reviews PR</td></tr>
+          <tr><td>Vague review comment</td><td>OpenClaw LLM interprets + dispatches fix</td></tr>
+          <tr><td>Risky change in sensitive path</td><td>OpenClaw LLM escalates with warning</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Memory Tiers</h3>
+      <table>
+        <thead>
+          <tr><th>Tier</th><th>What it stores</th><th>Used for</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Project memories</strong></td>
+            <td>Codebase conventions, known patterns, historical decisions</td>
+            <td>Every LLM call gets context the agent earned from prior sessions</td>
+          </tr>
+          <tr>
+            <td><strong>Feedback memories</strong></td>
+            <td>Corrections and preferences from the developer</td>
+            <td>Shapes judgment — the agent learns what Jeffrey would have said</td>
+          </tr>
+          <tr>
+            <td><strong>Outcome ledger</strong></td>
+            <td>Which fix strategies succeeded or failed, indexed by error class</td>
+            <td>Future retries skip strategies that didn't work before</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ===== SYSTEM EXPLANATION ===== -->
+    <section id="explanation">
+      <h2>System Explanation</h2>
+
+      <h3 id="replace-yourself">The Core Idea: Replace Yourself</h3>
+      <p>The developer's job in the current automated loop is:</p>
+      <ol>
+        <li>Write code and open a PR</li>
+        <li>Wait for CI and review</li>
+        <li>Fix whatever broke</li>
+        <li>Repeat until mergeable</li>
+        <li>Approve the merge</li>
+      </ol>
+      <p>Steps 2–4 are mechanical for 80% of PRs. The orchestration system handles those steps autonomously. The developer only does step 1 (intent) and step 5 (final approval).</p>
+      <div class="callout note">
+        Autonomous remediation is only reliable if the system has memory of what worked before and can detect when it's failing. Without the outcome ledger, the system burns retries on strategies that have never worked. Without the failure budget, it loops forever. Without escalation, the developer never finds out the loop is broken.
+      </div>
+
+      <h3 id="memory">Memory as a First-Class Citizen</h3>
+      <p>Memory is not a feature — it's the prerequisite for the system getting smarter over time instead of staying permanently dumb.</p>
+
+      <p><strong>How memory flows through the system:</strong></p>
+      <pre>Agent session completes
+  ↓ outcome_recorder.record_outcome(error_class, strategy, result)
+  ↓ outcomes.jsonl: {error_class, strategy, success, timestamp}
+  ↓
+pattern_synthesizer.py (cron, nightly)
+  → "for ImportError on Django models, strategy-B wins 78% of the time"
+  ↓
+generate_fix_strategies() seeds with known-winning strategies for next retry</pre>
+
+      <p><strong>Feedback memories shape OpenClaw's judgment:</strong></p>
+      <pre>Developer: "stop marking PRs ready when CodeRabbit has open comments"
+  ↓ OpenClaw stores feedback memory
+  ↓ Future PR reviews: memory injected into review_pr() LLM context
+  → OpenClaw applies the correction without being told again</pre>
+
+      <p><strong>Project memories prevent repeated mistakes:</strong></p>
+      <pre>"In this repo, tests must be committed separately from implementation"
+  ↓ Stored in project memory during onboarding
+  ↓ Every new agent session gets this as context
+  → Agents follow the convention without per-session re-instruction</pre>
+
+      <h3 id="deterministic">Deterministic First, LLM for Judgment</h3>
+      <p>The routing engine (<code>escalation_router.py</code>) applies rules top-to-bottom:</p>
+      <pre>reaction.escalated
+  ├── attempts ≤ max_retries AND budget ≥ 2 AND parseable CI error
+  │     → ParallelRetryAction (spawn 2–3 sessions with different strategies)
+  ├── attempts ≤ max_retries (single retry path)
+  │     → RetryAction (ao send enriched prompt)
+  └── attempts > max_retries
+        → NotifyJeffreyAction (budget exhausted)
+
+session.stuck (idle > threshold)
+  → KillAndRespawnAction
+
+merge.ready
+  → auto_review_trigger → OpenClaw LLM reviews PR
+    ├── approve   → post GH review + notify developer "ready to merge"
+    ├── changes   → post GH review + RetryAction
+    └── escalate  → notify developer "needs your eyes"</pre>
+
+      <h3 id="feedback-loop">Feedback Loop Architecture</h3>
+      <p>The full loop from PR open to merge:</p>
+      <pre>1. Developer opens PR
+2. GitHub webhook → webhook_daemon:19888 → ao_spawn
+3. AO session starts: reads PR, implements fix, pushes
+4. CI runs → AO detects result via scm-github plugin
+5. CI green → AO triggers merge.ready → pr_reviewer
+6. CI failed → AO triggers reaction.escalated → escalation_handler
+7. escalation_handler routes deterministically:
+   a. Retries remaining → ao send enriched fix prompt
+   b. Budget exhausted → Slack DM to developer
+8. On pr_reviewer approve → CodeRabbit gate check
+9. All gates pass → notify developer to merge</pre>
+    </section>
+
+    <!-- ===== COLOR LEGEND ===== -->
+    <section id="color-legend">
+      <h2>Color Legend</h2>
+      <table>
+        <thead><tr><th>Color</th><th>Layer / Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#ffd700;vertical-align:middle;margin-right:6px"></span><strong>Gold</strong></td><td>Human decision points (Jeffrey)</td></tr>
+          <tr><td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#00d4ff;vertical-align:middle;margin-right:6px"></span><strong>Cyan</strong></td><td>Intelligence layer — OpenClaw LLM, judgment engine</td></tr>
+          <tr><td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#ff9100;vertical-align:middle;margin-right:6px"></span><strong>Orange</strong></td><td>Memory &amp; persistent storage (mem0, SQLite, outcomes)</td></tr>
+          <tr><td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#c084fc;vertical-align:middle;margin-right:6px"></span><strong>Purple</strong></td><td>Orchestration layer — AO session management</td></tr>
+          <tr><td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#4ade80;vertical-align:middle;margin-right:6px"></span><strong>Green</strong></td><td>Execution layer — headless agents · success/happy paths</td></tr>
+          <tr><td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#f87171;vertical-align:middle;margin-right:6px"></span><strong>Red</strong></td><td>Escalation paths · destructive actions · alerts</td></tr>
+          <tr><td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#f0abfc;vertical-align:middle;margin-right:6px"></span><strong>Pink</strong></td><td>External services (GitHub, Slack)</td></tr>
+          <tr><td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#60a5fa;vertical-align:middle;margin-right:6px"></span><strong>Blue</strong></td><td>Data flow — webhook routing, ingress, normalization</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ===== HIGH-LEVEL DIAGRAM ===== -->
+    <section id="high-level">
+      <h2>High-Level System Diagram</h2>
+      <div class="diagram">
+      <div class="mermaid">
+flowchart TD
+    classDef human   fill:#2d1f00,stroke:#ffd700,color:#ffd700,stroke-width:3px
+    classDef brain   fill:#001829,stroke:#00d4ff,color:#7dd3fc,stroke-width:2px
+    classDef memory  fill:#1f0e00,stroke:#ff9100,color:#ffcc80,stroke-width:2px
+    classDef ao      fill:#1a0033,stroke:#c084fc,color:#e9d5ff,stroke-width:2px
+    classDef agent   fill:#001f0e,stroke:#4ade80,color:#86efac,stroke-width:2px
+    classDef external fill:#200a20,stroke:#f0abfc,color:#f5d0fe,stroke-width:1px
+    classDef alert   fill:#200000,stroke:#f87171,color:#fca5a5,stroke-width:2px
+
+    J(["👤 Jeffrey"]):::human
+
+    subgraph oc["OpenClaw — LLM Brain"]
+        mem[("🗄️ Memory\nproject · feedback · outcomes")]:::memory
+        judge["🧠 Judgment Engine\nescalation_router · pr_reviewer\nparallel_retry"]:::brain
+        ing["🔌 Webhook Ingress :19888\n/webhook  ·  /ao-notify"]:::brain
+    end
+
+    subgraph ao_box["Agent Orchestrator"]
+        ao_sm["⚙️ Session Manager\nao spawn · send · kill"]:::ao
+        ao_rx["📡 Reactions\nci-failed · merge.ready\nscm-github plugin"]:::ao
+    end
+
+    subgraph agents_box["Headless Agents"]
+        ag["🤖 claude-code / codex\ntmux + git worktree\nfresh context per session"]:::agent
+    end
+
+    gh[("🐙 GitHub\nWebhooks · CI · API")]:::external
+    slack["📱 Slack\nescalations only"]:::alert
+
+    J -->|"open PR"| gh
+    gh -->|"POST /webhook"| ing
+    ing --> judge
+    mem -->|"recall context"| judge
+    judge -->|"capture outcomes"| mem
+    judge -->|"ao spawn / send / kill"| ao_sm
+    ao_sm --> ag
+    ag -->|"push commit → CI"| gh
+    gh -->|"CI / review events"| ao_rx
+    ao_rx -->|"POST /ao-notify"| ing
+    judge -->|"budget exhausted"| slack
+    slack -->|"escalation DM"| J
+    J -->|"final merge approval"| gh
+
+    linkStyle 0  stroke:#ffd700,stroke-width:2px
+    linkStyle 1  stroke:#60a5fa,stroke-width:2px
+    linkStyle 2  stroke:#60a5fa,stroke-width:2px
+    linkStyle 3  stroke:#ff9100,stroke-width:2px,stroke-dasharray:4
+    linkStyle 4  stroke:#ff9100,stroke-width:2px,stroke-dasharray:4
+    linkStyle 5  stroke:#c084fc,stroke-width:2px
+    linkStyle 6  stroke:#c084fc,stroke-width:2px
+    linkStyle 7  stroke:#4ade80,stroke-width:2px
+    linkStyle 8  stroke:#60a5fa,stroke-width:2px
+    linkStyle 9  stroke:#60a5fa,stroke-width:2px
+    linkStyle 10 stroke:#f87171,stroke-width:2px,stroke-dasharray:4
+    linkStyle 11 stroke:#f87171,stroke-width:2px,stroke-dasharray:4
+    linkStyle 12 stroke:#ffd700,stroke-width:2px
+      </div>
+    </div>
+    </section>
+
+    <!-- ===== LOW-LEVEL DIAGRAM ===== -->
+    <section id="low-level">
+      <h2>Low-Level Component Diagram</h2>
+      <div class="diagram">
+      <div class="mermaid">
+flowchart TD
+    classDef external  fill:#200a20,stroke:#f0abfc,color:#f5d0fe,stroke-width:1px
+    classDef ingress   fill:#001020,stroke:#60a5fa,color:#93c5fd,stroke-width:2px
+    classDef storage   fill:#1f0e00,stroke:#ff9100,color:#ffcc80,stroke-width:2px
+    classDef daemon    fill:#001829,stroke:#00d4ff,color:#7dd3fc,stroke-width:2px
+    classDef decision  fill:#1a1500,stroke:#fde68a,color:#fef3c7,stroke-width:2px
+    classDef ao        fill:#1a0033,stroke:#c084fc,color:#e9d5ff,stroke-width:2px
+    classDef brain     fill:#001829,stroke:#00d4ff,color:#7dd3fc,stroke-width:2px
+    classDef agent     fill:#001f0e,stroke:#4ade80,color:#86efac,stroke-width:2px
+    classDef alert     fill:#200000,stroke:#f87171,color:#fca5a5,stroke-width:2px
+    classDef logging   fill:#111111,stroke:#6b7280,color:#9ca3af,stroke-width:1px
+
+    GH_POST["🐙 GitHub\nPOST /webhook"]:::external
+    AO_POST["📡 AO session\nPOST /ao-notify"]:::ao
+
+    subgraph ingress_layer["🔌 Ingress Layer"]
+        WI["webhook_ingress.py :19888\nHMAC-SHA256  ·  Bearer auth"]:::ingress
+        DB[("webhook_deliveries\nSQLite")]:::storage
+    end
+
+    subgraph daemon_layer["🔄 webhook_daemon.py — poll 5s"]
+        POLL["_poll_and_process()"]:::daemon
+        BRANCH{"event_type?"}:::decision
+        AO_H["_handle_ao_webhook()\nparse_ao_webhook() → AOEvent\nescalation_handler.handle_escalation()"]:::brain
+        NORM["normalize_event()\nwebhook_queue.py → NormalizedEvent"]:::daemon
+    end
+
+    subgraph dispatch_layer["⚙️ Dispatch Layer"]
+        RQ[("remediation_queue\nSQLite")]:::storage
+        WW["webhook_worker.py\nRemediationWorker.run_once()"]:::ao
+        PL["pr_lifecycle.route_event()\nlane + idempotency check"]:::ao
+        SPAWN["ao_cli.ao_spawn(project, issue)"]:::agent
+    end
+
+    subgraph escalation_layer["🧠 Escalation Layer"]
+        ROUTER["escalation_router\n.route_escalation()"]:::brain
+        RA["RetryAction\nao_send(enriched prompt)"]:::ao
+        KR["KillAndRespawnAction\nao_kill() + ao_spawn()"]:::alert
+        PR_["ParallelRetryAction\nparallel_retry.execute()\n2–3 worktrees · first green wins"]:::agent
+        NJ["NotifyJeffreyAction\nSlack DM"]:::alert
+        NJu["NeedsJudgmentAction\npr_reviewer LLM\n→ approve / changes / escalate"]:::brain
+    end
+
+    subgraph memory_layer["🗄️ Memory &amp; Learning"]
+        OR["outcome_recorder.py\n→ outcomes.jsonl"]:::storage
+        PS["pattern_synthesizer.py\ncron nightly → strategy library"]:::storage
+        FB["failure_budget.py\nfcntl-locked JSON"]:::storage
+    end
+
+    GH_POST --> WI
+    AO_POST --> WI
+    WI --> DB
+    DB --> POLL
+    POLL --> BRANCH
+    BRANCH -->|"ao_escalation"| AO_H
+    BRANCH -->|"github event"| NORM
+    NORM --> RQ
+    RQ --> WW
+    WW --> PL
+    PL --> SPAWN
+    AO_H --> ROUTER
+    ROUTER --> RA
+    ROUTER --> KR
+    ROUTER --> PR_
+    ROUTER --> NJ
+    ROUTER --> NJu
+    RA --> OR
+    KR --> OR
+    PR_ --> OR
+    NJ --> OR
+    NJu --> OR
+    OR --> PS
+    FB --> ROUTER
+
+    linkStyle 0  stroke:#f0abfc,stroke-width:1px
+    linkStyle 1  stroke:#c084fc,stroke-width:2px
+    linkStyle 2  stroke:#60a5fa,stroke-width:2px
+    linkStyle 3  stroke:#60a5fa,stroke-width:2px
+    linkStyle 4  stroke:#60a5fa,stroke-width:2px
+    linkStyle 5  stroke:#f87171,stroke-width:2px,stroke-dasharray:4
+    linkStyle 6  stroke:#60a5fa,stroke-width:2px
+    linkStyle 7  stroke:#60a5fa,stroke-width:2px
+    linkStyle 8  stroke:#c084fc,stroke-width:2px
+    linkStyle 9  stroke:#c084fc,stroke-width:2px
+    linkStyle 10 stroke:#4ade80,stroke-width:2px
+    linkStyle 11 stroke:#f87171,stroke-width:2px
+    linkStyle 12 stroke:#c084fc,stroke-width:2px
+    linkStyle 13 stroke:#f87171,stroke-width:2px
+    linkStyle 14 stroke:#4ade80,stroke-width:2px
+    linkStyle 15 stroke:#f87171,stroke-width:2px
+    linkStyle 16 stroke:#00d4ff,stroke-width:2px
+    linkStyle 17 stroke:#ff9100,stroke-width:1.5px,stroke-dasharray:3
+    linkStyle 18 stroke:#ff9100,stroke-width:1.5px,stroke-dasharray:3
+    linkStyle 19 stroke:#ff9100,stroke-width:1.5px,stroke-dasharray:3
+    linkStyle 20 stroke:#ff9100,stroke-width:1.5px,stroke-dasharray:3
+    linkStyle 21 stroke:#ff9100,stroke-width:1.5px,stroke-dasharray:3
+    linkStyle 22 stroke:#ff9100,stroke-width:2px
+    linkStyle 23 stroke:#ff9100,stroke-width:2px,stroke-dasharray:4
+      </div>
+    </div>
+    </section>
+
+    <!-- ===== COMPONENT REFERENCE ===== -->
+    <section id="components">
+      <h2>Component Reference</h2>
+
+      <h3 id="ingress-layer">Ingress Layer</h3>
+      <table>
+        <thead><tr><th>File</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><code>webhook_ingress.py</code></td><td>HTTP server on :19888, HMAC/Bearer auth, SQLite store</td></tr>
+          <tr><td><code>webhook_queue.py</code></td><td>SQLite queue schema, <code>NormalizedEvent</code>, dedup logic</td></tr>
+          <tr><td><code>webhook_daemon.py</code></td><td>Supervised process: ingress + worker + AO routing</td></tr>
+          <tr><td><code>webhook_bridge.py</code></td><td>GitHub event normalization helpers</td></tr>
+          <tr><td><code>event_util.py</code></td><td><code>trigger_type_for()</code>, <code>normalize_trigger_type()</code></td></tr>
+        </tbody>
+      </table>
+
+      <h3 id="dispatch">Dispatch Layer</h3>
+      <table>
+        <thead><tr><th>File</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><code>webhook_worker.py</code></td><td>Polls remediation queue, acquires PR lock, calls ao_spawn</td></tr>
+          <tr><td><code>ao_cli.py</code></td><td>Subprocess wrappers: <code>ao_spawn</code>, <code>ao_send</code>, <code>ao_kill</code>, <code>ao_list</code></td></tr>
+          <tr><td><code>pr_lifecycle.py</code></td><td>Lane routing, duplicate suppression, catch-up classification</td></tr>
+          <tr><td><code>decomposition_dispatcher.py</code></td><td>Splits large tasks into parallel subtasks (max 4)</td></tr>
+          <tr><td><code>task_tracker.py</code></td><td>Tracks subtask state across sessions</td></tr>
+        </tbody>
+      </table>
+
+      <h3 id="escalation">Escalation Layer</h3>
+      <table>
+        <thead><tr><th>File</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><code>escalation_handler.py</code></td><td>Entry point: parse → route → execute → log</td></tr>
+          <tr><td><code>escalation_router.py</code></td><td>Deterministic rules → action types</td></tr>
+          <tr><td><code>escalation.py</code></td><td>Consolidated escalation module (refactored)</td></tr>
+          <tr><td><code>action_executor.py</code></td><td>Executes actions: ao send/kill/spawn, Slack notify</td></tr>
+          <tr><td><code>failure_budget.py</code></td><td>Persistent per-task retry + strategy change budgets</td></tr>
+          <tr><td><code>ao_events.py</code></td><td>Parse AO native webhooks into typed <code>AOEvent</code></td></tr>
+        </tbody>
+      </table>
+
+      <h3 id="review">Review Layer</h3>
+      <table>
+        <thead><tr><th>File</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><code>pr_reviewer.py</code></td><td>Builds <code>ReviewContext</code> from PR, CI, memory, CLAUDE.md</td></tr>
+          <tr><td><code>pr_review_decision.py</code></td><td>LLM call → <code>ReviewDecision</code> (approve/changes/escalate)</td></tr>
+          <tr><td><code>auto_review_trigger.py</code></td><td>Handles <code>merge.ready</code> event → calls <code>review_pr()</code></td></tr>
+          <tr><td><code>coderabbit_gate.py</code></td><td>Checks CodeRabbit approval status before merge-ready</td></tr>
+        </tbody>
+      </table>
+
+      <h3 id="memory-layer">Memory Layer</h3>
+      <table>
+        <thead><tr><th>File</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><code>outcome_recorder.py</code></td><td>Records winning/losing strategies per error fingerprint</td></tr>
+          <tr><td><code>pattern_synthesizer.py</code></td><td>Cron: synthesizes outcome patterns into strategy library</td></tr>
+          <tr><td><code>parallel_retry.py</code></td><td>Spawns 2–3 parallel fix sessions, picks winner</td></tr>
+          <tr><td><code>openclaw_notifier.py</code></td><td>Slack DM + email escalation to developer</td></tr>
+          <tr><td><code>gh_integration.py</code></td><td>GitHub API helpers: PR data, CI status, merge state</td></tr>
+          <tr><td><code>session_registry.py</code></td><td>Maps beads → AO sessions for lifecycle tracking</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ===== DATA FLOW: PR LIFECYCLE ===== -->
+    <section id="pr-flow">
+      <h2>Data Flow: GitHub PR Lifecycle</h2>
+
+      <div class="diagram">
+      <div class="mermaid">
+sequenceDiagram
+    actor J as 👤 Jeffrey
+    participant GH as 🐙 GitHub
+    participant WD as webhook_daemon
+    participant PL as pr_lifecycle
+    participant AO as agent-orchestrator
+    participant AG as 🤖 Headless Agent
+    participant OC as 🧠 OpenClaw
+
+    Note over J,GH: 🟡 Human initiates
+    J->>GH: Open PR (or push commit)
+
+    Note over GH,PL: 🔵 Webhook ingress + routing
+    GH->>WD: POST /webhook (pull_request.opened)
+    WD->>WD: HMAC validate → webhook_deliveries
+    WD->>PL: normalize_event() → route_event()
+
+    Note over PL,AG: 🟣 Orchestration spawns agent
+    PL->>AO: ao_spawn(project, issue)
+    AO->>AG: spawn in tmux worktree
+
+    Note over AG,GH: 🟢 Agent executes
+    AG->>AG: read PR, implement fix
+    AG->>GH: push commit → CI starts
+
+    alt 🟢 CI green
+        AO->>WD: POST /ao-notify (merge.ready)
+        WD->>OC: escalation_handler → NeedsJudgment
+        OC->>OC: pr_reviewer.review_pr() — LLM call
+        alt ✅ LLM: approve + CodeRabbit OK
+            OC->>J: Slack "PR #N ready to merge"
+            J->>GH: merge
+        else 🔄 LLM: changes needed
+            OC->>AO: RetryAction → ao_send(enriched prompt)
+        else 🔴 LLM: escalate
+            OC->>J: Slack DM (needs your judgment)
+        end
+    else 🔴 CI failed
+        AO->>WD: POST /ao-notify (ci-failed)
+        WD->>OC: escalation_handler → route_escalation()
+        alt 🟢 budget remaining + parseable error
+            OC->>AO: ParallelRetryAction (2–3 worktrees)
+        else 🟣 budget remaining
+            OC->>AO: RetryAction → ao_send(enriched prompt)
+        else 🔴 budget exhausted
+            OC->>J: Slack DM (escalation)
+        end
+    end
+      </div>
+      </div>
+
+      <div class="flow-step">
+        <div class="flow-num">1</div>
+        <div class="flow-content">
+          <strong>PR opened / commit pushed</strong>
+          <p>GitHub → POST /webhook :19888 → HMAC validated → <code>webhook_deliveries</code> row inserted</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">2</div>
+        <div class="flow-content">
+          <strong>Daemon polls (5s)</strong>
+          <p><code>normalize_event()</code> → NormalizedEvent → <code>remediation_queue</code> enqueued</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">3</div>
+        <div class="flow-content">
+          <strong>Worker dequeues</strong>
+          <p><code>pr_lifecycle.route_event()</code> → lane (fixpr, comment-validation) → PRLock acquired → <code>ao_spawn(project, issue)</code></p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">4</div>
+        <div class="flow-content">
+          <strong>AO session runs</strong>
+          <p>Agent reads PR, implements fix, pushes commit. CI runs.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num" style="background:var(--accent2)">5a</div>
+        <div class="flow-content">
+          <strong>CI green path</strong>
+          <p>AO → <code>merge.ready</code> → /ao-notify → <code>pr_reviewer.review_pr()</code> → LLM: approve / changes / escalate → if approve + CodeRabbit OK → notify developer</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num" style="background:var(--accent3)">5b</div>
+        <div class="flow-content">
+          <strong>CI failed path</strong>
+          <p>AO → <code>ci-failed</code> → /ao-notify → <code>route_escalation()</code> → attempts ≤ budget: RetryAction → <code>ao_send()</code> · attempts &gt; budget: NotifyJeffreyAction → Slack DM</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">6</div>
+        <div class="flow-content">
+          <strong>Developer merges</strong>
+          <p>Or ignores — it's already handled. The system told them when it was ready.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== DATA FLOW: AO ESCALATION ===== -->
+    <section id="ao-flow">
+      <h2>Data Flow: AO Escalation</h2>
+      <div class="diagram">
+      <div class="mermaid">
+flowchart TD
+    classDef ao       fill:#1a0033,stroke:#c084fc,color:#e9d5ff,stroke-width:2px
+    classDef ingress  fill:#001020,stroke:#60a5fa,color:#93c5fd,stroke-width:2px
+    classDef brain    fill:#001829,stroke:#00d4ff,color:#7dd3fc,stroke-width:2px
+    classDef decision fill:#1a1500,stroke:#fde68a,color:#fef3c7,stroke-width:2px
+    classDef agent    fill:#001f0e,stroke:#4ade80,color:#86efac,stroke-width:2px
+    classDef alert    fill:#200000,stroke:#f87171,color:#fca5a5,stroke-width:2px
+    classDef logging  fill:#111111,stroke:#6b7280,color:#9ca3af,stroke-width:1px
+
+    TRIGGER["📡 AO session detects reaction trigger\nci-failed · changes-requested · session.stuck"]:::ao
+    NOTIFY["notifier-webhook plugin\nPOST :19888/ao-notify\nBearer token"]:::ao
+    INGEST["🔌 webhook_ingress._handle_ao_notify()\nBearer validated → stored as ao_escalation"]:::ingress
+    DAEMON["🔄 webhook_daemon._poll_and_process()\nevent_type == ao_escalation"]:::ingress
+    PARSE["parse_ao_webhook() → AOEvent\nevent_type · session_id · project_id"]:::brain
+    ROUTE["🧠 escalation_router.route_escalation()\n(event, budget, policy)"]:::brain
+
+    Q1{"event type?"}:::decision
+    Q2{"budget?"}:::decision
+
+    PAR["🟢 ParallelRetryAction\nparallel_retry.execute()\n2–3 worktrees · first CI green wins"]:::agent
+    RET["🟣 RetryAction\nao_send(session_id, enriched_prompt)"]:::ao
+    NJA["🔴 NotifyJeffreyAction\nSlack DM to developer"]:::alert
+    KRS["🔴 KillAndRespawnAction\nao_kill() → ao_spawn()"]:::alert
+
+    LOG["📦 action_executor.execute_action()\n→ action_log.jsonl\noutcome_recorder.record_outcome()\n→ outcomes.jsonl"]:::logging
+
+    TRIGGER --> NOTIFY
+    NOTIFY --> INGEST
+    INGEST --> DAEMON
+    DAEMON --> PARSE
+    PARSE --> ROUTE
+    ROUTE --> Q1
+    Q1 -->|"reaction.escalated\nci-failed"| Q2
+    Q1 -->|"session.stuck"| KRS
+    Q2 -->|"budget ≥ 2\n+ parseable error"| PAR
+    Q2 -->|"budget remaining"| RET
+    Q2 -->|"budget exhausted"| NJA
+    PAR --> LOG
+    RET --> LOG
+    NJA --> LOG
+    KRS --> LOG
+
+    linkStyle 0  stroke:#c084fc,stroke-width:2px
+    linkStyle 1  stroke:#60a5fa,stroke-width:2px
+    linkStyle 2  stroke:#60a5fa,stroke-width:2px
+    linkStyle 3  stroke:#60a5fa,stroke-width:2px
+    linkStyle 4  stroke:#00d4ff,stroke-width:2px
+    linkStyle 5  stroke:#00d4ff,stroke-width:2px
+    linkStyle 6  stroke:#f87171,stroke-width:2px
+    linkStyle 7  stroke:#f87171,stroke-width:2px,stroke-dasharray:4
+    linkStyle 8  stroke:#4ade80,stroke-width:2px
+    linkStyle 9  stroke:#c084fc,stroke-width:2px
+    linkStyle 10 stroke:#f87171,stroke-width:2px
+    linkStyle 11 stroke:#4ade80,stroke-width:1.5px,stroke-dasharray:3
+    linkStyle 12 stroke:#c084fc,stroke-width:1.5px,stroke-dasharray:3
+    linkStyle 13 stroke:#f87171,stroke-width:1.5px,stroke-dasharray:3
+    linkStyle 14 stroke:#f87171,stroke-width:1.5px,stroke-dasharray:3
+      </div>
+    </div>
+    </section>
+
+    <!-- ===== MERGE-READINESS CONTRACT ===== -->
+    <section id="merge-contract">
+      <h2>Merge-Readiness Contract</h2>
+      <p>A PR is considered merge-ready only when <strong>all four</strong> are true:</p>
+      <table>
+        <thead>
+          <tr><th>Gate</th><th>Source</th><th>Check</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-green">CI</span> CI green</td>
+            <td>GitHub Actions</td>
+            <td>All required checks <code>conclusion == success</code></td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-green">GH</span> No conflicts</td>
+            <td>GitHub API</td>
+            <td><code>mergeable == "MERGEABLE"</code></td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-blue">BOT</span> No serious comments</td>
+            <td>CodeRabbit, Copilot, Cursor Bugbot</td>
+            <td>No <code>REQUEST_CHANGES</code> verdict</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-blue">LLM</span> OpenClaw approved</td>
+            <td><code>pr_reviewer.py</code> LLM</td>
+            <td><code>ReviewDecision.approve</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>The developer only needs to hit the merge button. The system tells them when.</p>
+    </section>
+
+    <!-- ===== IMPLEMENTATION STATUS ===== -->
+    <section id="status">
+      <h2>Implementation Status</h2>
+      <table>
+        <thead>
+          <tr><th>Component</th><th>Module</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>GitHub webhook ingress</td><td><code>webhook_ingress.py</code></td><td><span class="badge badge-green">✅ Live</span></td></tr>
+          <tr><td>AO escalation ingress</td><td><code>webhook_ingress.py /ao-notify</code></td><td><span class="badge badge-green">✅ Live</span></td></tr>
+          <tr><td>GitHub → ao_spawn dispatch</td><td><code>webhook_worker.py</code></td><td><span class="badge badge-green">✅ E2E proven</span></td></tr>
+          <tr><td>AO → escalation_handler routing</td><td><code>webhook_daemon.py</code></td><td><span class="badge badge-green">✅ E2E proven</span></td></tr>
+          <tr><td>Escalation router</td><td><code>escalation_router.py</code></td><td><span class="badge badge-green">✅ Implemented</span></td></tr>
+          <tr><td>Failure budgets</td><td><code>failure_budget.py</code></td><td><span class="badge badge-green">✅ Implemented</span></td></tr>
+          <tr><td>Parallel retry</td><td><code>parallel_retry.py</code></td><td><span class="badge badge-green">✅ Implemented</span></td></tr>
+          <tr><td>PR reviewer (LLM)</td><td><code>pr_review_decision.py</code></td><td><span class="badge badge-green">✅ Wired to Claude API</span></td></tr>
+          <tr><td>CodeRabbit gate</td><td><code>coderabbit_gate.py</code></td><td><span class="badge badge-green">✅ Implemented</span></td></tr>
+          <tr><td>Outcome recorder</td><td><code>outcome_recorder.py</code></td><td><span class="badge badge-green">✅ Implemented</span></td></tr>
+          <tr><td>Pattern synthesizer</td><td><code>pattern_synthesizer.py</code></td><td><span class="badge badge-green">✅ Implemented (cron)</span></td></tr>
+          <tr><td>Self-improving prompts</td><td>—</td><td><span class="badge badge-red">🔴 Not started (orch-4vl8)</span></td></tr>
+          <tr><td>Auto-triage notifications</td><td>—</td><td><span class="badge badge-red">🔴 Not started (orch-w3i1)</span></td></tr>
+          <tr><td>Convergence Intelligence Layer</td><td>—</td><td><span class="badge badge-red">🔴 Not started (orch-cn8y)</span></td></tr>
+        </tbody>
+      </table>
+      <p style="color: var(--text-muted); font-size: 13px;">Test coverage: 429 unit tests passing.</p>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  // Highlight active sidebar link on scroll
+  const sections = document.querySelectorAll('section[id], h2[id], h3[id]');
+  const links = document.querySelectorAll('.sidebar nav a');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`.sidebar nav a[href="#${entry.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+
+<script>
+  if (typeof mermaid !== 'undefined') {
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      securityLevel: 'strict',
+      flowchart: { curve: 'basis', padding: 20 },
+      sequence: { mirrorActors: false, messageAlign: 'center' }
+    });
+  } else {
+    document.querySelectorAll('.mermaid').forEach(el => {
+      el.textContent = '[Diagram unavailable — mermaid CDN blocked]';
+    });
+  }
+</script>
+</body>
+</html>
