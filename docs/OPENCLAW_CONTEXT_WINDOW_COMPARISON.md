@@ -36,7 +36,7 @@ OPENCLAW IS GOOD AT:                            AO WORKERS ARE GOOD AT:
 • Cross-repo coordination and routing           • Resolving concrete review items
 • Durable memory of what worked                 • Shipping focused PR increments
 
-OPENCLAW RISK ZONES:                            AO WORKER RISK ZONES:
+OPENCLAW RISK ZONES:                            AO WORKERS RISK ZONES:
 • Over-broad context can slow decisions         • Can optimize locally, miss strategy
 • Needs reliable tool/auth plumbing             • Can stall without clear acceptance criteria
 • Must keep priorities explicit                 • No durable cross-session product memory
