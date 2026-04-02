@@ -96,6 +96,8 @@ mkdir -p ~/openclaw-docker-staging
 ```yaml
 # Standalone docker-compose for OpenClaw staging (Docker)
 # Usage: docker compose -f docker-compose.staging.yml [up|down|logs...]
+# Pin project name so container names match §6–§7 / troubleshooting (not derived from cwd).
+name: openclaw-docker-staging
 services:
   openclaw-gateway:
     image: ghcr.io/openclaw/openclaw:latest
