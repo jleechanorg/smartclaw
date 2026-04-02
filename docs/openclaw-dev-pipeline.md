@@ -8,12 +8,12 @@ Automated 3-stage pipeline: feature worktrees → Docker staging gateway → pro
 
 ## Architecture
 
-```
+```text
 feature/N worktree
        │ Python integration tests
        │ (no full gateway needed)
        ▼
-  PR on jleechanclaw
+  PR on smartclaw
        │ CodeRabbit review + skeptic-cron merge
        ▼
 staging worktree ──git─── ~/.openclaw-staging/ ──mount─── Docker container
@@ -23,7 +23,7 @@ staging worktree ──git─── ~/.openclaw-staging/ ──mount─── Do
        │                              Full gateway integration test
        │                              (health + Slack + memory + cron)
        ▼
-  PR on jleechanclaw
+  PR on smartclaw
        │ Auto-promote if green
        ▼
 main worktree ──git─── ~/.openclaw/
@@ -44,27 +44,31 @@ main worktree ──git─── ~/.openclaw/
 git checkout -b feat/my-feature
 git push -u origin feat/my-feature
 
-# Attach a worktree (worktrees share the git object store, have isolated working directories)
-git worktree add ~/.openclaw-worktrees/feat-my-feature main
+# Attach a worktree checked out on that branch (worktrees share the git object store)
+git worktree add ~/.openclaw-worktrees/feat-my-feature feat/my-feature
 ```
 
 Now edit files in `~/.openclaw-worktrees/feat-my-feature/`. The `.openclaw/` config, scripts, skills, and tests are all there.
 
 ### Running integration tests
 
+Run pytest from the **feature worktree root** so you validate the same tree you edit (not a different checkout):
+
 ```bash
+cd ~/.openclaw-worktrees/feat-my-feature
+
 # Unit/fast tests (no gateway needed)
-cd ~/.openclaw
 python3 -m pytest tests/test_backup_scripts.py -v
 
 # All Python tests
-cd ~/.openclaw
 python3 -m pytest tests/ -v --tb=short
 
 # Config validation
 python3 -c "
 import json
-with open('~/.openclaw-worktrees/feat-my-feature/openclaw.json') as f:
+import os
+path = os.path.expanduser('~/.openclaw-worktrees/feat-my-feature/openclaw.json')
+with open(path) as f:
     c = json.load(f)
     assert 'gateway' in c
     assert 'channels' in c
@@ -122,7 +126,8 @@ curl -s -H "Authorization: Bearer $STAGING_GATEWAY_TOKEN" \
 curl -s -H "Authorization: Bearer $STAGING_GATEWAY_TOKEN" \
   http://127.0.0.1:18810/v1/memory/status
 
-# 4. Python test suite
+# 4. Python test suite (from staging worktree)
+cd ~/.openclaw-staging
 python3 -m pytest tests/ -v --tb=short
 ```
 
@@ -140,14 +145,14 @@ All of:
 ### Architecture
 
 - **Location:** `~/.openclaw/` — a git worktree on `main`
-- **Gateway:** Native Node.js via launchd (`com.openclaw.gateway.plist`)
+- **Gateway:** Native Node.js via launchd (`ai.openclaw.gateway.plist` → `~/Library/LaunchAgents/ai.openclaw.gateway.plist`)
 - **Health:** `curl http://127.0.0.1:18789/health`
 
 ### What happens at merge to main
 
 1. Git push to `main` branch
 2. Launchd watch job detects change
-3. `launchctl restart com.openclaw.gateway` (or restart the service)
+3. `launchctl kickstart -k "gui/$(id -u)/ai.openclaw.gateway"` (restart the gateway service)
 4. Verify health
 5. Post to Slack `#jleechanclaw` that prod is updated
 
@@ -159,7 +164,7 @@ Auto-promotion via PR (created in Stage 2). skeptic-cron merges when 7-green.
 
 ## Worktree Layout
 
-```
+```text
 ~/.openclaw/                   ← worktree on main (production)
 ~/.openclaw-staging/           ← worktree on staging (Docker gateway)
 ~/.openclaw-worktrees/         ← parent dir for ephemeral feature worktrees
@@ -181,15 +186,24 @@ Auto-promotion via PR (created in Stage 2). skeptic-cron merges when 7-green.
 
 ### 1. Staging watch (launchd + git hook)
 
-Trigger: push to `staging` branch.
-Action: restart Docker gateway, run integration tests, open PR to `main`.
+**Intended effect:** after the `staging` branch updates, restart the Docker gateway, run tests, and open a PR to `main`.
+
+**How this is usually wired:**
+
+- **CI / server-side (push-triggered):** a workflow or post-receive hook on `staging` runs the same steps as `staging-promote.sh` when a push lands. That matches the “push to `staging`” wording above.
+- **Local-only (commit-triggered):** a `post-commit` hook in the **staging** worktree runs `~/scripts/staging-promote.sh` right after you commit there. That fires on **local commit**, not on `git push`; use it only if you accept that timing, or mirror the script in CI for true push automation.
+
+Hooks must be installed in the **shared Git hooks directory**, not a worktree-only `.git` file path. Resolve it with `git rev-parse --git-common-dir` (or set `core.hooksPath` in Git 2.9+):
 
 ```bash
-# In ~/.openclaw-staging/.git/hooks/post-commit (staging worktree)
+STAGING_ROOT="$HOME/.openclaw-staging"
+GIT_COMMON="$(git -C "$STAGING_ROOT" rev-parse --git-common-dir)"
+HOOKS="$GIT_COMMON/hooks"
+cat > "$HOOKS/post-commit" << 'EOF'
 #!/bin/bash
-# Detects that staging branch was updated
-# Triggers: docker compose restart + test + PR to main
 ~/scripts/staging-promote.sh
+EOF
+chmod +x "$HOOKS/post-commit"
 ```
 
 ### 2. Staging promote script (`~/.openclaw/scripts/staging-promote.sh`)
@@ -198,27 +212,31 @@ Action: restart Docker gateway, run integration tests, open PR to `main`.
 #!/bin/bash
 set -euo pipefail
 
+REPO_SLUG="jleechanorg/smartclaw"
 STAGING_DIR="$HOME/.openclaw-staging"
-STAGING_BRANCH="staging"
-MAIN_BRANCH="main"
-TOKEN_FILE="$STAGING_DIR/.gateway-token"  # not in git
 
 # Restart Docker gateway
 docker compose -f ~/openclaw-docker-staging/docker-compose.staging.yml \
   restart openclaw-gateway
 
-# Wait for healthy
+# Wait for healthy (fail fast if never healthy)
+GATEWAY_HEALTHY=false
 for i in $(seq 1 20); do
   HEALTH=$(curl -s http://127.0.0.1:18810/health)
   if echo "$HEALTH" | grep -q '"ok":true'; then
     echo "Gateway healthy"
+    GATEWAY_HEALTHY=true
     break
   fi
   sleep 3
 done
+if [[ "$GATEWAY_HEALTHY" != true ]]; then
+  echo "Gateway health check timed out — not promoting"
+  exit 1
+fi
 
-# Run integration tests
-cd ~/.openclaw
+# Run integration tests from staging worktree (same checkout as Docker mount)
+cd "$STAGING_DIR"
 python3 -m pytest tests/ -v --tb=short || {
   echo "Tests failed — not promoting"
   exit 1
@@ -226,7 +244,7 @@ python3 -m pytest tests/ -v --tb=short || {
 
 # Open PR: staging → main
 gh pr create \
-  --repo jleechanorg/jleechanclaw \
+  --repo "$REPO_SLUG" \
   --base main \
   --head staging \
   --title "chore: promote staging to production" \
@@ -240,12 +258,18 @@ Automation: staging-promote.sh" \
 
 ### 3. Prod watch (launchd + git hook)
 
-Trigger: push to `main` branch.
-Action: restart native prod gateway.
+**Intended effect:** after `main` updates, restart the native prod gateway.
+
+**Push-triggered automation** should run this on the server or via CI when `main` moves. **Local post-commit** below runs on commit in the prod worktree; adjust to match how you deploy.
 
 ```bash
-# In ~/.openclaw/.git/hooks/post-commit (prod worktree)
-launchctl restart com.openclaw.gateway
+GIT_COMMON="$(git -C "$HOME/.openclaw" rev-parse --git-common-dir)"
+HOOKS="$GIT_COMMON/hooks"
+cat > "$HOOKS/post-commit" << 'EOF'
+#!/bin/bash
+launchctl kickstart -k "gui/$(id -u)/ai.openclaw.gateway"
+EOF
+chmod +x "$HOOKS/post-commit"
 ```
 
 ---
@@ -282,30 +306,32 @@ git push -u origin staging
 # 5. Create production worktree if it doesn't exist
 git worktree add ~/.openclaw main
 
-# 6. Install git hooks for auto-restart
-cat >> ~/.openclaw/.git/hooks/post-commit << 'EOF'
+# 6. Install git hooks for auto-restart (hooks dir works with linked worktrees)
+GIT_COMMON="$(git -C "$HOME/.openclaw" rev-parse --git-common-dir)"
+HOOKS="$GIT_COMMON/hooks"
+cat > "$HOOKS/post-commit" << 'EOF'
 #!/bin/bash
-launchctl restart com.openclaw.gateway
+launchctl kickstart -k "gui/$(id -u)/ai.openclaw.gateway"
 EOF
-chmod +x ~/.openclaw/.git/hooks/post-commit
+chmod +x "$HOOKS/post-commit"
 ```
 
 ### Daily dev workflow
 
 ```bash
-# 1. Create feature worktree
-git worktree add ~/.openclaw-worktrees/feat-my-feature main
+# 1. Create feature worktree (branch must exist — see "Creating a feature worktree")
+git worktree add ~/.openclaw-worktrees/feat-my-feature feat/my-feature
 
 # 2. Edit files in the worktree
 cd ~/.openclaw-worktrees/feat-my-feature
 $EDITOR openclaw.json  # or any file
 
-# 3. Run tests
-python3 -m pytest ~/tests/ -v
+# 3. Run tests from that worktree
+python3 -m pytest tests/ -v
 
 # 4. Commit + push → PR auto-created
 git add . && git commit -m "feat: ..."
-git push -u origin feat-my-feature
+git push -u origin feat/my-feature
 
 # 5. After PR merged to staging:
 #    - Docker staging gateway auto-restarts
@@ -334,6 +360,6 @@ docker compose -f ~/openclaw-docker-staging/docker-compose.staging.yml ps
 curl http://127.0.0.1:18789/health
 launchctl list | grep openclaw
 
-# Check all Python tests
+# Check all Python tests (from prod worktree checkout)
 cd ~/.openclaw && python3 -m pytest tests/ --tb=short
 ```
