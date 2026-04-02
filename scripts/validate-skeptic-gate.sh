@@ -33,14 +33,49 @@ if [[ "$RESULT" != "success" ]]; then
 fi
 echo "OK: CI_STATUS=$RESULT (Skeptic in_progress ignored for gate 1)"
 
-echo "== Verdict regex (Node, matches skeptic-gate.mjs patterns) =="
+echo "== Verdict regex (Node, first VERDICT line — matches skeptic-gate.mjs) =="
 node -e '
+function firstVerdictLine(text) {
+  for (const line of text.split(/\r?\n/)) {
+    const t = line.trim();
+    const idx = t.search(/\bVERDICT\s*:/i);
+    if (idx !== -1) return t.slice(idx);
+  }
+  return "";
+}
 const o = `VERDICT: FAIL - something\nmore`;
 const p = `VERDICT: PASS — ok\n`;
-if (!/^VERDICT[:\s]+FAIL\b/im.test(o)) process.exit(2);
-if (!/^VERDICT[:\s]+PASS\b/im.test(p)) process.exit(3);
-console.log("OK: FAIL and PASS patterns");
+const proseFirst = `Let me analyze\nVERDICT: FAIL - x`;
+const mdWrap = `**VERDICT: PASS** — ok`;
+if (!/^VERDICT[:\s]+FAIL\b/i.test(firstVerdictLine(o))) process.exit(2);
+if (!/^VERDICT[:\s]+PASS\b/i.test(firstVerdictLine(p))) process.exit(3);
+if (!/^VERDICT[:\s]+FAIL\b/i.test(firstVerdictLine(proseFirst))) process.exit(4);
+if (!/^VERDICT[:\s]+PASS\b/i.test(firstVerdictLine(mdWrap))) process.exit(6);
+const noVerdict = `intro\nno verdict here`;
+if (firstVerdictLine(noVerdict) !== "") process.exit(5);
+console.log("OK: first VERDICT line");
 '
+
+echo "== Skeptic-cron verdict + SHA jq (matches skeptic-cron gate 7) =="
+SAMPLE=$(jq -n --arg b $'## x\n```\nVERDICT: PASS\n```\n<!-- HEAD-SHA: deadbeef1234567890abcdef1234567890abcd -->\n' '{"body":$b}')
+PARSED=$(printf '%s\n' "$SAMPLE" | jq -r '
+  .body as $b |
+  (if ($b | test("<!--[[:space:]]*HEAD-SHA:")) then ($b | capture("<!--[[:space:]]*HEAD-SHA:[[:space:]]*(?<sha>[a-f0-9]+)")).sha else "" end) as $sha |
+  (if ($b | test("VERDICT:[[:space:]]*FAIL"; "i")) then "FAIL"
+   elif ($b | test("VERDICT:[[:space:]]*PASS"; "i")) then "PASS"
+   elif ($b | test("VERDICT:[[:space:]]*SKIPPED"; "i")) then "SKIPPED"
+   elif ($b | test("VERDICT:[[:space:]]*ERROR"; "i")) then "ERROR"
+   else "UNPARSED"
+   end) as $tok |
+  [$tok, $sha] | @tsv
+')
+TOK=$(printf '%s\n' "$PARSED" | cut -f1)
+SHA=$(printf '%s\n' "$PARSED" | cut -f2)
+if [[ "$TOK" != "PASS" || "$SHA" != "deadbeef1234567890abcdef1234567890abcd" ]]; then
+  echo "FAIL: expected PASS + SHA, got TOK=$TOK SHA=$SHA"
+  exit 5
+fi
+echo "OK: cron verdict parse (PASS + HEAD-SHA)"
 
 if command -v actionlint >/dev/null 2>&1; then
   echo "== actionlint (non-fatal) =="

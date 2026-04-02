@@ -69,7 +69,15 @@ jobs:
             [[ "$SAME_REPO" != "true" ]] && echo "  [cross-repo PR — evaluating only, will not auto-merge]"
 
             # Fetch PR head SHA once — used by CR_READY fallback (step 3) and BUGBOT_ERRORS (step 4).
-            PR_HEAD=$(gh api repos/${{ github.repository }}/pulls/$PR_NUM --jq '.head.sha')
+            # Null guard: if gh api fails, fail closed — do not merge with empty SHA.
+            PR_HEAD=$(gh api repos/${{ github.repository }}/pulls/$PR_NUM --jq '.head.sha' 2>/dev/null) || {
+              echo "  ERROR: gh api PR head failed — skipping"
+              continue
+            }
+            [ -z "$PR_HEAD" ] && {
+              echo "  ERROR: gh api returned empty SHA — skipping"
+              continue
+            }
 
             # 1. CI green (using check runs API — covers GH Actions, status checks, and branch protection)
             # Retry up to 3 times with 2s backoff to handle transient rate-limiting.
@@ -211,17 +219,29 @@ jobs:
             if ! SKEPTIC_COMMENTS_JSON=$(gh api repos/${{ github.repository }}/issues/$PR_NUM/comments --paginate --slurp 2>/dev/null); then
               SKEPTIC_VERDICT="SKEPTIC_ERROR"
             else
-              SKEPTIC_VERDICT_RAW=$(printf '%s\n' "$SKEPTIC_COMMENTS_JSON" | jq -r '[.[][] | select(.user.login == "github-actions[bot]" and (.body | test("VERDICT:"; "i")))] | sort_by(.created_at) | reverse | .[0] // null' 2>/dev/null)
+              SKEPTIC_COMMENT_JSON=$(printf '%s\n' "$SKEPTIC_COMMENTS_JSON" | jq -c '[.[][] | select(.user.login == "github-actions[bot]" and (.body | test("VERDICT:"; "i")))] | sort_by(.created_at) | reverse | .[0] // null' 2>/dev/null)
               JQ_STAT=$?
               if [ "$JQ_STAT" -ne 0 ]; then
                 SKEPTIC_VERDICT="SKEPTIC_ERROR"
-              elif [ -z "$SKEPTIC_VERDICT_RAW" ] || [ "$SKEPTIC_VERDICT_RAW" = "null" ]; then
+              elif [ -z "$SKEPTIC_COMMENT_JSON" ] || [ "$SKEPTIC_COMMENT_JSON" = "null" ]; then
                 # No verdict comment found — MISSING (skeptic-cron may auto-post).
                 SKEPTIC_VERDICT="SKEPTIC_NO_VERDICT"
                 SKEPTIC_SHA_MISMATCH=""
               else
-                SKEPTIC_VERDICT=$(echo "$SKEPTIC_VERDICT_RAW" | jq -r '.body')
-                VERDICT_SHA=$(echo "$SKEPTIC_VERDICT_RAW" | jq -r '.body' | python3 -c "import sys,re; m=re.search(r'<!--\s*HEAD-SHA:\s*([a-f0-9]+)', sys.stdin.read()); print(m.group(1) if m else '')" 2>/dev/null || echo "")
+                # Parse body once: canonical verdict token + HEAD-SHA (no re-grep of full body downstream).
+                PARSED=$(printf '%s\n' "$SKEPTIC_COMMENT_JSON" | jq -r '
+                  .body as $b |
+                  (if ($b | test("<!--[[:space:]]*HEAD-SHA:")) then ($b | capture("<!--[[:space:]]*HEAD-SHA:[[:space:]]*(?<sha>[a-f0-9]+)")).sha else "" end) as $sha |
+                  (if ($b | test("VERDICT:[[:space:]]*FAIL"; "i")) then "FAIL"
+                   elif ($b | test("VERDICT:[[:space:]]*PASS"; "i")) then "PASS"
+                   elif ($b | test("VERDICT:[[:space:]]*SKIPPED"; "i")) then "SKIPPED"
+                   elif ($b | test("VERDICT:[[:space:]]*ERROR"; "i")) then "ERROR"
+                   else "UNPARSED"
+                   end) as $tok |
+                  [$tok, $sha] | @tsv
+                ' 2>/dev/null || printf '\t')
+                SKEPTIC_VERDICT=$(printf '%s\n' "$PARSED" | cut -f1)
+                VERDICT_SHA=$(printf '%s\n' "$PARSED" | cut -f2)
                 if [ -n "$VERDICT_SHA" ] && [ "$VERDICT_SHA" != "$PR_HEAD" ]; then
                   echo "  [7] Skeptic: STALE (verdict SHA \`${VERDICT_SHA:0:7}\`, PR head \`${PR_HEAD:0:7}\` — treating as MISSING)"
                   SKEPTIC_VERDICT="SKEPTIC_NO_VERDICT"
@@ -231,14 +251,18 @@ jobs:
                 fi
               fi
             fi
-            if echo "$SKEPTIC_VERDICT" | grep -qi "VERDICT: PASS"; then
+            if [ "$SKEPTIC_VERDICT" = "PASS" ]; then
               echo "  [7] Skeptic: PASS"
-            elif echo "$SKEPTIC_VERDICT" | grep -qi "VERDICT: FAIL"; then
+            elif [ "$SKEPTIC_VERDICT" = "FAIL" ]; then
               echo "  [7] Skeptic: FAIL"
-            elif echo "$SKEPTIC_VERDICT" | grep -qi "VERDICT: SKIPPED"; then
+            elif [ "$SKEPTIC_VERDICT" = "SKIPPED" ]; then
               echo "  [7] Skeptic: SKIPPED (ANTHROPIC_API_KEY not configured — gate not functional)"
-            elif echo "$SKEPTIC_VERDICT" | grep -qi "SKEPTIC_ERROR"; then
+            elif [ "$SKEPTIC_VERDICT" = "SKEPTIC_ERROR" ]; then
               echo "  [7] Skeptic: ERROR (API fetch failed — fail-closed, will skip)"
+            elif [ "$SKEPTIC_VERDICT" = "UNPARSED" ]; then
+              echo "  [7] Skeptic: UNPARSED (no recognizable VERDICT token in comment body)"
+            elif [ "$SKEPTIC_VERDICT" = "ERROR" ]; then
+              echo "  [7] Skeptic: ERROR (VERDICT: ERROR in comment)"
             else
               echo "  [7] Skeptic: MISSING (skeptic-cron is automated skeptic — will post)"
             fi
@@ -259,17 +283,17 @@ jobs:
               echo "  → Skeptic verdict SHA mismatch (stale), skipping"
               continue
             fi
-            if echo "$SKEPTIC_VERDICT" | grep -qi "VERDICT: FAIL"; then
-              echo "  → Skeptic verdict is FAIL, skipping"
+            if [ "$SKEPTIC_VERDICT" = "FAIL" ] || [ "$SKEPTIC_VERDICT" = "ERROR" ] || [ "$SKEPTIC_VERDICT" = "UNPARSED" ]; then
+              echo "  → Skeptic verdict is $SKEPTIC_VERDICT, skipping"
               continue
             fi
-            if echo "$SKEPTIC_VERDICT" | grep -qi "SKEPTIC_ERROR"; then
+            if [ "$SKEPTIC_VERDICT" = "SKEPTIC_ERROR" ]; then
               echo "  → Skeptic verdict fetch failed, skipping (fail-closed)"
               continue
             fi
-            if echo "$SKEPTIC_VERDICT" | grep -qi "VERDICT: PASS"; then
+            if [ "$SKEPTIC_VERDICT" = "PASS" ]; then
               echo "  → Skeptic VERDICT: PASS confirmed"
-            elif echo "$SKEPTIC_VERDICT" | grep -qi "SKEPTIC_NO_VERDICT"; then
+            elif [ "$SKEPTIC_VERDICT" = "SKEPTIC_NO_VERDICT" ]; then
               # No VERDICT comment found — skeptic-gate either skipped or failed to post.
               # UNKNOWN/ERROR exits with non-zero in the gate, so CI fails first.
               # Only auto-post when there is genuinely no verdict (MISSING = skeptic-cron is the skeptic).
@@ -278,7 +302,7 @@ jobs:
                 --method POST \
                 --field "body=**VERDICT: PASS** — skeptic-cron evaluated and merged this PR. All 6 criteria confirmed green.  \n\n<!-- HEAD-SHA: $PR_HEAD -->" \
                 --jq '.id' > /dev/null 2>&1 || true
-            elif echo "$SKEPTIC_VERDICT" | grep -qi "VERDICT: SKIPPED"; then
+            elif [ "$SKEPTIC_VERDICT" = "SKIPPED" ]; then
               # ANTHROPIC_API_KEY not configured — skeptic-gate cannot run.
               # Skeptic-cron is the automated skeptic; SKIPPED means no blocking skeptic
               # is available, so treat as equivalent to MISSING: auto-post PASS.
