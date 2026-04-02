@@ -229,6 +229,8 @@ set -euo pipefail
 
 REPO_SLUG="jleechanorg/smartclaw"
 STAGING_DIR="$HOME/.openclaw-staging"
+# Secrets: keep `.gateway-token` outside git — add to ~/.openclaw-staging/.git/info/exclude
+# or rely on repo `.gitignore` pattern `.gateway-token` so `git add .` never commits it.
 TOKEN_FILE="$STAGING_DIR/.gateway-token"
 if [[ -f "$TOKEN_FILE" ]]; then
   export STAGING_GATEWAY_TOKEN="$(cat "$TOKEN_FILE")"

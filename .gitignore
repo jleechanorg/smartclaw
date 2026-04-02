@@ -205,3 +205,6 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# OpenClaw staging worktree — local gateway token file (see docs/openclaw-dev-pipeline.md)
+.gateway-token
