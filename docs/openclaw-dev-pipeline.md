@@ -262,8 +262,8 @@ python3 -m pytest tests/ -v --tb=short || {
   exit 1
 }
 
-# Open PR: staging → main
-gh pr create \
+# Open PR: staging → main (do not blanket-ignore failures — only treat "already open" as OK)
+if ! gh pr create \
   --repo "$REPO_SLUG" \
   --base main \
   --head staging \
@@ -272,8 +272,14 @@ gh pr create \
 
 Tests: all passed
 Gateway: healthy at http://127.0.0.1:18810
-Automation: ~/.openclaw/scripts/staging-promote.sh" \
-  || echo "PR may already exist"
+Automation: ~/.openclaw/scripts/staging-promote.sh"; then
+  if [[ $(gh pr list --repo "$REPO_SLUG" --head staging --base main --json number --jq 'length') -ge 1 ]]; then
+    echo "Promotion PR already open — skipping create"
+  else
+    echo "gh pr create failed and no staging→main PR exists — aborting" >&2
+    exit 1
+  fi
+fi
 ```
 
 ### 3. Production gateway restart (launchd + same hook)
@@ -327,25 +333,10 @@ git -C ~/.openclaw checkout --detach
 # When you can attach `main` here instead (no other worktree holds main):
 # git -C ~/.openclaw switch -C main
 
-# 6. Install shared post-commit hook (same script as "Automation Components")
-GIT_COMMON="$(git -C "$HOME/.openclaw" rev-parse --git-common-dir)"
-HOOKS="$GIT_COMMON/hooks"
-cat > "$HOOKS/post-commit" << 'EOF'
-#!/bin/bash
-set -euo pipefail
-root=$(git rev-parse --show-toplevel)
-case "$root" in
-  "$HOME/.openclaw-staging")
-    "$HOME/.openclaw/scripts/staging-promote.sh"
-    ;;
-  "$HOME/.openclaw")
-    launchctl kickstart -k "gui/$(id -u)/ai.openclaw.gateway"
-    ;;
-esac
-EOF
-chmod +x "$HOOKS/post-commit"
-cp "$HOOKS/post-commit" "$HOOKS/post-merge"
-chmod +x "$HOOKS/post-merge"
+# 6. Install shared post-commit / post-merge hooks — use the **single** fenced
+#    bash block under [Automation Components](#automation-components) →
+#    "Staging watch" (path-based dispatcher + optional post-merge copy).
+#    Do not maintain a second copy of that script in this doc.
 ```
 
 ### Daily dev workflow
