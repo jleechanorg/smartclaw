@@ -110,7 +110,7 @@ git add . && git commit && git push
 
 ### Staging Docker setup
 
-See [`openclaw-staging-setup.md`](openclaw-staging-setup.md) in this repository (same directory as this doc).
+See [`openclaw-docker-staging-setup.md`](openclaw-docker-staging-setup.md) for Docker Compose staging; [`openclaw-staging-setup.md`](openclaw-staging-setup.md) covers launchd + related staging setup in this repo.
 
 ### Integration tests (full gateway)
 
@@ -315,7 +315,7 @@ git -C ~/.openclaw-staging branch  # may show "(detached at ...)" first
 git -C ~/.openclaw-staging checkout staging
 
 # 4. Install staging Docker gateway
-# See openclaw-staging-setup.md
+# See openclaw-docker-staging-setup.md (and openclaw-staging-setup.md for launchd)
 
 # 5. Production worktree — Git allows only one checkout of branch `main` at a time.
 #    If `git worktree add ~/.openclaw main` fails because `main` is checked out elsewhere,
