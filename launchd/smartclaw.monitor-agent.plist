@@ -9,7 +9,7 @@
   <array>
     <string>/bin/bash</string>
     <string>-lc</string>
-    <string>${HOME}/.smartclaw/monitor-agent.sh</string>
+    <string>@HOME@/.smartclaw/monitor-agent.sh</string>
   </array>
 
   <key>EnvironmentVariables</key>
@@ -25,8 +25,8 @@
   <true/>
 
   <key>StandardOutPath</key>
-  <string>${HOME}/.smartclaw/logs/monitor-agent.log</string>
+  <string>/tmp/openclaw-monitor-agent.log</string>
   <key>StandardErrorPath</key>
-  <string>${HOME}/.smartclaw/logs/monitor-agent.err.log</string>
+  <string>/tmp/openclaw-monitor-agent.log</string>
 </dict>
 </plist>

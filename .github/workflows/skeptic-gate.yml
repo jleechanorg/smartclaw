@@ -1,0 +1,313 @@
+name: Skeptic Gate
+
+# Runs skeptic evaluation on every PR and posts a VERDICT as github-actions[bot].
+# SKIPPED (exit 0) when ANTHROPIC_API_KEY not configured; PASS/FAIL based on diff review.
+#
+# AGENTS routing: loaded by lifecycle-worker via ao-gate; ao-pr-poller dispatches fix tasks
+# based on VERDICT comment presence. skeptic-cron (workflow_dispatch) is the merge gate.
+#
+# Merge gate wiring:
+#   - skeptic-gate posts VERDICT: PASS/FAIL/SKIPPED as github-actions[bot] comment
+#   - skeptic-cron reads latest VERDICT comment, checks Gates 1-6, posts PASS if all green
+#   - skeptic-cron also auto-posts PASS when no VERDICT exists (skeptic-cron is the skeptic)
+#   - gh pr merge fires only when VERDICT: PASS confirmed OR auto-posted by cron
+#
+# See also: .github/workflows/skeptic-cron.yml, AGENTS.md § skeptic-gate, § merge-gate
+on:
+  pull_request:
+    types: [opened, synchronize, edited, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Open PR number in this repo (dry-run / re-run skeptic on demand).
+        required: true
+        type: string
+
+concurrency:
+  group: skeptic-gate-${{ github.event.pull_request.number || github.event.inputs.pr_number }}
+  # Do not cancel in-flight runs: rapid pushes were leaving CANCELLED Skeptic Gate
+  # checks on the PR alongside the final SUCCESS, which breaks some merge/UX flows.
+  cancel-in-progress: false
+
+jobs:
+  skeptic_gate:
+    name: Skeptic Gate
+    # Skip fork PRs: untrusted code should not run on self-hosted runners (security risk).
+    # Uses head.repo.id == base.repo.id (not head.repo.fork) to also skip cross-repo PRs.
+    # Null guard: if head.repo is null (e.g. deleted repo), fail closed — skip the job.
+    # workflow_dispatch: same-repo manual runs only (no pull_request payload).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.head.repo != null &&
+       github.event.pull_request.head.repo.id == github.event.pull_request.base.repo.id)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PR_NUM: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number || github.event.pull_request.number }}
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Write skeptic script
+        run: |
+          cat > run-skeptic.mjs << 'ENDSCRIPT'
+          import { writeFileSync, appendFileSync } from 'fs';
+
+          const apiKey = process.env.ANTHROPIC_API_KEY;
+          const prNum  = process.env.PR_NUM || '';
+          const ghToken = process.env.GITHUB_TOKEN || '';
+          const repo    = process.env.GITHUB_REPOSITORY || '';
+          const apiBase = process.env.GITHUB_API_URL || 'https://api.github.com';
+          const ghOutput = process.env.GITHUB_OUTPUT || 'skeptic-gate.env';
+          const anthropicBase = process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com/v1/messages';
+
+          async function ghFetch(path, acceptHeader) {
+            const url = apiBase + path;
+            const resp = await fetch(url, {
+              headers: {
+                'Authorization': 'Bearer ' + ghToken,
+                'Accept': acceptHeader || 'application/vnd.github+json',
+                'X-GitHub-Api-Version': '2022-11-28'
+              }
+            });
+            if (!resp.ok) throw new Error('GitHub API ' + resp.status + ': ' + await resp.text());
+            return resp.text();
+          }
+
+          async function main() {
+            console.log('Starting skeptic gate...');
+            let verdict = 'UNKNOWN';
+            let output = '';
+
+            if (!prNum || String(prNum).trim() === '') {
+              verdict = 'ERROR';
+              output = 'VERDICT: ERROR - PR_NUM missing (workflow misconfigured).';
+              writeOutput(verdict, output);
+              process.exit(1);
+            }
+
+            if (!apiKey) {
+              verdict = 'SKIPPED';
+              output = 'VERDICT: SKIPPED - ANTHROPIC_API_KEY not configured.\nAdd it in repo Settings > Secrets and Variables > Actions.';
+              writeOutput(verdict, output);
+              return;
+            }
+
+            // Fetch actual unified diff via GitHub REST API (no gh CLI needed)
+            let diff;
+            try {
+              // Use Accept: application/vnd.github.v3.diff to get raw unified diff format.
+              // This gives the real diff with full index lines, proper @@ offsets, etc.
+              diff = await ghFetch(
+                `/repos/${repo}/pulls/${prNum}`,
+                'application/vnd.github.v3.diff'
+              );
+              if (!diff || !diff.trim()) diff = '(empty diff — PR has no changes)';
+            } catch (e) {
+              verdict = 'ERROR';
+              output = 'VERDICT: ERROR - could not fetch PR diff.\n' + String(e);
+              writeOutput(verdict, output);
+              process.exit(1);
+            }
+
+            // Skip docs-only PRs: skeptic review is not meaningful for docs changes.
+            // Docs-only means every file is under docs/ (any extension) or root README.md.
+            // Note: SOUL.md, TOOLS.md, AGENTS.md, and other agent instruction files
+            // (.md at repo root or in workspace/) are NOT in docs/ and ARE reviewed.
+            // skeptic-cron auto-posts PASS when no VERDICT exists and all other gates
+            // pass, so SKIPPED here lets the cron handle merge eligibility.
+            const diffFiles = diff.split('\n').filter(l => l.startsWith('diff --git'));
+            const nonDocsFiles = diffFiles.filter(f => {
+              const m = f.match(/^diff --git a\/(.+?) b\//);
+              if (!m) return false;
+              const p = m[1];
+              // docs/ directory: all extensions (.md, .html, etc.)
+              // root-level README.md only (not all *.md — agent instruction files need review)
+              const isDocs = p.startsWith('docs/') || p === 'README.md';
+              return !isDocs;
+            });
+            if (diffFiles.length > 0 && nonDocsFiles.length === 0) {
+              verdict = 'SKIPPED';
+              output = 'VERDICT: SKIPPED - PR contains only documentation files.\nskeptic-cron will auto-post PASS when all other gates pass.';
+              writeOutput(verdict, output);
+              return;
+            }
+
+            // Build skeptic prompt (no colons that confuse YAML)
+            // CRITICAL: "VERDICT:" must be on its own line as the very first output line.
+            // The parser extracts content after "VERDICT:" and fails-closed if absent.
+            const skepticPrompt = [
+              'You are a skeptical code reviewer evaluating a pull request diff.',
+              'IMPORTANT: The full PR diff is provided in the user message below, wrapped in "=== FULL PR DIFF FOLLOWS ===" markers. You have the COMPLETE diff — do NOT claim you cannot see the diff or ask for a URL.',
+              'Your response MUST start with exactly one of these lines (no other text before it):',
+              '',
+              'VERDICT: PASS',
+              'or',
+              'VERDICT: FAIL: <brief description of the issue>',
+              '',
+              'Then optionally provide a brief explanation on subsequent lines.',
+              '',
+              'VERDICT: FAIL - if the PR has serious problems:',
+              '- Logic bugs, security issues, or incorrect behavior',
+              '- Missing error handling in critical paths',
+              '- Tests that do not actually test what they claim',
+              '- Breaking changes without proper migration or deprecation',
+              '- Violations of project core tenets',
+              '',
+              'VERDICT: PASS - if the PR is sound:',
+              '- Logic is correct and well-reasoned',
+              '- Error handling is appropriate',
+              '- Tests are meaningful and comprehensive',
+              '- No breaking issues or they are properly documented',
+              '- Changes align with project standards',
+              '',
+              'IMPORTANT: Start your response with "VERDICT: PASS" or "VERDICT: FAIL" as the very first line.',
+            ].join('\n');
+
+            // Call Claude via HTTP API to avoid CLI quoting issues
+            // anthropicBase supports both Anthropic (api.anthropic.com) and MiniMax
+            // (api.minimax.io/anthropic) endpoints depending on the key type.
+            let anthropicOut;
+            try {
+              const apiResp = await fetch(anthropicBase, {
+                method: 'POST',
+                headers: {
+                  'x-api-key': apiKey,
+                  'anthropic-version': '2023-06-01',
+                  'content-type': 'application/json',
+                },
+                body: JSON.stringify({
+                  model: anthropicBase.includes('minimax') ? 'MiniMax-M2.7' : 'claude-sonnet-4-6',
+                  max_tokens: 4000,
+                  thinking: anthropicBase.includes('minimax') ? undefined : undefined,
+                  system: skepticPrompt,
+                  messages: [{ role: 'user', content: '=== FULL PR DIFF FOLLOWS ===\n\n' + diff + '\n\n=== END PR DIFF ===' }],
+                }),
+              });
+              if (!apiResp.ok) {
+                const errText = await apiResp.text();
+                // 401/500 = API key invalid/unusable or server error — treat as SKIPPED.
+                // This exits 0 so CI passes; skeptic-cron sees no VERDICT comment and
+                // auto-posts PASS when all other gates pass (conditions 1-6 met).
+                // Avoids: (a) CI failure blocking the PR, (b) VERDICT: SKIPPED blocking
+                // skeptic-cron's auto-merge (SKIPPED ≠ "no verdict → auto PASS").
+                verdict = 'SKIPPED';
+                output = 'VERDICT: SKIPPED - Anthropic API error (' + apiResp.status + ').\n' + errText + '\nAPI may be unreachable or key may be invalid/unusable from GHA runner.';
+                writeOutput(verdict, output);
+                return;
+              }
+              const data = await apiResp.json();
+              // Support both text blocks and thinking blocks (MiniMax extended thinking).
+              // The thinking block's `thinking` field contains the reasoning prefix
+              // (e.g. "Let me analyze...") — NOT the VERDICT. The actual verdict appears
+              // in the text block. Only use the thinking block if it contains a VERDICT:
+              // line; otherwise prefer the text block (or raw thinking if no text block).
+              const textBlock = data.content?.find(b => b.type === 'text');
+              const thinkingBlock = data.content?.find(b => b.type === 'thinking');
+              const rawThinking = thinkingBlock?.thinking || '';
+              const textOut = textBlock?.text || '';
+              // Only trust thinking block if it has a VERDICT: line; otherwise text wins
+              anthropicOut = textOut || (/VERDICT:/i.test(rawThinking) ? rawThinking : '');
+              // Debug: log when both blocks are missing or empty
+              if (!anthropicOut) {
+                console.error('SKEPTIC_DEBUG: no content blocks in API response', JSON.stringify(data).slice(0, 400));
+              }
+            } catch (e) {
+              // Network/timeout failures = API unreachable → SKIPPED (exit 0, CI passes).
+              // skeptic-cron will auto-merge if all other gates pass.
+              verdict = 'SKIPPED';
+              output = 'VERDICT: SKIPPED - API call failed (network/unreachable).\n' + String(e);
+              writeOutput(verdict, output);
+              return;
+            }
+
+            output = anthropicOut;
+            console.log('SKEPTIC_RAW_OUTPUT_LENGTH=' + output.length);
+            console.log('SKEPTIC_RAW_OUTPUT_PREVIEW=' + output.slice(0, 200));
+            // Multiline ^ — verdict on first line. Use \\b so "VERDICT: FAIL - reason" and
+            // "VERDICT: PASS — notes" match; avoid matching FAIL/PASS inside prompt boilerplate.
+            if (/^VERDICT[:\s]+FAIL\b/im.test(output)) {
+              verdict = 'FAIL';
+            } else if (/^VERDICT[:\s]+PASS\b/im.test(output)) {
+              verdict = 'PASS';
+            } else {
+              // Model returned unparseable output (no VERDICT: PASS or FAIL found).
+              // Post VERDICT: FAIL so CI blocks the PR and a comment explains why.
+              // skeptic-cron sees FAIL and does NOT auto-merge.
+              verdict = 'FAIL';
+              output += '\n\nVERDICT: FAIL - could not parse model output as PASS or FAIL.\n';
+              output += 'Model returned:\n' + anthropicOut.slice(0, 500);
+            }
+            console.log('SKEPTIC_VERDICT=' + verdict);
+
+            writeOutput(verdict, output);
+            console.log('SKEPTIC_EXIT_CODE=' + (verdict === 'FAIL' ? 1 : 0));
+            if (verdict === 'FAIL') {
+              process.exit(1);
+            }
+            // Explicit exit 0 for PASS/SKIPPED to ensure clean exit
+            process.exit(0);
+          }
+
+          function writeOutput(verdict, output) {
+            writeFileSync('skeptic-output.txt', output);
+            appendFileSync(ghOutput, 'verdict=' + verdict + '\n');
+          }
+
+          main().catch(e => {
+            console.error(e);
+            writeOutput('ERROR', 'VERDICT: ERROR - ' + String(e));
+            process.exit(1);
+          });
+          ENDSCRIPT
+          echo "Script written"
+
+      - name: Run Skeptic evaluation
+        id: run_skeptic
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL || 'https://api.anthropic.com/v1/messages' }}
+        run: |
+          node run-skeptic.mjs
+
+      - name: Skeptic gate summary
+        if: always()
+        run: |
+          {
+            echo "## Skeptic Gate"
+            echo ""
+            echo "- **PR** #$PR_NUM @ \`$PR_HEAD_SHA\`"
+            echo "- **Verdict (from step)** ${{ steps.run_skeptic.outcome }}"
+            echo ""
+            if [ -f skeptic-output.txt ]; then
+              echo "### Output (truncated)"
+              echo ""
+              echo '```text'
+              head -c 12000 skeptic-output.txt
+              echo ""
+              echo '```'
+            else
+              echo "_No skeptic-output.txt (evaluation did not write output)._"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Post skeptic findings as PR comment
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+        run: >
+          if [ -f skeptic-output.txt ]; then
+            python3 -c "import json, os; text = open('skeptic-output.txt').read()[:5800]; sha = os.environ.get('PR_HEAD_SHA', '')[:7]; lines = ['## Skeptic Gate Findings', '', '\`\`\`', text, '\`\`\`', '', '_Skeptic gate ran on commit \`\`\`' + sha + '\`\`\`_', '<!-- HEAD-SHA: ' + os.environ.get('PR_HEAD_SHA', '') + ' -->']; open('/tmp/skeptic_comment.json', 'w').write(json.dumps({'body': chr(10).join(lines)}))"
+            gh api repos/$OWNER/$REPO/issues/$PR_NUM/comments --method POST --input /tmp/skeptic_comment.json -H "Content-Type: application/json" || echo "WARN: gh api comment failed"
+          fi

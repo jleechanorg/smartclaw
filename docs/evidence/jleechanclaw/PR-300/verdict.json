@@ -1,0 +1,71 @@
+{
+  "pr": 300,
+  "repo": "jleechanorg/smartclaw",
+  "branch": "mvp/retire-ao-duplicates",
+  "title": "chore: deprecate 12 orchestration modules duplicated by agent-orchestrator",
+  "verdict": "PASS",
+  "timestamp": "2026-03-20T09:15:00Z",
+  "reviewer": "claude-opus-4.6",
+  "evidence": {
+    "real_integration_tests": {
+      "file": "test_real_integration.py",
+      "total": 27,
+      "passed": 27,
+      "failed": 0,
+      "mocks_used": false,
+      "description": "Real integration tests exercising actual smartclaw + AO code with real file I/O, real GitHub API calls, real ao CLI subprocess calls"
+    },
+    "unit_integration_tests": {
+      "file": "test_ao_integration.py + test_session_reaper.py",
+      "total": 48,
+      "passed": 37,
+      "skipped": 11,
+      "failed": 0,
+      "mocks_used": true,
+      "mocks_note": "7 TestMCPMailShim tests mock subprocess.run (mcporter binary may not be available); 11 TS-equivalence tests skipped (covered by test_real_integration.py instead)",
+      "description": "Backward compatibility tests for all 12 deprecated modules + session_reaper retirement"
+    },
+    "full_test_suite": {
+      "total": 681,
+      "passed": 668,
+      "failed": 13,
+      "pre_existing_failures": 13,
+      "regressions": 0,
+      "pre_existing_failure_list": [
+        "test_anomaly_detector::TestFilterEscalations::test_filters_by_action_type",
+        "test_anomaly_detector::TestFilterEscalations::test_filters_by_time_window",
+        "test_anomaly_detector::TestFilterEscalations::test_extracts_error_class",
+        "test_anomaly_detector::TestRunAnomalyDetection::test_returns_anomalies",
+        "test_anomaly_detector::TestIntegration::test_full_pipeline_with_threshold",
+        "test_escalation_e2e::test_stuck_session_kill_and_respawn_creates_new_session",
+        "test_escalation_e2e::test_multiple_different_escalations",
+        "test_evidence_bundle::TestCheckEvidencePassUpdated::test_code_files_without_evidence_blocks",
+        "test_evidence_bundle::TestCheckEvidencePassUpdated::test_legacy_pass_comment_no_longer_accepted",
+        "test_ollama_embedder::test_get_embedding_uses_openai_when_provider_is_openai",
+        "test_ollama_embedder::test_search_via_raw_client_uses_get_embedding",
+        "test_parallel_retry::test_check_ci_status_pending_in_progress",
+        "test_stage2_reviewer::TestLegacyFallbackRemoved::test_code_pr_without_evidence_bundle_blocks"
+      ],
+      "description": "Full test suite — 13 failures are pre-existing on main (identical failure set, verified by running main branch)"
+    },
+    "modules_verified": {
+      "outcome_recorder": "Real JSONL file I/O, persistence across instances, query by error class",
+      "pattern_synthesizer": "Full outcomes→patterns→save→load→lookup pipeline with real files",
+      "failure_budget": "Real file locking, budget exhaustion lifecycle, persistence",
+      "merge_gate": "Real GitHub API calls against PR #300 (check_merge_ready, check_ci_status, check_mergeable, check_coderabbit, check_blocking_comments)",
+      "ao_cli": "Real subprocess: ao --version, ao status --json, ao status --project filter",
+      "session_reaper": "Verified ImportError on import with correct guidance message",
+      "typescript_equivalents": "10 AO TypeScript files verified to exist with correct exports (autoResolveThreads, EvidenceBundle, FailureBudget, AgentMailBridge, checkMergeGate, OutcomeRecorder, parallelRetry, PatternSynthesizer, reapStaleSessions, WebhookIngress)",
+      "data_pipeline": "End-to-end outcomes→patterns→guidance cycle with win rate calculation"
+    },
+    "ci_status": {
+      "ping_coderabbit": "SUCCESS",
+      "cursor_bugbot": "SKIPPING (no findings)",
+      "coderabbit": "PASS (review completed)"
+    },
+    "pr_status": {
+      "mergeable": "MERGEABLE",
+      "copilot_comments": "ADDRESSED (2 fixes: session_reaper docstring, failure_budget partial deprecation)"
+    }
+  }
+}

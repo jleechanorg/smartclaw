@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.agentorchestrator.lifecycle-agent-orchestrator</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>@NODE_PATH@</string>
+        <string>@HOME@/bin/ao</string>
+        <string>lifecycle-worker</string>
+        <string>agent-orchestrator</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>@NODE_BIN_DIR@:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>HOME</key>
+        <string>@HOME@</string>
+        <key>GITHUB_TOKEN</key>
+        <string>@GITHUB_TOKEN@</string>
+        <key>GH_TOKEN</key>
+        <string>@GITHUB_TOKEN@</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>@HOME@/.smartclaw/logs/ao-lifecycle-agent-orchestrator.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>@HOME@/.smartclaw/logs/ao-lifecycle-agent-orchestrator.err.log</string>
+
+    <key>WorkingDirectory</key>
+    <string>@HOME@/.smartclaw</string>
+
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+</dict>
+</plist>

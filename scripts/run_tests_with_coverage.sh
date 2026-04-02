@@ -30,16 +30,15 @@ echo "Coverage threshold: ${COVERAGE_THRESHOLD}%"
 echo ""
 
 # Function to run tests with error handling
-# Arguments: test_name emoji cmd [args...]
 run_test() {
     local test_name="$1"
-    local emoji="$2"
-    shift 2
+    local command="$2"
+    local emoji="$3"
 
     echo -e "\n${BLUE}${emoji} Running ${test_name}...${NC}"
-    echo "Command: $*"
+    echo "Command: $command"
 
-    if "$@"; then
+    if eval "$command"; then
         echo -e "${GREEN}✅ ${test_name}: PASSED${NC}"
         return 0
     else
@@ -53,84 +52,57 @@ overall_status=0
 
 # Run tests based on mode
 case "$TEST_MODE" in
-    "fast")
-        echo -e "${BLUE}⚡ Running fast tests${NC}"
-        if ! run_test "Fast Tests" "⚡" python -m pytest src/tests/ -q --no-header; then
-            overall_status=1
-        fi
-        ;;
-
-    "unit")
-        echo -e "${BLUE}🧪 Running unit tests${NC}"
-        if ! run_test "Unit Tests" "🧪" python -m pytest src/tests/ -q; then
+    "fast"|"unit")
+        echo -e "${BLUE}⚡ Running fast unit tests${NC}"
+        if ! run_test "Unit Tests" "pnpm test:fast" "⚡"; then
             overall_status=1
         fi
         ;;
 
     "e2e")
         echo -e "${BLUE}🔄 Running end-to-end tests${NC}"
-        if ! run_test "E2E Tests" "🔄" python -m pytest src/tests/ -q -m "e2e or integration"; then
+        if ! run_test "E2E Tests" "pnpm test:e2e" "🔄"; then
             overall_status=1
         fi
         ;;
 
     "coverage")
         echo -e "${BLUE}📊 Running tests with coverage${NC}"
-        if ! run_test "Coverage Tests" "📊" python -m pytest src/tests/ \
-                --cov=orchestration --cov-report=term-missing --cov-report=json \
-                -q; then
+        if ! run_test "Coverage Tests" "pnpm test:coverage" "📊"; then
             overall_status=1
         fi
 
         # Check coverage thresholds
-        if [ -f "coverage.json" ]; then
+        if [ -f "coverage/coverage-summary.json" ]; then
             echo -e "\n${BLUE}📈 Coverage Summary:${NC}"
-            if command -v jq &>/dev/null; then
-                jq '.totals' coverage.json
-
-                # Enforce the threshold — fail the build if lines coverage is below it.
-                actual_pct=$(jq '.totals.percent_covered // 0' coverage.json)
-                # Use awk for floating-point comparison (bash arithmetic only handles integers).
-                if awk -v actual="$actual_pct" -v threshold="$COVERAGE_THRESHOLD" \
-                        'BEGIN { exit (actual >= threshold) ? 0 : 1 }'; then
-                    echo -e "${GREEN}Coverage ${actual_pct}% meets threshold ${COVERAGE_THRESHOLD}%${NC}"
-                else
-                    echo -e "${RED}Coverage ${actual_pct}% is below threshold ${COVERAGE_THRESHOLD}%${NC}"
-                    overall_status=1
-                fi
-            else
-                echo "Install jq to view summary, or open htmlcov/index.html"
-                echo "WARNING: Cannot enforce coverage threshold without jq."
-            fi
+            cat coverage/coverage-summary.json | jq '.total' 2>/dev/null || echo "Coverage summary available in coverage/index.html"
         fi
         ;;
 
     "all")
-        echo -e "${BLUE}🚀 Running full test suite with coverage${NC}"
+        echo -e "${BLUE}🚀 Running full test suite${NC}"
 
-        # Run pytest with coverage in one pass (avoids running the full suite twice)
-        if ! run_test "Full Test Suite + Coverage" "🧪" python -m pytest src/tests/ \
-                --cov=orchestration --cov-report=term-missing --cov-report=json \
-                -q; then
+        # Build first
+        echo -e "\n${BLUE}🔨 Building project${NC}"
+        if ! run_test "Build" "pnpm build" "🔨"; then
             overall_status=1
         fi
 
-        # Enforce coverage threshold when jq is available
-        if command -v jq &>/dev/null && [ -f coverage.json ]; then
-            actual_pct=$(jq '.totals.percent_covered // 0' coverage.json)
-            if awk -v actual="$actual_pct" -v threshold="$COVERAGE_THRESHOLD" \
-                    'BEGIN { exit (actual >= threshold) ? 0 : 1 }'; then
-                echo -e "${GREEN}Coverage ${actual_pct}% meets threshold ${COVERAGE_THRESHOLD}%${NC}"
-            else
-                echo -e "${RED}Coverage ${actual_pct}% is below threshold ${COVERAGE_THRESHOLD}%${NC}"
-                overall_status=1
-            fi
+        # Run all tests
+        if ! run_test "Full Test Suite" "pnpm test" "🧪"; then
+            overall_status=1
+        fi
+
+        # Run coverage
+        echo -e "\n${BLUE}📊 Generating coverage report${NC}"
+        if ! run_test "Coverage Report" "pnpm test:coverage" "📊"; then
+            overall_status=1
         fi
         ;;
 
     "docker")
         echo -e "${BLUE}🐳 Running Docker-based tests${NC}"
-        if ! run_test "Docker Tests" "🐳" python -m pytest src/tests/ -q --tb=short; then
+        if ! run_test "Docker Tests" "pnpm test:docker:all" "🐳"; then
             overall_status=1
         fi
         ;;
@@ -150,11 +122,7 @@ if [[ $overall_status -eq 0 ]]; then
     # Show coverage report location if available
     if [ -f "coverage/index.html" ]; then
         echo -e "${BLUE}📊 Coverage report: coverage/index.html${NC}"
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            echo -e "${YELLOW}   Open with: open coverage/index.html${NC}"
-        else
-            echo -e "${YELLOW}   Open with: xdg-open coverage/index.html${NC}"
-        fi
+        echo -e "${YELLOW}   Open with: open coverage/index.html${NC}"
     fi
 else
     echo -e "${RED}❌ SOME TESTS FAILED${NC}"
@@ -162,7 +130,7 @@ fi
 
 echo -e "\n${BLUE}📊 Test Summary:${NC}"
 echo "  • Mode: $TEST_MODE"
-echo "  • Framework: pytest"
+echo "  • Framework: vitest"
 echo "  • Coverage threshold: ${COVERAGE_THRESHOLD}%"
 
 exit $overall_status

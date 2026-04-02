@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11.13.0/dist/mermaid.min.js" integrity="sha384-tI0sDqjGJcqrQ8e/XKiQGS+ee11v5knTNWx2goxMBxe4DO9U0uKlfxJtYB9ILZ4j" crossorigin="anonymous"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Antigravity Control Plane — Architecture Decision Records</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --bg2: #161b22;
+      --bg3: #21262d;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent2: #3fb950;
+      --accent3: #f78166;
+      --accent4: #d2a8ff;
+      --code-bg: #1f2937;
+      --table-header: #1c2128;
+      --link: #58a6ff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.65;
+    }
+
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ---- Sidebar ---- */
+    .sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 24px 0;
+    }
+
+    .sidebar-title {
+      padding: 0 20px 16px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 8px;
+    }
+
+    .sidebar nav a {
+      display: block;
+      padding: 6px 20px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13px;
+      border-left: 2px solid transparent;
+      transition: all 0.15s;
+    }
+
+    .sidebar nav a:hover,
+    .sidebar nav a.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: rgba(88, 166, 255, 0.07);
+    }
+
+    .sidebar nav a.sub {
+      padding-left: 36px;
+      font-size: 12px;
+    }
+
+    /* ---- Main content ---- */
+    .main {
+      flex: 1;
+      max-width: 900px;
+      padding: 48px 56px;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-bottom: 40px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h2 {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text);
+      margin-top: 52px;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--accent4);
+      margin-top: 28px;
+      margin-bottom: 10px;
+    }
+
+    p {
+      margin-bottom: 14px;
+      color: var(--text);
+    }
+
+    ul, ol {
+      margin: 10px 0 14px 24px;
+      color: var(--text);
+    }
+
+    li {
+      margin-bottom: 6px;
+    }
+
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ---- Code ---- */
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 18px;
+      overflow-x: auto;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12.5px;
+      line-height: 1.55;
+      margin: 14px 0 20px;
+      color: #cdd9e5;
+    }
+
+    code {
+      background: var(--code-bg);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12.5px;
+      color: #cdd9e5;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+      border-radius: 0;
+      font-size: inherit;
+    }
+
+    /* ---- Tables ---- */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0 24px;
+      font-size: 13.5px;
+    }
+
+    th {
+      background: var(--table-header);
+      color: var(--text-muted);
+      font-weight: 600;
+      text-align: left;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    td {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+    /* ---- Status badges ---- */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .badge-green { background: rgba(63, 185, 80, 0.15); color: var(--accent2); border: 1px solid rgba(63, 185, 80, 0.3); }
+    .badge-red   { background: rgba(247, 129, 102, 0.15); color: var(--accent3); border: 1px solid rgba(247, 129, 102, 0.3); }
+    .badge-blue  { background: rgba(88, 166, 255, 0.15); color: var(--accent); border: 1px solid rgba(88, 166, 255, 0.3); }
+
+    /* ---- Callout boxes ---- */
+    .callout {
+      border-left: 3px solid var(--accent);
+      background: rgba(88, 166, 255, 0.06);
+      padding: 12px 16px;
+      border-radius: 0 6px 6px 0;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+
+    .callout.note { border-color: var(--accent4); background: rgba(210, 168, 255, 0.06); }
+
+    /* ---- Diagram container ---- */
+    .diagram {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      margin: 20px 0;
+    }
+
+    .diagram pre {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 12px;
+      color: #cdd9e5;
+      margin: 0;
+    }
+
+    /* ---- Tenet cards ---- */
+    .tenet-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      margin: 16px 0 28px;
+    }
+
+    .tenet-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 20px;
+    }
+
+    .tenet-card h4 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+
+    .tenet-card p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    /* ---- Section anchors ---- */
+    section { scroll-margin-top: 24px; }
+
+    /* ---- Flow steps ---- */
+    .flow-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .flow-num {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: var(--bg);
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .flow-content { flex: 1; padding-top: 2px; }
+    .flow-content strong { color: var(--text); }
+    .flow-content p { margin-bottom: 4px; color: var(--text-muted); font-size: 13.5px; }
+
+    @media (max-width: 900px) {
+      .sidebar { display: none; }
+      .main { padding: 28px 20px; max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-title">Antigravity Control Plane</div>
+    <nav>
+      <a href="#adr-1-language--python-not-typescript" >ADR-1: Language — Python (not TypeScript)</a>
+      <a href="#adr-2-location-in-repository--docs-for-design-srcorchestration-for-code" >ADR-2: Location in Repository — `docs/` for design, `src/orchestration/` for code</a>
+      <a href="#adr-3-ao-integration-boundary--thin-adapter-via-mcp-mail" >ADR-3: AO Integration Boundary — Thin Adapter via MCP Mail</a>
+      <a href="#adr-4-singleton-controller-strategy--os-flock" >ADR-4: Singleton Controller Strategy — OS flock</a>
+      <a href="#adr-5-job-state-storage--sqlite--jsonl" >ADR-5: Job State Storage — SQLite + JSONL</a>
+      <a href="#adr-6-per-repo-exclusivity--dispatcher-level-not-worktree-level" >ADR-6: Per-Repo Exclusivity — Dispatcher-Level, Not Worktree-Level</a>
+      <a href="#adr-7-idempotency--dedupe-at-enqueue-not-at-execute" >ADR-7: Idempotency — Dedupe at Enqueue, Not at Execute</a>
+      <a href="#adr-8-no-runtime-code-in-v0-design-pr" >ADR-8: No Runtime Code in v0 Design PR</a>
+      <a href="#adr-9-executor-is-stateless-no-job-store-access" >ADR-9: Executor Is Stateless (No Job Store Access)</a>
+      <a href="#color-legend">Color Legend</a>
+    </nav>
+  </aside>
+
+  <!-- Main -->
+    <main class="main">
+    <h1>Antigravity Control Plane — Architecture Decision Records</h1>
+    <div class="subtitle">Architecture Decision Records &nbsp;·&nbsp; Last updated: 2026-03-24 &nbsp;·&nbsp; Status: Design in progress</div>
+
+    <section id="adr-1-language--python-not-typescript">
+    <h2>ADR-1: Language — Python (not TypeScript)</h2>
+    <p><strong>Decision:</strong> The control plane is implemented in Python, not TypeScript.</p>
+    <p><strong>Context:</strong> smartclaw's orchestration layer is Python-first (<code>src/orchestration/</code>). TypeScript is used in <code>agent-orchestrator</code> (AO core), not in the harness. Python aligns with existing patterns: dataclasses, SQLite, pytest, and existing Slack integration (<code>src/orchestration/slack_util.py</code>).</p>
+    <p><strong>Alternatives considered:</strong></p>
+  <ul>
+    <li><strong>TypeScript</strong>: Consistent with AO core. But smartclaw has no TypeScript build pipeline, no <code>package.json</code>, no tsconfig. Adding these would be a large infrastructure change for the harness.</li>
+    <li><strong>Go</strong>: Fast, single binary. But less familiar to smartclaw patterns, no existing test infrastructure.</li>
+  </ul>
+    <p><strong>Consequence:</strong> The AO adapter must translate between Python control plane and TypeScript AO workers. The MCP Mail JSON contract is the language-neutral boundary.</p>
+    <p><strong>Review:</strong> If AO core moves to Python or a polyglot model, revisit this decision.</p>
+    </section>
+    <section id="adr-2-location-in-repository--docs-for-design-srcorchestration-for-code">
+    <h2>ADR-2: Location in Repository — `docs/` for design, `src/orchestration/` for code</h2>
+    <p><strong>Decision:</strong> Design artifacts go in <code>docs/antigravity-control-plane/</code>. Runtime code goes in <code>src/orchestration/antig_control_plane/</code>.</p>
+    <p><strong>Context:</strong> smartclaw uses <code>docs/</code> for design documents and <code>src/orchestration/</code> for Python runtime code. This is already established.</p>
+    <p><strong>Alternatives considered:</strong></p>
+  <ul>
+    <li><code>roadmap/</code>: Overcrowded (38 files), mixed status. <code>docs/</code> is cleaner for new design initiatives.</li>
+    <li><code>src/antig_control_plane/</code>: Would require adding <code>src/</code> to Python path in a non-standard way. <code>src/orchestration/</code> is already in <code>PYTHONPATH</code>.</li>
+  </ul>
+    <p><strong>Consequence:</strong> Sonnet workers must know to check <code>docs/antigravity-control-plane/</code> first, then <code>src/orchestration/antig_control_plane/</code> for implementation.</p>
+    <p><strong>Review:</strong> If the codebase grows significantly, consider splitting <code>src/orchestration/</code> into <code>src/orchestration/harness/</code> and <code>src/orchestration/antig/</code>.</p>
+    </section>
+    <section id="adr-3-ao-integration-boundary--thin-adapter-via-mcp-mail">
+    <h2>ADR-3: AO Integration Boundary — Thin Adapter via MCP Mail</h2>
+    <p><strong>Decision:</strong> The AO adapter is a thin translation layer. AO owns worker lifecycle; control plane owns routing and policy.</p>
+    <p><strong>Context:</strong> AO already has a mature worker lifecycle (spawn, supervise, respawn). The control plane should not replicate this. MCP Mail provides a durable, asynchronous message channel.</p>
+    <p><strong>Alternatives considered:</strong></p>
+  <ul>
+    <li><strong>Control plane spawns AO workers directly</strong>: Would require control plane to understand AO's internal process model. Too tightly coupled.</li>
+    <li><strong>Control plane exposes a REST API that AO polls</strong>: AO would need to be modified to poll. MCP Mail is already integrated.</li>
+    <li><strong>Control plane embeds AO worker code</strong>: Would create a fork of AO worker logic in smartclaw. Not maintainable.</li>
+  </ul>
+    <p><strong>Consequence:</strong> The MCP Mail message schema is the critical interface contract. It must be stable and versioned. Changes to the schema require coordinated updates to control plane and AO worker templates.</p>
+    <p><strong>Review:</strong> If MCP Mail proves unreliable, revisit REST API polling as fallback.</p>
+    </section>
+    <section id="adr-4-singleton-controller-strategy--os-flock">
+    <h2>ADR-4: Singleton Controller Strategy — OS flock</h2>
+    <p><strong>Decision:</strong> The control plane runs as a singleton using <code>flock(LOCK_EX | LOCK_NB)</code> on a lock file. No leader election, no distributed lock service.</p>
+    <p><strong>Context:</strong> smartclaw runs on a single macOS machine. The control plane coordinates Antigravity windows on that machine. There is no need for distributed coordination across multiple machines.</p>
+    <p><strong>Alternatives considered:</strong></p>
+  <ul>
+    <li><strong>Leader election via distributed lock (Redis, etcd)</strong>: Overkill for single-machine deployment. Adds external dependency.</li>
+    <li><strong>Process ID file only</strong> (no flock): Race condition on crash. <code>flock</code> is atomic at the OS level.</li>
+    <li><strong>Thread-based singleton</strong> (Python threading.Lock): Only prevents threads within the same process, not multiple processes.</li>
+  </ul>
+    <p><strong>Consequence:</strong> If the machine runs multiple smartclaw instances (should never happen), the second instance will refuse to start with a clear error. Recovery from crash is instant — <code>flock</code> is released immediately on process exit.</p>
+    <p><strong>Review:</strong> If multi-machine Antigravity orchestration is needed in the future, add distributed locking via Redis.</p>
+    </section>
+    <section id="adr-5-job-state-storage--sqlite--jsonl">
+    <h2>ADR-5: Job State Storage — SQLite + JSONL</h2>
+    <p><strong>Decision:</strong> Jobs stored in SQLite. Event logs and outcome ledger stored in append-only JSONL files.</p>
+    <p><strong>Context:</strong> smartclaw already uses SQLite + JSONL patterns (see <code>src/orchestration/webhook.py</code>). No new infrastructure needed.</p>
+    <p><strong>Alternatives considered:</strong></p>
+  <ul>
+    <li><strong>PostgreSQL</strong>: Overkill for single-machine workload. Adds operational complexity.</li>
+    <li><strong>Redis</strong>: In-memory, could lose data on crash. Not acceptable for durable job queue.</li>
+    <li><strong>Plain JSON files</strong>: No concurrent access safety. SQLite's WAL mode handles concurrent reads + single writer.</li>
+    <li><strong>SQLAlchemy ORM</strong>: Adds dependency. Raw <code>sqlite3</code> with dataclasses is sufficient and matches existing code.</li>
+  </ul>
+    <p><strong>Consequence:</strong> SQLite WAL mode enables concurrent readers while maintaining write serialization. JSONL append-only pattern provides immutable audit log.</p>
+    <p><strong>Schema stability:</strong> Job schema changes require migrations. Use SQLite's <code>ALTER TABLE</code> with care — prefer additive changes (new columns) over destructive changes.</p>
+    </section>
+    <section id="adr-6-per-repo-exclusivity--dispatcher-level-not-worktree-level">
+    <h2>ADR-6: Per-Repo Exclusivity — Dispatcher-Level, Not Worktree-Level</h2>
+    <p><strong>Decision:</strong> The dispatcher enforces at most one <code>running</code> or <code>dispatched</code> job per repo. Worktree lock files are not the primary mechanism.</p>
+    <p><strong>Context:</strong> Two workers could try to operate on the same worktree if both are dispatched for the same repo. The dispatcher prevents this by checking <code>running</code>/<code>dispatched</code> state before dispatching.</p>
+    <p><strong>Alternatives considered:</strong></p>
+  <ul>
+    <li><strong>Worktree-level flock</strong>: A lock file inside the worktree directory. But worktrees may not exist yet (control plane creates them). Also adds filesystem coupling.</li>
+    <li><strong>PostgreSQL advisory locks</strong>: Overkill for single-machine.</li>
+    <li><strong>No exclusivity</strong> (let workers fight): Antigravity Manager window is single-threaded; fighting causes chaos.</li>
+  </ul>
+    <p><strong>Consequence:</strong> A job for repo A will wait in <code>queued</code> state until the previous job for repo A reaches a terminal state. This is correct behavior — it prevents concurrent writes to the same worktree.</p>
+    <p><strong>Review:</strong> If Antigravity can safely handle parallel workspaces in the same repo (e.g., different branches), the exclusivity model can be relaxed to per-branch.</p>
+    </section>
+    <section id="adr-7-idempotency--dedupe-at-enqueue-not-at-execute">
+    <h2>ADR-7: Idempotency — Dedupe at Enqueue, Not at Execute</h2>
+    <p><strong>Decision:</strong> Idempotency is checked at enqueue time (in the scheduler), not at execute time. Duplicate jobs within the same non-terminal state are rejected.</p>
+    <p><strong>Context:</strong> The control plane is the authority on what jobs are in flight. AO workers should not need to check deduplication — they receive a job_id and report against it.</p>
+    <p><strong>Alternatives considered:</strong></p>
+  <ul>
+    <li><strong>Idempotency check in executor</strong>: AO worker checks if job already ran before executing. Adds unnecessary complexity to workers.</li>
+    <li><strong>Event sourcing</strong>: Every action is an event; deduplication is at the event log level. Overkill for this use case.</li>
+    <li><strong>No idempotency</strong>: Jobs can be submitted multiple times and run multiple times. Unacceptable — Antigravity operations are expensive.</li>
+  </ul>
+    <p><strong>Consequence:</strong> If the same job is submitted twice before the first starts, the second gets <code>duplicate=True</code> with the first job's <code>job_id</code>. The submitter can then monitor the original job.</p>
+    <p><strong>Review:</strong> If jobs need to be re-run after terminal failure (human explicitly re-queues), the idempotency key is reused intentionally — that's the correct behavior (same job, new attempt).</p>
+    </section>
+    <section id="adr-8-no-runtime-code-in-v0-design-pr">
+    <h2>ADR-8: No Runtime Code in v0 Design PR</h2>
+    <p><strong>Decision:</strong> v0 is design-only. No Python runtime code is committed in the same PR as the design.</p>
+    <p><strong>Context:</strong> Design and implementation should be reviewed separately. Sonnet workers implement; the design author reviews. Mixing them makes review harder and creates ambiguity about scope.</p>
+    <p><strong>Alternatives considered:</strong></p>
+  <ul>
+    <li><strong>Design + Phase 1 skeleton in same PR</strong>: Faster, but harder to review. If design changes, skeleton code must change too.</li>
+    <li><strong>Design + all v1-v3 in same PR</strong>: Way too large. Do not do this.</li>
+  </ul>
+    <p><strong>Consequence:</strong> This PR (v0) contains only <code>docs/antigravity-control-plane/*.md</code>. Sonnet workers open subsequent PRs for v1, v2, v3. Design changes after v0 merge require a separate PR.</p>
+    <p><strong>Review:</strong> If a design flaw is discovered during Phase 1 implementation, fix the design doc in the same PR as the implementation fix. Don't let design and code diverge.</p>
+    </section>
+    <section id="adr-9-executor-is-stateless-no-job-store-access">
+    <h2>ADR-9: Executor Is Stateless (No Job Store Access)</h2>
+    <p><strong>Decision:</strong> The executor (AO worker) reads the job payload once and reports once. It does not poll the job store or make routing decisions.</p>
+    <p><strong>Context:</strong> Executors run in AO's environment, not the control plane's. Giving executors direct SQLite access would require sharing the SQLite file across machines/processes, which is fragile.</p>
+    <p><strong>Alternatives considered:</strong></p>
+  <ul>
+    <li><strong>Executor polls job store directly</strong>: Requires shared filesystem or SQLite replication. Too complex.</li>
+    <li><strong>Executor receives callbacks from control plane</strong>: Control plane sends heartbeats to executor. Reverse direction adds complexity.</li>
+  </ul>
+    <p><strong>Consequence:</strong> The dispatcher is the only writer to the job store. Executors are pure functions: job in → Antigravity actions → result out. This makes testing easy (mock executor input/output) and AO workers simple to write.</p>
+    <p><strong>Review:</strong> If heartbeat frequency becomes a bottleneck, consider switching to a callback-based model where executors push updates directly.</p>
+
+    <section id="color-legend">
+    <h2>Color Legend</h2>
+    <p>The following color conventions are used in diagrams throughout this document:</p>
+    <table>
+      <thead><tr><th>Color</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td style="color:#58a6ff">Blue</td><td>Primary accent — links, highlights</td></tr>
+        <tr><td style="color:#3fb950">Green</td><td>Success, completed, passed</td></tr>
+        <tr><td style="color:#f78166">Orange/Red</td><td>Error, failure, warning</td></tr>
+        <tr><td style="color:#d2a8ff">Purple</td><td>Decision point, judgment call</td></tr>
+        <tr><td style="color:#ffd33d">Yellow</td><td>Caution, in-progress</td></tr>
+      </tbody>
+    </table>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  if (typeof mermaid !== 'undefined') {
+    mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+  }
+</script>
+</body>
+</html>

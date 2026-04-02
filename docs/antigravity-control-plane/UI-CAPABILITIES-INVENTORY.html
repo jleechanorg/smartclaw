@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Antigravity Control Plane — UI Capabilities Inventory</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11.13.0/dist/mermaid.min.js" integrity="sha384-tI0sDqjGJcqrQ8e/XKiQGS+ee11v5knTNWx2goxMBxe4DO9U0uKlfxJtYB9ILZ4j" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --bg2: #161b22;
+      --bg3: #21262d;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent2: #3fb950;
+      --accent3: #f78166;
+      --accent4: #d2a8ff;
+      --code-bg: #1f2937;
+      --table-header: #1c2128;
+      --link: #58a6ff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.65;
+    }
+
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 24px 0;
+    }
+
+    .sidebar-title {
+      padding: 0 20px 16px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 8px;
+    }
+
+    .sidebar nav a {
+      display: block;
+      padding: 6px 20px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13px;
+      border-left: 2px solid transparent;
+      transition: all 0.15s;
+    }
+
+    .sidebar nav a:hover,
+    .sidebar nav a.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: rgba(88, 166, 255, 0.07);
+    }
+
+    .sidebar nav a.sub {
+      padding-left: 36px;
+      font-size: 12px;
+    }
+
+    .main {
+      flex: 1;
+      max-width: 900px;
+      padding: 48px 56px;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-bottom: 40px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h2 {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text);
+      margin-top: 52px;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--accent4);
+      margin-top: 28px;
+      margin-bottom: 10px;
+    }
+
+    p {
+      margin-bottom: 14px;
+      color: var(--text);
+    }
+
+    ul, ol {
+      margin: 10px 0 14px 24px;
+      color: var(--text);
+    }
+
+    li {
+      margin-bottom: 6px;
+    }
+
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 18px;
+      overflow-x: auto;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12.5px;
+      line-height: 1.55;
+      margin: 14px 0 20px;
+      color: #cdd9e5;
+    }
+
+    code {
+      background: var(--code-bg);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12.5px;
+      color: #cdd9e5;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+      border-radius: 0;
+      font-size: inherit;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0 24px;
+      font-size: 13.5px;
+    }
+
+    th {
+      background: var(--table-header);
+      color: var(--text-muted);
+      font-weight: 600;
+      text-align: left;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    td {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .badge-green { background: rgba(63, 185, 80, 0.15); color: var(--accent2); border: 1px solid rgba(63, 185, 80, 0.3); }
+    .badge-red   { background: rgba(247, 129, 102, 0.15); color: var(--accent3); border: 1px solid rgba(247, 129, 102, 0.3); }
+    .badge-blue  { background: rgba(88, 166, 255, 0.15); color: var(--accent); border: 1px solid rgba(88, 166, 255, 0.3); }
+
+    .callout {
+      border-left: 3px solid var(--accent);
+      background: rgba(88, 166, 255, 0.06);
+      padding: 12px 16px;
+      border-radius: 0 6px 6px 0;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+
+    .callout.note { border-color: var(--accent4); background: rgba(210, 168, 255, 0.06); }
+
+    .diagram {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      margin: 20px 0;
+    }
+
+    .diagram pre {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 12px;
+      color: #cdd9e5;
+      margin: 0;
+    }
+
+    .tenet-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      margin: 16px 0 28px;
+    }
+
+    .tenet-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 20px;
+    }
+
+    .tenet-card h4 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+
+    .tenet-card p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    section { scroll-margin-top: 24px; }
+
+    .flow-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .flow-num {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: var(--bg);
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .flow-content { flex: 1; padding-top: 2px; }
+    .flow-content strong { color: var(--text); }
+    .flow-content p { margin-bottom: 4px; color: var(--text-muted); font-size: 13.5px; }
+
+    @media (max-width: 900px) {
+      .sidebar { display: none; }
+      .main { padding: 28px 20px; max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-title">Antigravity Control Plane</div>
+    <nav>
+      <a href="#what-supports-today">What the Antigravity Skill Supports Today</a>
+      <a href="#peekaboo-commands">Peekaboo CLI Commands Used</a>
+      <a href="#not-yet-supported">What Is NOT Yet Supported</a>
+      <a href="#observed-from-cmux">Observed from cmux Workspace</a>
+      <a href="#capabilities-v2">Capabilities Needed for v2+</a>
+      <a href="#gap-analysis">Gap Analysis Summary</a>
+      <a href="#research-actions">Research Actions for Sonnet Workers</a>
+      <a href="#relationship-orch-ma4">Relationship to ORCH-ma4</a>
+    </nav>
+  </aside>
+  <main class="main">
+    <h1>Antigravity Control Plane — UI Capabilities Inventory</h1>
+    <div class="subtitle">Design Document &nbsp;·&nbsp; Bead: ORCH-ag1 &nbsp;·&nbsp; Status: Design in progress</div>
+
+    <section id="what-supports-today">
+      <h2>What the Antigravity Skill Supports Today</h2>
+      <p>Source: <code>~/.claude/skills/antigravity-computer-use/SKILL.md</code> (canonical, 301 lines, loaded 2026-03-24)</p>
+
+      <h3>Core Loop</h3>
+      <p>The skill implements a <strong>screenshot-decide-act loop</strong> driven by an LLM (the worker agent):</p>
+      <ol>
+        <li><strong>Screenshot</strong>: <code>peekaboo see [--analyze]</code> captures the current Antigravity Manager window</li>
+        <li><strong>Decide</strong>: LLM analyzes screenshot + JSON annotation, decides next action</li>
+        <li><strong>Act</strong>: LLM emits a Peekaboo command (<code>click</code>, <code>type</code>, <code>paste</code>, <code>press</code>)</li>
+        <li><strong>Repeat</strong>: until goal is achieved or blocked</li>
+      </ol>
+
+      <h3>What Can Be Done Today (v1 Skill)</h3>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>Capability</th><th>Status</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>Manager window targeting</strong></td><td>✅ Working</td><td>Targets window with internal title <code>'Manager'</code> — the Agent Manager sidebar</td></tr>
+            <tr><td><strong>Workspace enumeration</strong></td><td>✅ Working</td><td><code>peekaboo window list</code> + annotated screenshot shows all workspaces with <code>[ACTIVE]</code> markers</td></tr>
+            <tr><td><strong>Per-workspace navigation</strong></td><td>✅ Working</td><td>Click workspace in sidebar → context switches to that workspace</td></tr>
+            <tr><td><strong>Element targeting</strong></td><td>✅ Working</td><td><code>--snapshot &lt;ID&gt;</code> with <code>--on elem_N</code> for precise element clicks</td></tr>
+            <tr><td><strong>Text input</strong></td><td>✅ Working</td><td><code>peekaboo paste</code> (not <code>type</code>) for text — bypasses keyboard interception</td></tr>
+            <tr><td><strong>Keyboard shortcuts</strong></td><td>✅ Working</td><td><code>peekaboo press</code> for special keys (Enter, Escape, etc.)</td></tr>
+            <tr><td><strong>Screenshot evidence</strong></td><td>✅ Working</td><td>Every iteration captures a screenshot for audit/replay</td></tr>
+            <tr><td><strong>"Allow this conversation" dialog</strong></td><td>✅ Working</td><td>Skill automatically clicks Allow without asking</td></tr>
+            <tr><td><strong>OAuth session management</strong></td><td>✅ Working</td><td>Antigravity uses OAuth for agent auth inside the session</td></tr>
+            <tr><td><strong>Completion detection</strong></td><td>✅ Working</td><td>Goal visible in screenshot evidence, or blocked with exact blocker</td></tr>
+            <tr><td><strong>Blocking on human input</strong></td><td>✅ Working</td><td>Required human actions are surfaced as blockers with exact description</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="peekaboo-commands">
+      <h2>Peekaboo CLI Commands Used</h2>
+      <pre><code># Capture screenshot of Manager window
+peekaboo see --window Manager [--analyze]
+
+# List all windows (for workspace enumeration)
+peekaboo window list
+
+# Click an element
+peekaboo click --on elem_42 --snapshot &lt;window_id&gt;
+
+# Type text (uses clipboard paste, not keyboard)
+peekaboo paste "hello world" --on elem_42
+
+# Press a key
+peekaboo press Enter --on elem_42
+
+# Get window snapshot for targeting
+peekaboo screenshot --window Manager</code></pre>
+    </section>
+
+    <section id="not-yet-supported">
+      <h2>What Is NOT Yet Supported</h2>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>Missing Capability</th><th>Impact</th><th>Priority</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>Native Antigravity API</strong></td><td>All automation goes through GUI (Peekaboo); no structured data exchange</td><td>High</td></tr>
+            <tr><td><strong>Window state detection</strong></td><td>Can't detect if Antigravity is loading, errored, or crashed without screenshots</td><td>High</td></tr>
+            <tr><td><strong>Clipboard monitoring</strong></td><td>Can't read Antigravity output via clipboard; must screenshot</td><td>Medium</td></tr>
+            <tr><td><strong>Multi-monitor support</strong></td><td>Assumes Antigravity is on primary monitor</td><td>Medium</td></tr>
+            <tr><td><strong>Menu bar automation</strong></td><td>No documented path for File/Edit/View menu operations</td><td>Low</td></tr>
+            <tr><td><strong>Notification handling</strong></td><td>Pop-up notifications not automatically dismissed</td><td>Low</td></tr>
+            <tr><td><strong>Session resume</strong></td><td>If Antigravity crashes mid-job, no session resume — full restart required</td><td>High</td></tr>
+            <tr><td><strong>Structured output parsing</strong></td><td>LLM must read screenshot to extract structured data (PR numbers, errors, etc.)</td><td>Medium</td></tr>
+            <tr><td><strong>Rate limiting awareness</strong></td><td>No backoff when Antigravity shows "too many requests" UI</td><td>Medium</td></tr>
+            <tr><td><strong>Parallel workspace control</strong></td><td>One Peekaboo session per workspace; no documented multi-workspace coordination</td><td>Medium</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="observed-from-cmux">
+      <h2>What Was Observed from cmux Workspace "antig"</h2>
+      <p><strong>Finding: No active Antigravity tmux/cmux workspace exists at time of research (2026-03-24).</strong></p>
+      <p>The cmux workspace list shows 13 workspaces (<code>o: primary</code>, <code>ao: primary</code>, <code>ao2: monitor</code>, <code>ao3: misc</code>, <code>o2: misc</code>, <code>ao: cli</code>, <code>w: tails</code>, <code>w: trimcommands</code>, <code>w: export</code>, <code>cmux</code>, <code>openclaw: main</code>, <code>openclaw: memory</code>, <code>g: wc: generators</code>). No Antigravity-named workspace was found.</p>
+      <p>The file <code>~/.smartclaw/workspace/Antigravity_2026-03-24T05:13:57Z.png</code> (22KB, timestamped today) shows:</p>
+      <ul>
+        <li>Antigravity Manager window screenshot captured this morning</li>
+        <li>Workspace sidebar visible with conversations listed</li>
+        <li>UI elements suggesting a chat/agent interface</li>
+      </ul>
+      <p><strong>This implies:</strong> The Antigravity skill was run successfully in a Claude Code session (not a persistent tmux session), capturing the screenshot. No persistent antig tmux workspace was established.</p>
+      <p><strong>Gap:</strong> For the control plane to operate Antigravity persistently, a <strong>persistent tmux/cmux workspace</strong> for Antigravity needs to be established — not just single-shot skill invocations.</p>
+    </section>
+
+    <section id="capabilities-v2">
+      <h2>Capabilities Needed for v2+ Control Plane</h2>
+
+      <h3>v2: Persistent Session Management</h3>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>Needed Capability</th><th>Currently Supported?</th><th>Implementation Approach</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Launch Antigravity from command line</td><td>❓ Not documented</td><td>Investigate <code>openclaw agents</code> or Antigravity CLI; if none, document as blocker</td></tr>
+            <tr><td>Attach to existing Antigravity session</td><td>❓ Not documented</td><td>Investigate if Peekaboo can attach to running Antigravity process</td></tr>
+            <tr><td>Detect Antigravity crash/restart</td><td>❓ Not documented</td><td>Periodic <code>peekaboo screenshot</code> + LLM analysis of screenshot for error state</td></tr>
+            <tr><td>Kill and restart Antigravity workspace</td><td>❌ Not supported</td><td>Requires Antigravity CLI or AppleScript</td></tr>
+            <tr><td>Session state persistence across restarts</td><td>❌ Not supported</td><td>Would need Antigravity session export/import</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>v2: Multi-Worker Coordination</h3>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>Needed Capability</th><th>Currently Supported?</th><th>Implementation Approach</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Multiple simultaneous workspaces</td><td>⚠️ Untested</td><td>Skill targets one workspace at a time; need to verify parallel workspace safety</td></tr>
+            <tr><td>Worktree conflict detection</td><td>❌ Not in skill</td><td>Control plane must enforce per-repo exclusivity (see ARCHITECTURE.md)</td></tr>
+            <tr><td>Cross-repo job correlation</td><td>❌ Not in skill</td><td>Control plane manages via <code>correlation_id</code> (see DATA-CONTRACTS.md)</td></tr>
+            <tr><td>Job cancellation mid-execution</td><td>❌ Not in skill</td><td>Executor must check for cancellation signal between screenshot loops</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>v2: Observability</h3>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>Needed Capability</th><th>Currently Supported?</th><th>Implementation Approach</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Structured log output</td><td>❌ Not in skill</td><td>Executor must write to JSONL; control plane aggregates</td></tr>
+            <tr><td>Progress reporting</td><td>❌ Not in skill</td><td>Worker sends heartbeat messages with progress string</td></tr>
+            <tr><td>Evidence screenshot archival</td><td>⚠️ Partial</td><td>Skill saves screenshots; need centralized path (<code>antig_jobs/{job_id}/</code>)</td></tr>
+            <tr><td>Execution transcript</td><td>❌ Not in skill</td><td>Capture LLM reasoning + Peekaboo commands to JSONL</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>v3: Hardening</h3>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>Needed Capability</th><th>Currently Supported?</th><th>Implementation Approach</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Automatic retry on transient UI errors</td><td>❌ Not in skill</td><td>Executor implements retry loop with screenshot-based error detection</td></tr>
+            <tr><td>Permission monitoring</td><td>⚠️ Partial</td><td><code>scripts/peekaboo-preflight.sh</code> checks; need continuous monitoring</td></tr>
+            <tr><td>Rate limiting / backoff</td><td>❌ Not in skill</td><td>Executor detects rate-limit UI and backs off</td></tr>
+            <tr><td>Graceful degradation</td><td>❌ Not in skill</td><td>If Peekaboo fails, executor should alert and deadletter</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="gap-analysis">
+      <h2>Gap Analysis Summary</h2>
+
+      <h3>Critical Gaps (Block v2 AO Integration)</h3>
+      <ol>
+        <li><strong>No persistent Antigravity session management</strong> — single-shot skill invocations won't work for AO workers that need to run asynchronously</li>
+        <li><strong>No Antigravity CLI</strong> — if Antigravity doesn't have a CLI for launch/kill/restart, executor cannot recover from crashes</li>
+        <li><strong>No job cancellation mid-execution</strong> — AO workers could run indefinitely if job isn't cancelled properly</li>
+      </ol>
+
+      <h3>High-Priority Gaps (Should Fix in v2)</h3>
+      <ol>
+        <li><strong>Session resume</strong> — Antigravity crash = full job failure; no recovery possible without session persistence</li>
+        <li><strong>Structured output</strong> — LLM must OCR screenshots to extract PR numbers, errors; fragile and slow</li>
+        <li><strong>Parallel workspace safety</strong> — untested; needs verification before multi-worker deployment</li>
+      </ol>
+
+      <h3>Medium-Priority Gaps (Nice to Have for v2)</h3>
+      <ol>
+        <li><strong>Multi-monitor support</strong></li>
+        <li><strong>Rate limiting awareness</strong></li>
+        <li><strong>Menu bar automation</strong></li>
+      </ol>
+    </section>
+
+    <section id="research-actions">
+      <h2>Research Actions for Sonnet Workers</h2>
+      <p>Before implementing v2, Sonnet workers should investigate:</p>
+      <ol>
+        <li><strong>Antigravity CLI</strong>: Does Antigravity have a CLI for <code>--launch</code>, <code>--kill</code>, <code>--attach</code>? Check <code>Antigravity --help</code> and look for AppleScript/Safari extension APIs.</li>
+        <li><strong>Session persistence</strong>: Can Antigravity sessions be exported to a file and restored? Check Antigravity preferences/data directories.</li>
+        <li><strong>Peekaboo multi-window</strong>: Can <code>peekaboo</code> control two Manager windows simultaneously? Test with two Antigravity instances.</li>
+        <li><strong>Crash detection</strong>: What does the Antigravity Manager window look like when crashed? Collect screenshots for LLM-based crash detection.</li>
+      </ol>
+    </section>
+
+    <section id="relationship-orch-ma4">
+      <h2>Relationship to ORCH-ma4</h2>
+      <p>The existing ORCH-ma4 design (<code>roadmap/PEEKABOO_ANTIGRAVITY_UI_AUTOMATION.md</code>) established:</p>
+      <ul>
+        <li>✅ Peekaboo installation and preflight checks</li>
+        <li>✅ <code>PeekabooBridge.sock</code> location</li>
+        <li>✅ Single-session automation loop</li>
+      </ul>
+      <p>The capabilities inventory above extends ORCH-ma4 by identifying what's needed for <strong>multi-session, multi-repo orchestration</strong>. The gaps listed should be addressed in the v2 phase.</p>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  const sections = document.querySelectorAll('section[id], h2[id], h3[id]');
+  const links = document.querySelectorAll('.sidebar nav a');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`.sidebar nav a[href="#${entry.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+
+<script>
+  if (typeof mermaid !== 'undefined') {
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      securityLevel: 'strict',
+      flowchart: { curve: 'basis', padding: 20 },
+      sequence: { mirrorActors: false, messageAlign: 'center' }
+    });
+  } else {
+    document.querySelectorAll('.mermaid').forEach(el => {
+      el.textContent = '[Diagram unavailable — mermaid CDN blocked]';
+    });
+  }
+</script>
+</body>
+</html>

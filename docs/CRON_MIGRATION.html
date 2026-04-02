@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenClaw Cron → Launchd Migration</title>
+  <style>
+    :root {
+      --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --border: #30363d;
+      --text: #e6edf3; --text-muted: #8b949e; --accent: #58a6ff;
+      --accent2: #3fb950; --accent3: #f78166; --accent4: #d2a8ff;
+      --code-bg: #1f2937; --table-header: #1c2128; --link: #58a6ff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text);
+           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+           font-size: 15px; line-height: 1.65; }
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .container { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; }
+    h1 { font-size: 1.8rem; margin-bottom: 0.5rem; color: var(--accent); }
+    h2 { font-size: 1.3rem; margin: 2rem 0 0.75rem; padding-bottom: 0.3rem;
+         border-bottom: 1px solid var(--border); color: var(--accent2); }
+    h3 { font-size: 1.05rem; margin: 1.2rem 0 0.5rem; color: var(--accent4); }
+    p { margin-bottom: 0.75rem; }
+    ul, ol { margin: 0.5rem 0 0.75rem 1.5rem; }
+    li { margin-bottom: 0.3rem; }
+    code { background: var(--code-bg); padding: 0.15em 0.4em; border-radius: 4px;
+            font-size: 0.88em; font-family: "SFMono-Regular", Consolas, monospace; }
+    pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+          padding: 1rem; overflow-x: auto; margin: 0.75rem 0; }
+    pre code { background: none; padding: 0; }
+    table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.9rem; }
+    th { background: var(--table-header); padding: 0.5rem 0.75rem;
+         text-align: left; border: 1px solid var(--border); color: var(--accent); }
+    td { padding: 0.45rem 0.75rem; border: 1px solid var(--border); vertical-align: top; }
+    tr:nth-child(even) td { background: var(--bg2); }
+    .warning { background: rgba(247,129,102,0.1); border-left: 3px solid var(--accent3);
+               padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0; }
+    .info { background: rgba(88,166,255,0.1); border-left: 3px solid var(--accent);
+            padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0; }
+    .done { color: var(--accent2); font-weight: 600; }
+    .not-migrated { color: var(--accent3); font-weight: 600; }
+    .section-divider { margin: 2rem 0; border: none; border-top: 1px dashed var(--border); }
+    .checklist-item { display: flex; align-items: baseline; gap: 0.5rem; margin: 0.25rem 0; }
+    .checklist-item input { accent-color: var(--accent2); }
+    .updated { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 2rem; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+<h1>OpenClaw Cron → Launchd Migration</h1>
+<p class="updated">Last updated: 2026-03-21</p>
+
+<div class="info">
+  <strong>Live vs Tracked:</strong> Infrastructure/scheduled jobs are tracked as launchd plist
+  templates in <code>launchd/</code>. PR-automation and ad-hoc jobs remain live in
+  <code>~/.smartclaw/cron/jobs.json</code> (gitignored — never committed).
+</div>
+
+<h2 id="tracked">Tracked in Git — Launchd Services</h2>
+<p>All plists in <code>launchd/*.plist.template</code> are tracked in git. Install via
+<code>./scripts/install-openclaw-launchd.sh</code>.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Plist Template</th>
+      <th>Label</th>
+      <th>Schedule</th>
+      <th>Script</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td><code>ai.smartclaw.gateway.plist</code></td><td><code>ai.smartclaw.gateway</code></td><td>KeepAlive</td><td><code>openclaw</code> CLI</td><td>Gateway daemon (port 18789)</td></tr>
+    <tr><td><code>ai.smartclaw.health-check.plist</code></td><td><code>ai.smartclaw.health-check</code></td><td>5 min</td><td><code>health-check.sh</code></td><td>Gateway health probe + self-heal</td></tr>
+    <tr><td><code>ai.smartclaw.monitor-agent.plist</code></td><td><code>ai.smartclaw.monitor-agent</code></td><td>30 min</td><td><code>monitor-agent.sh</code></td><td>Agent process monitoring</td></tr>
+    <tr><td><code>ai.smartclaw.schedule.morning-log-review.plist</code></td><td><code>ai.smartclaw.schedule.morning-log-review</code></td><td>8:00 AM PT daily</td><td><code>morning-log-review.sh</code></td><td>Gateway log error review</td></tr>
+    <tr><td><code>ai.smartclaw.schedule.weekly-error-trends.plist</code></td><td><code>ai.smartclaw.schedule.weekly-error-trends</code></td><td>Mon 9:00 AM PT</td><td><code>weekly-error-trends.sh</code></td><td>7-day error trend analysis</td></tr>
+    <tr><td><code>ai.smartclaw.schedule.docs-drift-review.plist</code></td><td><code>ai.smartclaw.schedule.docs-drift-review</code></td><td>8:15 AM PT daily</td><td><code>docs-drift-review.sh</code></td><td>Docs audit + drift fill</td></tr>
+    <tr><td><code>ai.smartclaw.schedule.cron-backup-sync.plist</code></td><td><code>ai.smartclaw.schedule.cron-backup-sync</code></td><td>8:25 AM PT daily</td><td><code>cron-backup-sync.sh</code></td><td>Cron backup + git commit</td></tr>
+    <tr><td><code>ai.smartclaw.schedule.daily-research.plist</code></td><td><code>ai.smartclaw.schedule.daily-research</code></td><td>6:00 PM PT M–F</td><td><code>daily-openclaw-research.sh</code></td><td>OpenClaw tips + state check</td></tr>
+    <tr><td><code>ai.smartclaw.schedule.bug-hunt-9am.plist</code></td><td><code>ai.smartclaw.schedule.bug-hunt-9am</code></td><td>9:00 AM PT M–F</td><td><code>scripts/bug-hunt-daily.sh</code></td><td>Bug hunt across repos</td></tr>
+    <tr><td><code>ai.smartclaw.schedule.harness-analyzer-9am.plist</code></td><td><code>ai.smartclaw.schedule.harness-analyzer-9am</code></td><td>9:00 AM PT M–F</td><td><code>scripts/harness-analyzer.sh</code></td><td>Harness engineering analysis</td></tr>
+    <tr><td><code>ai.smartclaw.schedule.orch-health-weekly.plist</code></td><td><code>ai.smartclaw.schedule.orch-health-weekly</code></td><td>Mon 9:30 AM PT</td><td><code>orchestration.cron_runner</code></td><td>Orchestration health report</td></tr>
+    <tr><td><code>ai.smartclaw.schedule.github-intake.plist</code></td><td><code>ai.smartclaw.schedule.github-intake</code></td><td>9:00 AM PT daily</td><td><code>scripts/github-intake.sh</code></td><td>GitHub notification intake</td></tr>
+    <tr><td><code>ai.agento.dashboard.plist</code></td><td><code>ai.agento.dashboard</code></td><td>KeepAlive</td><td><code>npx next start</code></td><td>AO web dashboard (port 3020)</td></tr>
+    <tr><td><code>ai.smartclaw.lifecycle-manager.plist</code></td><td><code>ai.smartclaw.lifecycle-manager</code></td><td>KeepAlive</td><td>inline bash</td><td>AO lifecycle workers</td></tr>
+    <tr><td><code>ai.smartclaw.config-sync.plist</code></td><td><code>ai.smartclaw.config-sync</code></td><td>1 hr</td><td><code>scripts/sync-openclaw-config.sh</code></td><td>Config sync to live dir</td></tr>
+    <tr><td><code>ai.smartclaw.qdrant.plist</code></td><td><code>ai.smartclaw.qdrant</code></td><td>KeepAlive</td><td><code>scripts/start-qdrant-container.sh</code></td><td>Qdrant vector DB (Docker)</td></tr>
+    <tr><td><code>ai.smartclaw.webhook.plist</code></td><td><code>ai.smartclaw.webhook</code></td><td>KeepAlive</td><td>webhook daemon</td><td>GitHub webhook ingress</td></tr>
+    <tr><td><code>scripts/openclaw-backup.plist.template</code></td><td><code>com.smartclaw.backup</code></td><td>4h20m</td><td><code>scripts/run-openclaw-backup.sh</code></td><td>Redacted backup snapshots</td></tr>
+  </tbody>
+</table>
+
+<h2 id="live">Live Only (gitignored)</h2>
+<p>These jobs live in <code>~/.smartclaw/cron/jobs.json</code> — that file is gitignored and
+is <strong>never committed</strong>. These are gateway-managed; launchd is not the right
+owner for their lifecycle.</p>
+
+<table>
+  <thead>
+    <tr><th>Job ID</th><th>Name</th><th>Schedule</th><th>Why Live-Only</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>9417b82a-…</code></td><td><code>thread-followup-ao263</code></td><td>5 min interval</td><td>Ad-hoc follow-up; short-lived; gateway manages lifecycle</td></tr>
+    <tr><td><em>(future)</em></td><td><code>thread-followup-*</code></td><td>interval</td><td>Same as above</td></tr>
+    <tr><td><em>(future)</em></td><td><code>agento:pr-monitor-*</code></td><td>varies</td><td>AO lifecycle-worker owns spawn/cleanup; gateway not canonical owner</td></tr>
+  </tbody>
+</table>
+
+<h2 id="map">Migration Map</h2>
+<table>
+  <thead>
+    <tr><th>Gateway Cron ID</th><th>Name</th><th>→ Launchd Label</th><th>→ Script</th><th>Status</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>c0accca2-3b58-…</code></td><td><code>healthcheck:morning-log-review</code></td><td><code>ai.smartclaw.schedule.morning-log-review</code></td><td><code>morning-log-review.sh</code></td><td><span class="done">✓ Migrated</span></td></tr>
+    <tr><td><code>4ec2aa58-5c97-…</code></td><td><code>healthcheck:weekly-error-trends</code></td><td><code>ai.smartclaw.schedule.weekly-error-trends</code></td><td><code>weekly-error-trends.sh</code></td><td><span class="done">✓ Migrated</span></td></tr>
+    <tr><td><code>95f858df-0fe8-…</code></td><td><code>healthcheck:docs-drift-review</code></td><td><code>ai.smartclaw.schedule.docs-drift-review</code></td><td><code>docs-drift-review.sh</code></td><td><span class="done">✓ Migrated</span></td></tr>
+    <tr><td><code>d6bb3693-9f5c-…</code></td><td><code>healthcheck:cron-backup-sync</code></td><td><code>ai.smartclaw.schedule.cron-backup-sync</code></td><td><code>cron-backup-sync.sh</code></td><td><span class="done">✓ Migrated</span></td></tr>
+    <tr><td><code>abf80788-7bb0-…</code></td><td><code>tips:daily-openclaw-research</code></td><td><code>ai.smartclaw.schedule.daily-research</code></td><td><code>daily-openclaw-research.sh</code></td><td><span class="done">✓ Migrated</span></td></tr>
+    <tr><td><code>9417b82a-ac58-…</code></td><td><code>thread-followup-ao263</code></td><td><em>NOT migrated</em></td><td>—</td><td><span class="not-migrated">✗ Live-only</span></td></tr>
+  </tbody>
+</table>
+
+<h2 id="install">Install</h2>
+<pre><code># Central entrypoint — installs ALL openclaw launchd services
+cd ~/.smartclaw
+./scripts/install-openclaw-launchd.sh
+
+# Bootstrap also calls this automatically after git clone
+bash ~/.smartclaw/scripts/bootstrap.sh</code></pre>
+
+<p>Verify all labels:</p>
+<pre><code>for label in \
+  ai.smartclaw.gateway \
+  ai.smartclaw.health-check \
+  ai.smartclaw.monitor-agent \
+  ai.smartclaw.schedule.morning-log-review \
+  ai.smartclaw.schedule.weekly-error-trends \
+  ai.smartclaw.schedule.docs-drift-review \
+  ai.smartclaw.schedule.cron-backup-sync \
+  ai.smartclaw.schedule.daily-research \
+  ai.smartclaw.schedule.bug-hunt-9am \
+  ai.smartclaw.schedule.harness-analyzer-9am \
+  ai.smartclaw.schedule.orch-health-weekly \
+  ai.smartclaw.schedule.github-intake \
+  ai.smartclaw.lifecycle-manager \
+  ai.smartclaw.config-sync \
+  ai.agento.dashboard \
+  ai.smartclaw.qdrant \
+  ai.smartclaw.webhook \
+  com.smartclaw.backup; do
+  if launchctl print "gui/$(id -u)/$label" &gt;/dev/null 2>&1; then
+    echo "✓ $label"
+  else
+    echo "✗ $label NOT loaded"
+  fi
+done</code></pre>
+
+<h2 id="manual">Manual Steps Required</h2>
+<div class="warning">
+  These require human attention — the install scripts cannot automate them.
+</div>
+<ol>
+  <li><strong>Tokens/secrets</strong>: Ensure <code>~/.smartclaw/openclaw.json</code> is configured
+    before running install. <code>bootstrap.sh</code> handles this for new machines.</li>
+  <li><strong>Qdrant Docker</strong>: <code>ai.smartclaw.qdrant</code> requires Docker running.
+    Run <code>docker info</code> before installing. Service starts on next login if Docker
+    is not currently running.</li>
+  <li><strong>AO dashboard directory</strong>: Requires
+    <code>$HOME/projects_reference/agent-orchestrator/packages/web</code>.
+    Install the AO repo first, or set <code>AO_DASHBOARD_DIR</code> before install.</li>
+  <li><strong>Old hardcoded plists</strong>: If you have pre-migration plist files in
+    <code>~/Library/LaunchAgents/</code>, unload them first:
+    <code>launchctl bootout gui/$(id -u)/&lt;label&gt;</code></li>
+  <li><strong>Migrated gateway cron jobs</strong>: After migration, the jobs in
+    <code>~/.smartclaw/cron/jobs.json</code> are set to <code>enabled: false</code>.
+    This is correct — do not delete them (the disabled state is the migration marker).</li>
+</ol>
+
+<h2 id="checklist">PR Checklist: Tracked vs Live-Only</h2>
+
+<h3>Now tracked in git (launchd):</h3>
+<ul>
+  <li class="checklist-item"><input type="checkbox" /> All plist templates in <code>launchd/*.plist.template</code></li>
+  <li class="checklist-item"><input type="checkbox" /> <code>morning-log-review.sh</code>, <code>weekly-error-trends.sh</code>,
+    <code>docs-drift-review.sh</code>, <code>cron-backup-sync.sh</code>, <code>daily-openclaw-research.sh</code></li>
+  <li class="checklist-item"><input type="checkbox" /> <code>scripts/install-openclaw-launchd.sh</code> (central entrypoint)</li>
+  <li class="checklist-item"><input type="checkbox" /> <code>scripts/install-openclaw-scheduled-jobs.sh</code> (scheduled job installer, fixed CONFIG_DIR)</li>
+  <li class="checklist-item"><input type="checkbox" /> <code>scripts/install-launchagents.sh</code> (fixed CONFIG_DIR, added dashboard install)</li>
+  <li class="checklist-item"><input type="checkbox" /> <code>scripts/bootstrap.sh</code> (updated to call central installer)</li>
+  <li class="checklist-item"><input type="checkbox" /> <code>docs/CRON_MIGRATION.md</code> (migration docs)</li>
+</ul>
+
+<h3>Still live-only (NOT in git):</h3>
+<ul>
+  <li class="checklist-item"><input type="checkbox" /> <code>~/.smartclaw/cron/jobs.json</code> — gateway cron jobs, gitignored</li>
+  <li class="checklist-item"><input type="checkbox" /> <code>~/.smartclaw/openclaw.json</code> — tokens and secrets, gitignored</li>
+  <li class="checklist-item"><input type="checkbox" /> <code>~/.smartclaw/webhook.json</code> — webhook secrets, gitignored</li>
+</ul>
+
+</div>
+</body>
+</html>

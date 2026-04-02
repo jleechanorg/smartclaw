@@ -1,0 +1,12 @@
+{
+  "total": 3,
+  "code_files": [
+    "scripts/ao-pr-poller-resume-tests.sh",
+    "scripts/ao-pr-poller.sh"
+  ],
+  "all_files": [
+    ".beads/issues.jsonl",
+    "scripts/ao-pr-poller-resume-tests.sh",
+    "scripts/ao-pr-poller.sh"
+  ]
+}

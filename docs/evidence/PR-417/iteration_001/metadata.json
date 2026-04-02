@@ -1,0 +1,41 @@
+{
+  "test_name": "mem0-purge-smoke-tests",
+  "run_id": "mem0-purge-smoke-tests-001-20260328T123000",
+  "iteration": 1,
+  "bundle_version": "1.3.0",
+  "bundle_timestamp": "2026-03-28T12:30:00.000000+00:00",
+  "pr": 417,
+  "claim_class": "unit_test_coverage",
+  "repo": "jleechanorg/smartclaw",
+  "branch": "feat/orch-yj1",
+  "head_sha": "999fad73df4c807aef05363944abd84d094255b0",
+  "review_iteration": 2,
+  "created_at": "2026-03-28T13:52:00Z",
+  "reviewer": "claude-sonnet-4-6",
+  "evidence_root": "docs/evidence/PR-417/iteration_001",
+  "timestamp": "2026-03-28T13:52:00.000000+00:00",
+  "git_provenance": {
+    "git_head": "999fad73df4c807aef05363944abd84d094255b0",
+    "git_branch": "feat/orch-yj1",
+    "merge_base": "ee9962ceddf2fef6387b4683745cb8853fd1d35a",
+    "commits_ahead_of_main": 26,
+    "diff_stat_vs_main": "+1688/-21"
+  },
+  "server": {
+    "pid": null,
+    "port": null,
+    "process_cmdline": null,
+    "note": "Local smoke tests — no external server required. test_verify_only_exits_zero skips when Qdrant (localhost:6333) is unreachable."
+  },
+  "provenance": {
+    "merge_base": "ee9962ceddf2fef6387b4683745cb8853fd1d35a",
+    "commits_ahead_of_main": 26,
+    "diff_stat_vs_main": "+1688"
+  },
+  "summary": {
+    "tests_passed": 18,
+    "tests_skipped": 1,
+    "tests_failed": 0,
+    "duration_s": 22.88
+  }
+}

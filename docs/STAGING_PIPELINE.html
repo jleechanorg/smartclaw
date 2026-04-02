@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11.13.0/dist/mermaid.min.js" integrity="sha384-tI0sDqjGJcqrQ8e/XKiQGS+ee11v5knTNWx2goxMBxe4DO9U0uKlfxJtYB9ILZ4j" crossorigin="anonymous"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3-Stage OpenClaw Dev Pipeline</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --bg2: #161b22;
+      --bg3: #21262d;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent2: #3fb950;
+      --accent3: #f78166;
+      --accent4: #d2a8ff;
+      --code-bg: #1f2937;
+      --table-header: #1c2128;
+      --link: #58a6ff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.65;
+    }
+    .layout { display: flex; min-height: 100vh; }
+
+    /* Sidebar */
+    .sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 24px 0;
+    }
+    .sidebar-title {
+      padding: 0 20px 16px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 8px;
+    }
+    .sidebar nav a {
+      display: block;
+      padding: 6px 20px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13px;
+      border-left: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .sidebar nav a:hover,
+    .sidebar nav a.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: rgba(88, 166, 255, 0.07);
+    }
+    .sidebar nav a.sub {
+      padding-left: 36px;
+      font-size: 12px;
+    }
+
+    /* Main */
+    .main {
+      flex: 1;
+      max-width: 900px;
+      padding: 48px 56px;
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-bottom: 40px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    h2 {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text);
+      margin-top: 52px;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--accent4);
+      margin-top: 28px;
+      margin-bottom: 10px;
+    }
+    p { margin-bottom: 14px; color: var(--text); }
+    ul, ol { margin: 10px 0 14px 24px; color: var(--text); }
+    li { margin-bottom: 6px; }
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Code */
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 18px;
+      overflow-x: auto;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12.5px;
+      line-height: 1.55;
+      margin: 14px 0 20px;
+      color: #cdd9e5;
+    }
+    code {
+      background: var(--code-bg);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12.5px;
+      color: #cdd9e5;
+    }
+    pre code { background: none; padding: 0; border-radius: 0; font-size: inherit; }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0 24px;
+      font-size: 13.5px;
+    }
+    th {
+      background: var(--table-header);
+      color: var(--text-muted);
+      font-weight: 600;
+      text-align: left;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    td {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      vertical-align: top;
+    }
+    tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+    /* Badges */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-green { background: rgba(63, 185, 80, 0.15); color: var(--accent2); border: 1px solid rgba(63, 185, 80, 0.3); }
+    .badge-red   { background: rgba(247, 129, 102, 0.15); color: var(--accent3); border: 1px solid rgba(247, 129, 102, 0.3); }
+    .badge-blue  { background: rgba(88, 166, 255, 0.15); color: var(--accent); border: 1px solid rgba(88, 166, 255, 0.3); }
+
+    /* Callout */
+    .callout {
+      border-left: 3px solid var(--accent);
+      background: rgba(88, 166, 255, 0.06);
+      padding: 12px 16px;
+      border-radius: 0 6px 6px 0;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+    .callout.note { border-color: var(--accent4); background: rgba(210, 168, 255, 0.06); }
+    .callout.warn { border-color: #e3b341; background: rgba(227, 179, 65, 0.06); }
+
+    /* Diagram */
+    .diagram {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      margin: 20px 0;
+    }
+    .diagram pre {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 12px;
+      color: #cdd9e5;
+      margin: 0;
+    }
+
+    /* Color legend */
+    .legend {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin: 16px 0 24px;
+      font-size: 13px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-muted);
+    }
+    .legend-swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    section { scroll-margin-top: 24px; }
+
+    @media (max-width: 900px) {
+      .sidebar { display: none; }
+      .main { padding: 28px 20px; max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-title">smartclaw</div>
+    <nav>
+      <a href="#background">Background</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#stage-1" class="sub">Stage 1 — Staging Worktree</a>
+      <a href="#stage-2" class="sub">Stage 2 — Auto-Promote</a>
+      <a href="#stage-3" class="sub">Stage 3 — CI Gate</a>
+      <a href="#canary">Full Canary (6/6)</a>
+      <a href="#workflow">Day-to-Day Workflow</a>
+      <a href="#gaps">Known Gaps</a>
+      <a href="#sync">Staging Sync Caveat</a>
+      <a href="#history">Implementation History</a>
+    </nav>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <h1>3-Stage OpenClaw Dev Pipeline</h1>
+    <div class="subtitle">Reference Documentation &nbsp;·&nbsp; Last updated: 2026-03-31 &nbsp;·&nbsp; <span class="badge badge-green">Operational</span></div>
+
+    <!-- Background -->
+    <section id="background">
+      <h2>Background</h2>
+      <p>Before this pipeline, changes to <code>~/.smartclaw/</code> (the live gateway config) went straight to production with no automated safety gate. A bad <code>openclaw.json</code> edit could crash the gateway, drop Slack messages, or break all agent sessions. Manual review caught some cases, but not consistently.</p>
+      <p>The 3-stage pipeline adds automated gates between unvalidated changes and production:</p>
+      <ol>
+        <li><strong>Staging branch</strong> — changes land on <code>staging</code> first, not <code>main</code></li>
+        <li><strong>Canary</strong> — automated health checks against a staging gateway before any promotion</li>
+        <li><strong>CI gate</strong> — portable checks run on every PR, blocking merge on failure</li>
+      </ol>
+    </section>
+
+    <!-- Architecture -->
+    <section id="architecture">
+      <h2>Architecture</h2>
+
+      <div class="legend">
+        <div class="legend-item"><div class="legend-swatch" style="background:#1a3a2a"></div> Staging environment</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#1a2a3a"></div> Production environment</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#2a1a3a"></div> CI / automation</div>
+      </div>
+
+      <div class="diagram">
+        <pre>
+Feature worktree
+(agent session)
+      │
+      ▼
+┌──────────────────────────────────────────────────┐
+│  GitHub PR → origin/staging                      │
+│  CI gate fires (checks 2/6)                      │
+└──────────────────┬───────────────────────────────┘
+                   │ PR merged
+                   ▼
+┌──────────────────────────────────────────────────┐
+│  ~/.smartclaw-staging/  (worktree, port 18790)   │
+│  branch: staging  │  staging gateway running    │
+└──────────────────┬───────────────────────────────┘
+                   │ staging-promote.sh (6/6 canary)
+                   ▼
+┌──────────────────────────────────────────────────┐
+│  ~/.smartclaw/  (worktree, port 18789)            │
+│  branch: main  │  production gateway running    │
+└──────────────────────────────────────────────────┘</pre>
+      </div>
+
+      <h3>Mermaid diagram</h3>
+      <div class="diagram">
+        <div class="mermaid">
+flowchart LR
+    subgraph FW["Feature worktree (agent session)"]
+        A[Edit files]
+    end
+    subgraph GH["GitHub"]
+        PR["PR → origin/staging"]
+        CI["staging-canary-gate.yml\nchecks 2/6"]
+    end
+    subgraph SE["~/.smartclaw-staging/  (port 18790)"]
+        SW[Staging worktree\nbranch: staging]
+        SG[Staging gateway]
+    end
+    subgraph PE["~/.smartclaw/  (port 18789)"]
+        PW[Prod worktree\nbranch: main]
+        PG[Prod gateway]
+    end
+    A --> PR
+    PR --> CI
+    PR -->|"PR merged"| SW
+    SW -->|"worktree update"| SG
+    SG -->|"staging-promote.sh\n6/6 canary"| PW
+    PW -->|"git pull"| PG
+    style SW fill:#1a3a2a,stroke:#3fb950
+    style SG fill:#1a3a2a,stroke:#3fb950
+    style PW fill:#1a2a3a,stroke:#58a6ff
+    style PG fill:#1a2a3a,stroke:#58a6ff
+    style CI fill:#2a1a3a,stroke:#d2a8ff
+        </div>
+      </div>
+    </section>
+
+    <!-- Stage 1 -->
+    <section id="stage-1">
+      <h2>Stage 1 — Staging Branch + Worktree</h2>
+      <p><strong>Files</strong>: Git infrastructure (no code)</p>
+      <p>A long-lived <code>staging</code> branch exists in <code>jleechanorg/smartclaw</code>. <code>~/.smartclaw-staging/</code> is a git worktree checked out to this branch. <code>staging-promote.sh</code> merges the updated <code>origin/staging</code> into the local staging worktree before promoting to production.</p>
+
+      <h3>Why a worktree?</h3>
+      <p>A worktree is tied to the git repo — changes in <code>~/.smartclaw-staging/</code> can be committed back to the staging branch. A plain directory requires manual sync and loses this traceability.</p>
+
+      <h3>Creating the staging worktree (done once)</h3>
+<pre>git fetch origin staging
+git branch --set-upstream-to=origin/staging staging 2>/dev/null || \
+  git branch staging origin/staging 2>/dev/null || true
+git worktree add ~/.smartclaw-staging origin/staging</pre>
+    </section>
+
+    <!-- Stage 2 -->
+    <section id="stage-2">
+      <h2>Stage 2 — Auto-Promote</h2>
+      <p><strong>File</strong>: <code>scripts/staging-promote.sh</code></p>
+      <p>Runs the full 6-point canary against the staging gateway. If all checks pass, merges <code>staging → main</code> and pushes to origin.</p>
+
+      <h3>Key guards</h3>
+      <ul>
+        <li>Refuses to promote if staging is not a git worktree</li>
+        <li>Refuses to promote if staging worktree is not on the <code>staging</code> branch</li>
+        <li>Aborts any in-progress merge before starting (idempotent)</li>
+        <li>Stashes uncommitted local changes before merging</li>
+      </ul>
+
+      <h3>Fail-closed</h3>
+      <p>Any canary failure = no promotion. The script exits non-zero and prints the failing check.</p>
+
+      <h3>Usage</h3>
+<pre># After merging a PR to the staging branch
+bash scripts/staging-promote.sh
+
+# Verify prod health after promotion
+bash scripts/staging-canary.sh --port 18789</pre>
+    </section>
+
+    <!-- Stage 3 -->
+    <section id="stage-3">
+      <h2>Stage 3 — CI Gate</h2>
+      <p><strong>File</strong>: <code>.github/workflows/staging-canary-gate.yml</code></p>
+      <p>Fires on every PR. Detects whether <code>openclaw.json</code> changed in the diff. If so, runs the full canary (which also reads <code>package.json</code> for Check 5 — SDK protocol version). <code>package.json</code> changes alone do not trigger the canary.</p>
+
+      <h3>Canary checks — CI vs local</h3>
+      <table>
+        <thead>
+          <tr><th>Check</th><th>What it does</th><th>Runs in CI?</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1. Gateway health</td>
+            <td><code>/health</code> endpoint responds</td>
+            <td><span class="badge badge-red">No</span> — needs local gateway</td>
+          </tr>
+          <tr>
+            <td>2. Config schema</td>
+            <td>JSON valid, no crash-keys, critical keys present</td>
+            <td><span class="badge badge-green">Yes</span></td>
+          </tr>
+          <tr>
+            <td>3. Native module ABI</td>
+            <td><code>better-sqlite3</code> loads with correct Node</td>
+            <td><span class="badge badge-red">No</span> — needs local Node + extensions</td>
+          </tr>
+          <tr>
+            <td>4. Slack token validity</td>
+            <td><code>apps.connections.open</code> succeeds</td>
+            <td><span class="badge badge-red">No</span> — needs live gateway</td>
+          </tr>
+          <tr>
+            <td>5. SDK protocol version</td>
+            <td><code>@agentclientprotocol/sdk</code> ≤ 0.16</td>
+            <td><span class="badge badge-green">Yes</span></td>
+          </tr>
+          <tr>
+            <td>6. Heartbeat latency</td>
+            <td><code>/health</code> responds in &lt; 5s</td>
+            <td><span class="badge badge-red">No</span> — needs local gateway</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout warn">
+        <strong>Manual gate required:</strong> CI runs checks 2 and 5 (static analysis). The remaining 4 checks must be run locally against the staging gateway before every merge.
+      </div>
+    </section>
+
+    <!-- Full Canary -->
+    <section id="canary">
+      <h2>The Full Canary (6/6 Checks)</h2>
+      <p><strong>File</strong>: <code>scripts/staging-canary.sh</code></p>
+      <p>Must be run <strong>locally</strong> against the staging gateway before merging staging → main. This is the final gate before production promotion.</p>
+
+<pre># Start staging gateway (one-time or after machine reboot)
+bash scripts/staging-gateway.sh start
+
+# Run full canary
+bash scripts/staging-canary.sh --port 18790</pre>
+
+      <h3>Gateway management</h3>
+      <table>
+        <thead>
+          <tr><th>Command</th><th>What it does</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>staging-gateway.sh start</code></td><td>Start staging gateway on port 18790</td></tr>
+          <tr><td><code>staging-gateway.sh stop</code></td><td>Stop staging gateway</td></tr>
+          <tr><td><code>staging-gateway.sh status</code></td><td>Show PID, port, health status</td></tr>
+        </tbody>
+      </table>
+
+      <p>The staging gateway is a separate process from production (port 18789). It shares the same binary and Node.js but uses <code>~/.smartclaw/staging/openclaw.json</code> as its config.</p>
+    </section>
+
+    <!-- Workflow -->
+    <section id="workflow">
+      <h2>Day-to-Day Workflow</h2>
+
+      <h3>Normal PR flow (gateway config changes)</h3>
+<pre># 1. In feature worktree: edit the file (openclaw.json, agents/, skills/, SOUL.md, etc.)
+
+# 2. Open PR targeting: staging (NOT main)
+gh pr create --base staging --head feat/my-change
+
+# 3. CI gate fires automatically
+#    If it fails: fix the config issues, push
+
+# 4. Merge PR to staging
+#    staging-promote.sh merges origin/staging into the local staging worktree
+
+# 5. Run canary against staging gateway
+bash scripts/staging-canary.sh --port 18790
+#    If it fails: investigate, fix in a new PR
+
+# 6. Promote staging → main
+bash scripts/staging-promote.sh
+
+# 7. Production picks up the change via git pull; if needed: stop && start the gateway</pre>
+
+      <h3>Non-config changes (docs, scripts, Python source)</h3>
+      <p>PR → main directly. CI runs as normal. No staging gate required.</p>
+    </section>
+
+    <!-- Gaps -->
+    <section id="gaps">
+      <h2>Known Gaps</h2>
+
+      <h3>orch-1ps.4 — Git hooks for auto-restart <span class="badge badge-blue">P1 — Open</span></h3>
+      <div class="callout note">
+        <strong>What was intended:</strong> Post-merge or post-receive hooks in <code>~/.smartclaw-staging/.git/hooks/</code> that automatically restart the staging gateway when the staging branch is updated.
+      </div>
+      <p><strong>Current workaround:</strong> Run manually after staging promotion:</p>
+<pre>bash scripts/staging-gateway.sh stop
+bash scripts/staging-gateway.sh start</pre>
+      <p><strong>What building this would involve:</strong></p>
+      <ul>
+        <li>A <code>post-merge</code> or <code>post-receive</code> hook in <code>~/.smartclaw-staging/.git/hooks/</code></li>
+        <li>The hook detects a <code>git pull</code> or merge in the staging worktree</li>
+        <li>Calls <code>bash scripts/staging-gateway.sh stop &amp;&amp; bash scripts/staging-gateway.sh start</code></li>
+      </ul>
+    </section>
+
+    <!-- Sync -->
+    <section id="sync">
+      <h2>Staging Sync Caveat</h2>
+      <div class="callout warn">
+        The staging branch must stay in sync with (or ahead of) main. Never let it fall behind.
+      </div>
+      <p>A bug in the initial implementation created the staging branch from a stale commit (3 days behind main). Promoting from stale staging would have been a regression — staging would overwrite newer main changes.</p>
+
+      <h3>Verify staging is current</h3>
+<pre>git rev-list staging..main --count</pre>
+      <p>Non-zero output = staging is behind main. Fast-forward:</p>
+<pre>git checkout staging
+git merge --ff-only origin/main
+git push origin staging</pre>
+    </section>
+
+    <!-- History -->
+    <section id="history">
+      <h2>Implementation History</h2>
+      <table>
+        <thead>
+          <tr><th>Item</th><th>Status</th><th>PR / Notes</th><th>Date</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>orch-1ps.1 — Staging branch + worktree</td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td>—</td>
+            <td>2026-03-31</td>
+          </tr>
+          <tr>
+            <td>orch-1ps.2 — staging-promote.sh</td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td>PR #459 merged</td>
+            <td>2026-03-31</td>
+          </tr>
+          <tr>
+            <td>orch-1ps.3 — CI gate (staging-canary-gate.yml)</td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td>PR #458 merged</td>
+            <td>2026-03-31</td>
+          </tr>
+          <tr>
+            <td>orch-1ps.4 — Git hooks for auto-restart</td>
+            <td><span class="badge badge-blue">Open (P1)</span></td>
+            <td>—</td>
+            <td>—</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  mermaid.initialize({
+    theme: 'dark',
+    startOnLoad: false,
+    themeVariables: {
+      primaryColor: '#1a3a2a',
+      primaryTextColor: '#e6edf3',
+      primaryBorderColor: '#3fb950',
+      lineColor: '#8b949e',
+      secondaryColor: '#1a2a3a',
+      tertiaryColor: '#21262d',
+    }
+  });
+  mermaid.run();
+</script>
+</body>
+</html>

@@ -1,91 +1,805 @@
-# Agent Orchestrator Configuration Template
-#
-# Source: Adapted from jleechanorg/jleechanclaw/agent-orchestrator.yaml
-# Copy this file to ~/.agent-orchestrator.yaml and customize for your environment
-# NEVER commit secrets - use environment variables like ${GITHUB_TOKEN}
-
 dataDir: ~/.agent-orchestrator
 worktreeDir: ~/.worktrees
-port: 3011
-
+port: 3020
 defaults:
   runtime: tmux
   agent: claude-code
   workspace: worktree
-  notifiers: [orchestrator, webhook]
-
-  # Agent rules injected at session start
-  # Customize for your project's requirements
-  agentRules: |
-    **START HERE (before any code changes):**
-    1. Run: gh pr view --comments <PR_NUMBER> --repo <OWNER>/<REPO>
-    2. Run: gh api repos/<OWNER>/<REPO>/pulls/<PR_NUMBER>/reviews
-    3. Read ALL existing review comments before writing any code.
-
-    **DEFINITION OF "GREEN" / "MERGE-READY" PR — ALL must be true:**
-    1. CI green — all required GitHub Actions checks pass
-    2. No merge conflicts — mergeable: "MERGEABLE"
-    3. CodeRabbit approved — verdict is APPROVE or LGTM
-    4. All inline comments resolved
-
-    **AFTER EVERY PUSH:**
-    - Post: @coderabbitai all good?
-    - Wait for response before declaring done
-
-    **NEVER MERGE YOURSELF:**
-    Your job: get to green, post signal. The orchestrator merges.
-
+  agentRules: "# Procedures: https://github.com/jleechanorg/agent-orchestrator/tree/main/.claude/procedures/\n\
+    # TL;DR: [agento] commits, 7-green loop, cr-loop-guard gates @coderabbitai all\
+    \ good?\n# Full steps: ~/.smartclaw/procedures/7green.md + cr-resolution.md\n\n\
+    **COMMIT PREFIX:** ALL commits use `[agento]` prefix.\n**PR TERMINATION:** `gh\
+    \ pr view <PR> --jq {state,merged}` — if MERGED/CLOSED, exit immediately.\n**7-GREEN\
+    \ LOOP:** CI → fix → push → cr-loop-guard.sh → @coderabbitai all good? → CR APPROVED\
+    \ → /er → merge.\n**CR-LOOP-GUARD:** Before @coderabbitai all good?, run scripts/cr-loop-guard.sh\
+    \ fix-mode.\n  cr-trigger: post @coderabbitai all good?; copilot-expanded: /copilot-expanded;\
+    \ skip: escalate.\n**/er MANDATORY:** After CR APPROVED, run /er (evidence-reviewer\
+    \ subagent, headless) — PASS required.\n**NO IDLE:** Never exit without pushing\
+    \ fixes or escalating. Sessions idle > 15 min trigger agent-stuck.\n\n**DEFINITION\
+    \ OF \"GREEN\" PR (all 7 must hold before merge):** 1. CI green — all checks SUCCESS\
+    \ 2. No conflicts — mergeable=MERGEABLE 3. CR APPROVED — coderabbitai[bot] latest\
+    \ review state=APPROVED 4. Bugbot clean — cursor[bot] zero error-severity comments\
+    \ 5. Comments resolved — zero unresolved non-nit inline comments 6. Evidence pass\
+    \ — evidence-review-bot APPROVED or evidence-gate CI passed 7. Skeptic PASS\n\n\
+    **POST-APPROVAL INLINE COMMENTS:** After CR APPROVED, check for lingering inline\
+    \ comments. Critical/Major: must fix before merge. Minor/Nit: resolve thread, no\
+    \ code change required.\n\n**MCP MAIL BEFORE STOPPING — MANDATORY:** Before ending\
+    \ any session: mcp__mcp-agent-mail__send_message(project_key=\"smartclaw\",\
+    \ sender_name=\"claude\", subject=\"Session complete\", body_md=\"<outcome>\").\n    \ **SLASH COMMAND DISCOVERY (for Codex and agents that do NOT natively support Claude slash commands):**\n    \ If your agent runtime does NOT natively support slash commands (unlike Claude Code, MiniMax, or Cursor CLI — which have built-in slash command systems), and you encounter a slash command (e.g. /er, /fixpr, /simplify, /evidence-review) that you cannot resolve from local files:\n    \ 1. Do a web search for \"site:claude.com <command-name> slash command\" or \"claude code slash command reference\"\n    \ 2. Read the official documentation to understand the command intent, arguments, and behavior\n    \ 3. Translate the command into your runtime equivalent — do NOT ask the user how to translate it\n    \ 4. Execute the translated command autonomously\n    \ 5. If no equivalent exists in your runtime, report what you found and what you would do\n"
+  orchestratorRules: "**ZERO-OUTPUT EXIT ALERTING — MANDATORY:**\nWhen a session exits\
+    \ (tmux pane closes, agent terminates), check if it produced any output:\n1. Check\
+    \ if a PR exists for the session's issue/branch: `gh pr list -R <REPO> --head\
+    \ <BRANCH> --json number`\n2. Check if any commits were pushed: `git log origin/main..<BRANCH>\
+    \ --oneline 2>/dev/null | wc -l`\n3. If BOTH are zero (no PR AND no commits),\
+    \ this is a **zero-output exit** — the session died without doing anything.\n\
+    4. On zero-output exit:\n   - Log: `[ALERT] Session <NAME> exited with zero output\
+    \ (no PR, no commits) for issue <ID>`\n   - Post to MCP mail: `send_message(subject=\"\
+    ALERT: zero-output exit\", body_md=\"Session <NAME> died without creating a PR\
+    \ or pushing commits for <ID>. Needs respawn.\")`\n   - Auto-respawn if the session\
+    \ has been spawned fewer than 3 times for this issue (prevent infinite respawn\
+    \ loops)\n   - After 3 failed spawns: escalate to operator via Slack DM instead\
+    \ of respawning\n\n**PR COVERAGE AUDIT — EVERY 15 MINUTES:**\nPeriodically audit\
+    \ that every open PR has an active, healthy session:\n1. List open PRs: `gh pr\
+    \ list -R <REPO> --state open --json number,title,updatedAt`\n2. List active sessions:\
+    \ `ao session ls -p <PROJECT>`\n3. For each PR without a matching session:\n \
+    \  - If PR was updated <1h ago: lifecycle-worker may still be claiming it — wait\n\
+    \   - If PR was updated >1h ago: spawn a session: `ao spawn --claim-pr <N> -p\
+    \ <PROJECT>`\n4. For each session whose PR is merged/closed: kill it: `ao session\
+    \ kill <SESSION>`\n\n**LIFECYCLE-WORKER HEALTH CHECK:**\nIf `ao spawn --claim-pr`\
+    \ fails with \"git fetch --force\" errors:\n1. Check for stale worktrees: `git\
+    \ -C <REPO_PATH> worktree list | grep <branch>`\n2. Remove stale worktrees: `git\
+    \ worktree unlock <path> && git worktree remove --force <path>`\n3. Delete stale\
+    \ local branch: `git branch -D <branch>`\n4. Retry the spawn\n"
 plugins:
   scm-github:
     token: ${GITHUB_TOKEN}
-
-# Project configurations
-# Add your projects here
+    extraBotAuthors:
+    - chatgpt-codex-connector[bot]
+    - chatgpt-codex-connector
+    - copilot-pull-request-reviewer[bot]
+    - copilot-pull-request-reviewer
+    - Copilot
+    - copilot[bot]
+    - cursor
+    - coderabbitai[bot]
+    - coderabbitai
 projects:
-  your-project:
-    name: your project orchestration
-    repo: your-org/your-repo
-    path: ~/.your-harness
-    agentRulesFile: workspace/AGENTS.md
+  smartclaw:
+    name: smartclaw orchestration
+    repo: jleechanorg/smartclaw
+    path: ~/.smartclaw
     defaultBranch: main
-    sessionPrefix: pr
+    sessionPrefix: jc
     workspace: worktree
-    worktreeDir: ~/.worktrees/your-project
+    worktreeDir: ~/.worktrees/smartclaw-main
+    backfillAllPRs: true
+    agentConfig:
+      permissions: skip
+      model: claude-sonnet-4-6
+    agentRules: 'You are working in the smartclaw orchestration repo.
 
-# Notifier configuration
-# This example shows webhook-based escalation
+
+      **CI UNSTABLE / FAILURE — ACT IMMEDIATELY, NEVER PAUSE:**
+
+      When mergeable_state=unstable OR any CI check shows FAILURE or in_progress:
+
+      - Do NOT ask for permission. Do NOT wait.
+
+      - Immediately run: `gh run list --branch $(git branch --show-current) --repo
+      <OWNER>/<REPO> --limit 3` to identify the failing check
+
+      - Then fix it with /copilot or direct code changes.
+
+      - This is a STANDING DIRECTIVE — never pause or ask for approval when CI is
+      unstable.
+
+      - After pushing the fix, immediately post `@coderabbitai all good?`
+
+
+      **AFTER POSTING @coderabbitai all good? — KEEP MONITORING:**
+
+      When you have pushed a fix and asked @coderabbitai all good?:
+
+      - Do NOT stop and wait for human.
+
+      - Continue monitoring. Check CI status every 2 minutes with: `gh pr checks <PR>
+      --watch`
+
+      - Loop until CI is green (all checks pass) or red (definite failure).
+
+      - If new CI failures appear: fix them, push, and re-post @coderabbitai all good?
+
+      - Only exit when PR is merged, closed, or you receive explicit human instruction.
+
+
+      Always run `PYTHONPATH=src python -m pytest tests/test_genesis_config.py tests/test_genesis_cron.py
+      tests/test_genesis_memory.py -q` before pushing.
+
+      If the PR touches scripts/ or any file making HTTP calls to external services
+      (Ollama, OpenAI, Slack, GitHub), attempt a real smoke test: check if the service
+      is available locally first, run the actual code path with minimal input, assert
+      output shape. If service unavailable, document it explicitly in the PR description
+      under "Testing". Do not silently skip real tests in favour of mocks only.
+
+      Use conventional commits (feat:, fix:, chore:, docs:).
+
+      Never push to main directly — always open a PR.
+
+      Never use git add -A; stage only files you changed.
+
+      Once primary code is written and the PR is ready to finalize for merge: use
+      /copilot to process all GitHub review comments, then /fixpr to fix any remaining
+      issues. After every push, post "@coderabbitai all good?" and wait for CodeRabbit.
+
+      If CodeRabbit posts REQUEST_CHANGES, fix every actionable item and push again
+      (do not run /er yet). If CodeRabbit posts a genuine GitHub `APPROVED` review
+      AND criteria 1-7 are met, run /er via evidence-reviewer subagent (headless)
+      — spawn it with Agent tool (subagent_type=evidence-reviewer), collect PASS/WARN/FAIL
+      verdict, post as PR comment. PASS is mandatory before declaring done — if WARN/FAIL,
+      fix issues and re-run. Do not stop until CodeRabbit posts a genuine `APPROVED`
+      review and criteria 1-7 are met. Do NOT use /copilot or /fixpr while still actively
+      implementing features.
+
+      Before declaring PR ready/done, you MUST verify CodeRabbit review state is APPROVED
+      (genuine), not merely COMMENTED.
+
+      After CodeRabbit APPROVED, you MUST check ALL inline comments from ALL reviewers
+      (CodeRabbit, Copilot, Bugbot, humans) and resolve every Major/Critical/actionable
+      item before declaring done.
+
+      Once criteria 1-7 are met (CI green, no conflicts, CR approved, Bugbot ok, all
+      review comments resolved): run /er via evidence-reviewer subagent (headless)
+      — spawn it with Agent tool (subagent_type=evidence-reviewer), collect PASS/WARN/FAIL
+      verdict, post as PR comment. Only post the green signal ("PR is green (7/7 criteria
+      met — awaiting auto-merge)") after /er returns PASS.
+
+
+      **PR Priority Convention:** PR title must start with [P0], [P1], or [P2]. P0
+      = stops autonomy. P1 = breaks green loop. P2 = improvement.
+
+      '
+  worldarchitect:
+    name: worldarchitect.ai
+    repo: jleechanorg/worldarchitect.ai
+    path: ~/projects/worldarchitect.ai
+    defaultBranch: main
+    sessionPrefix: wa
+    workspace: worktree
+    worktreeDir: ~/.worktrees/worldarchitect-main
+    agentConfig:
+      permissions: skip
+      model: claude-sonnet-4-6
+    agentRules: 'You are working in the worldarchitect.ai repo — a Python/Flask game
+      backend.
+
+      Always run `python -m pytest tests/ -x -q` before pushing.
+
+      Use conventional commits (feat:, fix:, chore:, docs:).
+
+      Never push to main directly — always open a PR.
+
+      Never use git add -A; stage only files you changed.
+
+      Once primary code is written and the PR is ready to finalize for merge: use
+      /copilot to process all GitHub review comments, then /fixpr to fix any remaining
+      issues. After every push, post "@coderabbitai all good?" and wait for CodeRabbit.
+
+      If CodeRabbit posts REQUEST_CHANGES, fix every actionable item and push again
+      (do not run /er yet). If CodeRabbit posts a genuine GitHub `APPROVED` review
+      AND criteria 1-7 are met, run /er via evidence-reviewer subagent (headless)
+      — spawn it with Agent tool (subagent_type=evidence-reviewer), collect PASS/WARN/FAIL
+      verdict, post as PR comment. PASS is mandatory before declaring done — if WARN/FAIL,
+      fix issues and re-run. Do not stop until CodeRabbit posts a genuine `APPROVED`
+      review and criteria 1-7 are met. Do NOT use /copilot or /fixpr while still actively
+      implementing features.
+
+      Once criteria 1-7 are met (CI green, no conflicts, CR approved, Bugbot ok, all
+      review comments resolved): run /er via evidence-reviewer subagent (headless)
+      — spawn it with Agent tool (subagent_type=evidence-reviewer), collect PASS/WARN/FAIL
+      verdict, post as PR comment. Only post the green signal ("PR is green (7/7 criteria
+      met — awaiting auto-merge)") after /er returns PASS.
+
+      '
+  agent-orchestrator:
+    name: agent-orchestrator fork
+    repo: jleechanorg/agent-orchestrator
+    path: ${HOME}/project_agento/agent-orchestrator
+    defaultBranch: main
+    sessionPrefix: ao
+    workspace: worktree
+    worktreeDir: ~/.worktrees/agent-orchestrator
+    backfillAllPRs: true
+    tracker:
+      plugin: beads
+    agentConfig:
+      permissions: skip
+      model: claude-sonnet-4-6
+    agentRules: "**COMMIT MESSAGE PREFIX — MANDATORY:**\nALL commits and PR titles\
+      \ MUST start with '[agento]'.\nFormat: '[agento] type: description'\nExamples:\
+      \ '[agento] fix: address CR comments', '[agento] feat: add merge gate'\nNEVER\
+      \ omit this prefix.\n\n**SPAWN/CAPACITY GATE — MANDATORY BEFORE NEW WORK OR\
+      \ GITHUB API BURSTS:**\nBefore spawning new work or making GitHub API calls,\
+      \ run:\n- `gh api rate_limit`\n- `tmux list-sessions | wc -l`\nRules:\n- If\
+      \ `graphql.remaining < 100`: use REST fallback exclusively (no GraphQL calls).\n\
+      - If `core.remaining < 500`: defer non-critical reads/polls until budget recovers.\n\
+      - Before dispatching multiple AO workers: if active tmux sessions > 15, do NOT\
+      \ spawn; warn and defer.\n\n\nYou are working in the jleechanorg/agent-orchestrator\
+      \ fork — a TypeScript/Node.js monorepo.\nAlways run `pnpm test` before pushing\
+      \ (or `pnpm -C packages/core test` for core changes).\nUse conventional commits\
+      \ (feat:, fix:, chore:, docs:).\nNever push to main directly — always open a\
+      \ PR.\nNever use git add -A; stage only files you changed.\nOnce primary code\
+      \ is written and the PR is ready to finalize for merge: use /copilot to process\
+      \ all GitHub review comments, then /fixpr to fix any remaining issues. After\
+      \ every push, post \"@coderabbitai all good?\" and wait for CodeRabbit.\nIf\
+      \ CodeRabbit posts REQUEST_CHANGES, fix every actionable item and push again\
+      \ (do not run /er yet). If CodeRabbit posts a genuine GitHub `APPROVED` review\
+      \ AND criteria 1-7 are met, run /er via evidence-reviewer subagent (headless)\
+      \ — spawn it with Agent tool (subagent_type=evidence-reviewer), collect PASS/WARN/FAIL\
+      \ verdict, post as PR comment. PASS is mandatory before declaring done — if\
+      \ WARN/FAIL, fix issues and re-run. Do not stop until CodeRabbit posts a genuine\
+      \ `APPROVED` review and criteria 1-7 are met.\nOnce criteria 1-7 are met (CI\
+      \ green, no conflicts, CR approved, Bugbot ok, all review comments resolved):\
+      \ run /er via evidence-reviewer subagent (headless) — spawn it with Agent tool\
+      \ (subagent_type=evidence-reviewer), collect PASS/WARN/FAIL verdict, post as\
+      \ PR comment. Only post the green signal (\"PR is green (7/7 criteria met —\
+      \ awaiting auto-merge)\") after /er returns PASS.\n\n**MERGE POLICY:**\nAfter\
+      \ posting the green signal, wait 5 minutes, then run `gh pr merge <PR_NUMBER>\
+      \ --repo jleechanorg/agent-orchestrator --squash --auto` to enable GitHub auto-merge.\
+      \ Do NOT force-merge. If auto-merge fails (e.g. branch protection requires review),\
+      \ post a PR comment with the error and stop. Do not exit until confirmed merged\
+      \ or you hit a blocker you cannot resolve.\n\n**If your PR is already merged:**\
+      \ run `gh pr view --json state --jq .state` —\nif the result is MERGED or CLOSED,\
+      \ exit immediately. Do not continue working on it.\n\n**REBASE AND FORCE-PUSH\
+      \ — ALLOWED for your PR branch:**\nYou MAY rebase your PR branch onto main and\
+      \ force-push with `git push --force-with-lease origin <your-branch>` to resolve\
+      \ merge conflicts. This is safe — it's YOUR branch. Do NOT ask for permission.\
+      \ Do NOT force-push to main.\n\n**NEVER CLOSE A PR:**\nNEVER run `gh pr close`\
+      \ or close a PR via the GitHub API. If the PR has merge conflicts, rebase it.\
+      \ If the PR is fundamentally broken, post a comment explaining why and leave\
+      \ it open for human decision.\n\n**PRE-EXISTING CI FAILURES — COORDINATE, DON'T\
+      \ STOP:**\nIf CI checks fail and you determine they are pre-existing (failing\
+      \ on main before your PR), do NOT silently stop or declare \"nothing to do\"\
+      . Instead:\n1. Verify the failure exists on main: `gh run list --branch main\
+      \ --repo jleechanorg/agent-orchestrator --limit 3`\n2. Send MCP mail to project_key=\"\
+      smartclaw\" with subject \"Pre-existing CI failure: <check-name>\" and body\
+      \ describing the failure, which check, and what you observed.\n3. Attempt to\
+      \ fix the failure on main via a separate PR — create a new branch from main,\
+      \ fix the root cause, open a PR, and send MCP mail with the PR link.\n4. If\
+      \ the fix is outside your expertise (e.g. CI infra, runner config), send MCP\
+      \ mail to escalate: subject \"Escalation: CI failure needs infra fix — <check-name>\"\
+      \ and describe what you found.\n5. Only stop after sending MCP mail AND either\
+      \ opening a fix PR or escalating. Never stop silently.\n\n**MCP MAIL BEFORE\
+      \ STOPPING — MANDATORY:**\nBefore ending any session (whether PR is green, blocked,\
+      \ or you've determined nothing to do):\n1. Send MCP mail: mcp__mcp-agent-mail__send_message(project_key=\"\
+      smartclaw\", sender_name=\"claude\", subject=\"Session complete: <PR title>\"\
+      , body_md=\"<outcome summary, blockers, any pre-existing issues found>\")\n\
+      2. Only then stop.\n\n**CR CHANGES_REQUESTED RESOLUTION PROTOCOL (MANDATORY):**\n\
+      1. When CodeRabbit review state is CHANGES_REQUESTED, first fetch the exact\
+      \ unresolved review comment(s):\n   `gh api repos/jleechanorg/agent-orchestrator/pulls/<PR_NUMBER>/comments`\n\
+      2. Identify the unresolved actionable CR item(s) and fix exactly what was requested\
+      \ before doing any other optimization/cleanup.\n3. Commit and push only the\
+      \ targeted CR-requested fix(es).\n4. Immediately post this PR comment: `@coderabbitai\
+      \ all good?`\n5. Wait for CodeRabbit re-review to complete before attempting\
+      \ any other green-gate steps (/er, merge-gate checks, or additional non-requested\
+      \ changes).\n\n**MERGEABLE=UNKNOWN — FORCE GITHUB TO RECOMPUTE (bd-ara.2):**\n\
+      If `gh pr view --json mergeable --jq .mergeable` returns `null` or `gh pr view\
+      \ --json mergeableState --jq .mergeableState` returns `unknown`:\n- This means\
+      \ GitHub has not computed mergeability (stale branch). Your changes are ready\
+      \ — GitHub just hasn't checked.\n- Run: `git fetch origin && git rebase origin/main\
+      \ && git push --force-with-lease`\n- The push triggers GitHub to recompute mergeability.\
+      \ Check again after 30s with `gh pr view --json mergeable`.\n- If still UNKNOWN\
+      \ after push, GitHub may need a second look — try: `gh api repos/<OWNER>/<REPO>/pulls/<PR_NUMBER>/update\
+      \ --method POST` to force a refresh.\n- NEVER skip this and declare the PR \"\
+      not ready\" — the issue is GitHub's staleness, not your code.\n\n**RESOLVED\
+      \ COMMENTS — DOCUMENT IN PR DESCRIPTION (bd-ara.1):**\nAfter fixing review comments\
+      \ (CodeRabbit, Cursor Bugbot, Copilot, or human), document what you resolved:\n\
+      - Run: `gh pr edit --body \"$(gh pr view --json body --jq .body)\\n\\n## Resolved\
+      \ Comments\\n| Reviewer | File | Comment | Resolution |\\n|---|---|---|---|\\\
+      n| coderabbitai[bot] | <file> | <comment summary> | Fixed in <commit SHA> |\"\
+      ' to append a Resolved Comments table.\n- This satisfies green condition #5\
+      \ (all inline comments resolved) by providing an auditable record.\n- Only document\
+      \ Major/Critical/actionable comments — nitpicks and \"suggestion\" comments\
+      \ do not block green.\n- The orchestrator's merge-gate check treats the PR description's\
+      \ Resolved Comments table as evidence of resolution.\n\n**TEST FAILURES — RUN\
+      \ LOCALLY BEFORE PUSHING (bd-ara.5):**\nWhen CI test fails:\n1. Run the failing\
+      \ test locally FIRST: `pnpm -C packages/core test -- --reporter verbose 2>&1\
+      \ | tail -50` (or the relevant test command from the failure output)\n2. Read\
+      \ the actual failure output to understand what failed — do NOT guess\n3. Fix\
+      \ only the failing test/assertion — do not add new tests in this push\n4. Run\
+      \ the test again locally to confirm it passes before pushing\n5. Push only after\
+      \ local test passes\n6. If the same test fails 3 times after 3 different fix\
+      \ attempts, stop and send MCP mail: subject=\"Escalation: test failure after\
+      \ 3 fix attempts — PR #<NUMBER>\", body describing the test, the 3 attempts\
+      \ made, and the current error.\n"
+  ralph:
+    name: ralph automation
+    repo: jleechanorg/ralph
+    path: ~/projects/ralph
+    defaultBranch: main
+    sessionPrefix: ra
+    workspace: worktree
+    worktreeDir: ~/.worktrees/ralph-main
+    agentConfig:
+      permissions: skip
+      model: claude-sonnet-4-6
+    agentRules: 'You are working in the ralph automation repo.
+
+      Use conventional commits (feat:, fix:, chore:, docs:).
+
+      Never push to main directly — always open a PR.
+
+      Never use git add -A; stage only files you changed.
+
+      Once primary code is written and the PR is ready to finalize for merge: use
+      /copilot to process all GitHub review comments, then /fixpr to fix any remaining
+      issues. After every push, post "@coderabbitai all good?" and wait for CodeRabbit.
+
+      If CodeRabbit posts REQUEST_CHANGES, fix every actionable item and push again
+      (do not run /er yet). If CodeRabbit posts a genuine GitHub `APPROVED` review
+      AND criteria 1-7 are met, run /er via evidence-reviewer subagent (headless)
+      — spawn it with Agent tool (subagent_type=evidence-reviewer), collect PASS/WARN/FAIL
+      verdict, post as PR comment. PASS is mandatory before declaring done — if WARN/FAIL,
+      fix issues and re-run. Do not stop until CodeRabbit posts a genuine `APPROVED`
+      review and criteria 1-7 are met. Do NOT use /copilot or /fixpr while still actively
+      implementing features.
+
+      Once criteria 1-7 are met (CI green, no conflicts, CR approved, Bugbot ok, all
+      review comments resolved): run /er via evidence-reviewer subagent (headless)
+      — spawn it with Agent tool (subagent_type=evidence-reviewer), collect PASS/WARN/FAIL
+      verdict, post as PR comment. Only post the green signal ("PR is green (7/7 criteria
+      met — awaiting auto-merge)") after /er returns PASS.
+
+      '
+  claude-commands:
+    name: claude-commands
+    repo: jleechanorg/claude-commands
+    path: ~/projects/claude-commands
+    defaultBranch: main
+    sessionPrefix: cc
+    workspace: worktree
+    worktreeDir: ~/.worktrees/claude-commands-main
+    agentConfig:
+      permissions: skip
+      model: claude-sonnet-4-6
+    agentRules: 'You are working in the claude-commands repo — Claude Code slash command
+      definitions.
+
+      Use conventional commits (feat:, fix:, chore:, docs:).
+
+      Never push to main directly — always open a PR.
+
+      Never use git add -A; stage only files you changed.
+
+      Once primary code is written and the PR is ready to finalize for merge: use
+      /copilot to process all GitHub review comments, then /fixpr to fix any remaining
+      issues. After every push, post "@coderabbitai all good?" and wait for CodeRabbit.
+
+      If CodeRabbit posts REQUEST_CHANGES, fix every actionable item and push again
+      (do not run /er yet). If CodeRabbit posts a genuine GitHub `APPROVED` review
+      AND criteria 1-7 are met, run /er via evidence-reviewer subagent (headless)
+      — spawn it with Agent tool (subagent_type=evidence-reviewer), collect PASS/WARN/FAIL
+      verdict, post as PR comment. PASS is mandatory before declaring done — if WARN/FAIL,
+      fix issues and re-run. Do not stop until CodeRabbit posts a genuine `APPROVED`
+      review and criteria 1-7 are met. Do NOT use /copilot or /fixpr while still actively
+      implementing features.
+
+      Once criteria 1-7 are met (CI green, no conflicts, CR approved, Bugbot ok, all
+      review comments resolved): run /er via evidence-reviewer subagent (headless)
+      — spawn it with Agent tool (subagent_type=evidence-reviewer), collect PASS/WARN/FAIL
+      verdict, post as PR comment. Only post the green signal ("PR is green (7/7 criteria
+      met — awaiting auto-merge)") after /er returns PASS.
+
+      '
+  worldai-claw:
+    name: worldai_claw
+    repo: jleechanorg/worldai_claw
+    path: ~/projects/worldai_claw
+    defaultBranch: main
+    sessionPrefix: wc
+    workspace: worktree
+    worktreeDir: ~/.worktrees/worldai-claw-main
+    agentConfig:
+      permissions: skip
+      model: claude-sonnet-4-6
+    agentRules: 'You are working in the worldai_claw repo.
+
+      Use conventional commits (feat:, fix:, chore:, docs:).
+
+      Never push to main directly — always open a PR.
+
+      Never use git add -A; stage only files you changed.
+
+      Once primary code is written and the PR is ready to finalize for merge: use
+      /copilot to process all GitHub review comments, then /fixpr to fix any remaining
+      issues. After every push, post "@coderabbitai all good?" and wait for CodeRabbit.
+
+      If CodeRabbit posts REQUEST_CHANGES, fix every actionable item and push again
+      (do not run /er yet). If CodeRabbit posts a genuine GitHub `APPROVED` review
+      AND criteria 1-7 are met, run /er via evidence-reviewer subagent (headless)
+      — spawn it with Agent tool (subagent_type=evidence-reviewer), collect PASS/WARN/FAIL
+      verdict, post as PR comment. PASS is mandatory before declaring done — if WARN/FAIL,
+      fix issues and re-run. Do not stop until CodeRabbit posts a genuine `APPROVED`
+      review and criteria 1-7 are met. Do NOT use /copilot or /fixpr while still actively
+      implementing features.
+
+      Once criteria 1-7 are met (CI green, no conflicts, CR approved, Bugbot ok, all
+      review comments resolved): run /er via evidence-reviewer subagent (headless)
+      — spawn it with Agent tool (subagent_type=evidence-reviewer), collect PASS/WARN/FAIL
+      verdict, post as PR comment. Only post the green signal ("PR is green (7/7 criteria
+      met — awaiting auto-merge)") after /er returns PASS.
+
+      '
+  ai-universe-living-blog:
+    name: ai_universe_living_blog
+    repo: jleechanorg/ai_universe_living_blog
+    path: ~/projects_other/ai_universe_living_blog
+    defaultBranch: main
+    sessionPrefix: aub
+    workspace: worktree
+    worktreeDir: ~/.worktrees/ai-universe-living-blog
+    agentConfig:
+      permissions: skip
+      model: claude-sonnet-4-6
+    agentRules: 'You are building an AO worker blog app + MCP server in ai_universe_living_blog.
+
+      Use conventional commits with [agento] prefix.
+
+      Never push to main directly — always open a PR.
+
+      Never use git add -A; stage only files you changed.
+
+      Prefer architecture compatible with ai_universe_backend + ai_universe_convo_mcp
+      integration style.
+
+      Build one blog post stream per repo (multi-repo support), with an MCP interface
+      for create/list/get/update posts.
+
+      Add tests and a runnable local dev setup.
+
+      '
+  composio:
+    name: Composio upstream cursor-gemini PR
+    repo: ComposioHQ/agent-orchestrator
+    path: ~/.worktrees/composio-pr592
+    defaultBranch: main
+    sessionPrefix: co
+    workspace: worktree
+    worktreeDir: ~/.worktrees/composio-pr592
+    backfillAllPRs: false
+    agentConfig:
+      permissions: skip
+      model: claude-sonnet-4-6
+    agentRules: 'You are working in ComposioHQ/agent-orchestrator upstream, NOT the
+      jleechanorg fork.
+
+      PR #592 — feat/agent-cursor-gemini: add Cursor Agent + Gemini CLI plugins with
+      shared agent-base factory.
+
+      The PR branch is feat/cursor-gemini-plugins-clean in jleechanorg/agent-orchestrator-mirror
+      (fork of ComposioHQ).
+
+
+      **5-GREEN CRITERIA (skip CodeRabbit — upstream doesn''t use it):**
+
+      1. CI green — lint, typecheck, test, test-web all passing
+
+      2. No merge conflicts — MERGEABLE (currently CONFLICTING — rebase on origin/main)
+
+      3. Cursor Bugbot finished — conclusion neutral/success (currently SKIPPED)
+
+      4. All inline comments resolved — 26 open from Copilot + Cursor Bugbot
+
+      5. Skeptic agent review — run /er via evidence-reviewer subagent, collect PASS
+      verdict, post as PR comment
+
+
+      **WORKFLOW — IN ORDER:**
+
+      1. FIRST: git fetch origin && git rebase origin/main — resolve merge conflicts
+      (keep incoming changes for formatting, keep your changes for logic)
+
+      2. Fix all 26 inline review comments: High (shell escaping, gitleaks checksum),
+      Medium (test script, dataDir guard, JSONL on .json), Low (nitpicks)
+
+      3. Push fixes to feat/cursor-gemini-plugins-clean
+
+      4. Run /er via evidence-reviewer subagent, post PASS verdict as PR comment
+
+      5. Post final green signal on PR
+
+
+      Use [agento] prefix for all commits.
+
+      NEVER push to main directly — update the PR branch on jleechanorg/agent-orchestrator-mirror.
+
+      Push to fork origin: git push fork feat/cursor-gemini-plugins-clean
+
+      '
+  mctrl-test:
+    name: mctrl_test LeetCode
+    repo: jleechanorg/mctrl_test
+    path: ~/projects_reference/mctrl_test
+    defaultBranch: main
+    sessionPrefix: mt
+    workspace: worktree
+    worktreeDir: ~/.worktrees/mctrl-test
+    backfillAllPRs: false
+    agentConfig:
+      permissions: skip
+    agentRules: >
+      You are working on LeetCode solutions in jleechanorg/mctrl_test.
+
+      Use [agento] prefix for all commits.
+      Never push to main directly — always open a PR.
+
+      7-GREEN LOOP:
+      1. Check CI — ensure tests pass
+      2. Check mergeable — rebase if needed
+      3. Post @coderabbitai all good? — wait for CR
+      4. Fix CR comments if any
+      5. Once CR APPROVED: /er via evidence-reviewer subagent
+      6. All 7 criteria met → auto-merge
 notifiers:
+  openclaw:
+    plugin: openclaw
+    url: http://127.0.0.1:18789/hooks/agent
+    token: ${OPENCLAW_AO_HOOK_TOKEN}
+    retries: 3
+    retryDelayMs: 5000
+    sessionKeyPrefix: 'hook:ao:'
+  orchestrator:
+    plugin: webhook
+    url: http://127.0.0.1:19888/ao-notify
+    token: ${OPENCLAW_AO_NOTIFY_TOKEN}
+    retries: 2
+    retryDelayMs: 3000
   webhook:
-    enabled: true
-    url: http://localhost:9100/webhook
-    events:
-      - ci-failed
-      - changes-requested
-      - merge-ready
-
-# Reaction rules
-# Customize based on your workflow needs
+    plugin: webhook
+    url: http://localhost:19888/ao-notify
+    token: ${OPENCLAW_HOOKS_TOKEN}
+  slack:
+    plugin: slack
+    webhookUrl: ${SLACK_WEBHOOK_URL:-https://hooks.slack.com/services/PLACEHOLDER}
+  mcp-mail:
+    plugin: mcp-mail
+    endpoint: ${MCP_AGENT_MAIL_URL:-http://127.0.0.1:18789/mcp}
+    projectId: smartclaw
+    agentId: ao-lifecycle
+    to:
+    - jleechan
+notificationRouting:
+  urgent:
+  - openclaw
+  - orchestrator
+  - slack
+  - mcp-mail
+  action:
+  - openclaw
+  - orchestrator
+  - slack
+  - mcp-mail
+  warning:
+  - openclaw
+  info:
+  - openclaw
 reactions:
   ci-failed:
     auto: true
     action: send-to-agent
-    retries: 2
+    message: CI has failed. {{context}} Fix the failing checks and push.
+    retries: 3
+    escalateAfter: 2
   changes-requested:
     auto: true
     action: send-to-agent
+    retries: 2
+    message: 'Changes have been requested on this PR. {{context}} Run `scripts/extract-unresolved-comments.sh
+      <OWNER>/<REPO> <PR>` to get prioritized unresolved CR comments (Critical first).
+      Fix exactly those items only — no other changes. Commit with `[agento]`, push.
+      Then run `scripts/cr-loop-guard.sh <OWNER>/<REPO> <PR> fix-mode`: if output
+      starts with `cr-trigger`, post `@coderabbitai all good?`; if `copilot-expanded`,
+      run `/copilot-expanded` on the exact comment list; if `skip`, exit (no SHA progress,
+      loop limit reached — escalate).'
+    escalateAfter: 5m
+  bugbot-comments:
+    auto: true
+    action: send-to-agent
+    retries: 2
     escalateAfter: 30m
+  merge-conflicts:
+    auto: true
+    action: send-to-agent
+    retries: 2
+    message: Your branch has merge conflicts. Rebase on the default branch, resolve
+      all conflicts (prefer incoming changes for formatting/style, prefer your changes
+      for functional logic), then post a PR comment listing each conflicted file and
+      which side you chose and why. Push the resolved branch.
+    escalateAfter: 30m
+  approved-and-green:
+    auto: true
+    action: auto-merge
+    message: 'IMPORTANT — CHECK BEFORE DOING ANYTHING: First check if this PR is already
+      confirmed green: (1) `gh api repos/<OWNER>/<REPO>/pulls/<PR_NUMBER> --jq ''{reviewDecision,
+      mergeable}''` — if reviewDecision is null AND mergeable is true AND the PR has
+      a ''PR is green'' comment already posted (check: `gh api repos/<OWNER>/<REPO>/issues/<PR_NUMBER>/comments
+      --jq ''[.[] | select(.body | test("PR is green"; "i"))] | last''`), skip all
+      verification — just confirm the PR is still green and exit. (2) Only if no ''PR
+      is green'' comment exists yet: proceed with full 7-green verification below.
+      CodeRabbit has approved — but VERIFY it is genuine first. Run: gh api repos/<OWNER>/<REPO>/pulls/<PR_NUMBER>/reviews
+      --paginate | jq -s ''[.[][] | select(.user.login=="coderabbitai[bot]")] | .[-2:]
+      | map(select(. != null) | {state, body_len: (.body // "" | length), submitted_at})''
+      — genuine = COMMENTED(body>0) within 10s before APPROVED, or first/only review
+      with no prior CHANGES_REQUESTED. If neither pattern matches, the APPROVED is
+      fake (thread resolution). Post @coderabbitai all good? to get a real re-review.
+      Then verify ALL 7 green conditions: (1) CI: gh pr view <PR_NUMBER> --repo <OWNER>/<REPO>
+      --json statusCheckRollup --jq ''[.statusCheckRollup[]|select(.conclusion=="FAILURE")]''
+      must be empty. (2) Mergeable: gh pr view <PR_NUMBER> --repo <OWNER>/<REPO> --json
+      mergeable --jq ''.mergeable'' must be MERGEABLE. (3) CR genuinely approved —
+      see above. (4) Bugbot: gh pr checks <PR_NUMBER> --repo <OWNER>/<REPO> | grep
+      -i bugbot — must show neutral or success, not failure. (5) ALL inline comments
+      cleared (even post-APPROVED): first get the approval timestamp: APPROVAL_TS=$(gh
+      api repos/<OWNER>/<REPO>/pulls/<PR_NUMBER>/reviews --paginate | jq -rs ''[.[][]
+      | select(.user.login=="coderabbitai[bot]" and .state=="APPROVED")] | last |
+      .submitted_at'') then count only post-approval CR blockers: gh api repos/<OWNER>/<REPO>/pulls/<PR_NUMBER>/comments
+      --paginate | jq -rs --arg ts "$APPROVAL_TS" ''[.[][] | select(.user.login=="coderabbitai[bot]")
+      | select(.created_at > $ts) | select(.body | test("Major|Critical"))] | length''
+      — must be 0; pre-approval comments were already addressed by the push that triggered
+      re-review. Also check ALL reviewers: use GraphQL: gh api graphql -f query=''{repository(owner:"<OWNER>",name:"<REPO>"){pullRequest(number:<PR_NUMBER>){reviewThreads(first:100){nodes{isResolved}}}}}''
+      --jq ''[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved==false)]
+      | length'' — must be 0 unresolved (note: first:100 covers up to 100 threads;
+      PRs with >100 threads are rare but if encountered, add pagination via pageInfo{hasNextPage,endCursor}).
+      (6) Evidence gate: run /er via evidence-reviewer subagent (headless) — spawn
+      it with Agent tool (subagent_type=evidence-reviewer), collect PASS/WARN/FAIL
+      verdict, post as PR comment. ALL PRs require evidence review. Only when all
+      7 pass: post ''PR is green (7/7 criteria met — awaiting auto-merge)''. DO NOT
+      run gh pr merge.
+
+
+      **IMPORTANT — Skeptic SKIPPED guard**: The auto-merge reaction (verify6Green
+      gate 7) always passes skepticRequired=false so skeptic is NOT enforced here.
+      skeptic-cron.yml runs skeptic evaluation via AO worker separately. Before posting
+      the green signal above, verify skeptic has actually posted VERDICT:PASS on this
+      PR at this SHA: check PR comments for SKEPTIC_BOT_AUTHOR with VERDICT:PASS.
+      If skeptic VERDICT is SKIPPED or absent, DO NOT post green signal — skeptic-cron
+      will handle it. Posting green for a SKIPPED skeptic bypasses the independent
+      LLM evaluation entirely.'
+    priority: action
   agent-stuck:
-    threshold: 10m
+    auto: true
+    action: send-to-agent
+    threshold: 15m
+    message: "[ -z \"{{pr_number}}\" ] && echo \"No PR context — idle exit\" && exit\
+      \ 0\nSTEP 0: gh pr view {{pr_number}} --repo {{owner}}/{{repo}} --jq '{state,merged}'\n\
+      \  → MERGED/CLOSED: exit. STEP 1: scripts/cr-loop-guard.sh {{owner}}/{{repo}}\
+      \ {{pr_number}} fix-mode\n  → cr-trigger: post @coderabbitai all good?; copilot-expanded:\
+      \ /copilot-expanded; skip: exit\n  (loop limit reached — escalate). STEP 2:\
+      \ CI failing? Fix + push. STEP 3: 7-green met? green-signal.\n  STEP 4: merge.\
+      \ Escalate if loop limit reached without SHA progress.\n"
+    escalateAfter: 1h
+  agent-needs-input:
+    auto: true
+    action: send-to-agent
+    message: '[ -z "{{pr_number}}" ] && echo "No PR context — idle exit" && exit 0
+
+      You appear to be waiting. (1) Run `gh pr view --json state --jq .state` against
+      {{pr_number}} — if MERGED, CLOSED, or {{pr_number}} is empty, exit immediately.
+      (2) Check PR status and review comments, then continue with the next unresolved
+      item. If everything is resolved, summarize what you completed in a PR comment.'
+    escalateAfter: 30m
+  review-requested:
+    auto: true
+    action: send-to-agent
+    message: '[ -z "{{pr_number}}" ] && echo "No PR context — idle exit" && exit 0
+
+      Coder agent signaled PR ready for review. Dispatch reviewer_agent to run independent
+      review: python -m orchestration.reviewer_agent {{owner}} {{repo}} {{pr_number}}
+      --coder-agent <CODER_NAME>. Reviewer uses a different model family than the
+      coder.'
+    priority: action
+  session-killed-no-push-threshold:
+    auto: true
     action: notify
     priority: urgent
+    threshold: '3'
+    message: '[ -z "{{pr_number}}" ] && echo "No PR context — idle exit" && exit 0
 
----
-# Example environment setup (DO NOT commit):
-#
-# Export these in your shell profile (~/.zshrc, ~/.bashrc):
-#
-# export GITHUB_TOKEN="ghp_..."
-# export GATEWAY_TOKEN="your-gateway-token"
-# export HOOKS_TOKEN="your-hooks-token"
-#
-# Then run: ao start
+      Escalation: PR #{{pr_number}} has had {{killed_session_count}} sessions killed
+      without any commit push. Recommend manual intervention on jleechanorg/agent-orchestrator
+      to unblock autonomy and prevent repeated no-op retries.'
+  agent-exited:
+    auto: true
+    action: send-to-agent
+    priority: urgent
+    retries: 3
+    escalateAfter: 2
+    message: 'The previous agent session has ended. Triage the PR before doing anything
+      else: (1) Run `gh pr view --json state --jq .state` — if MERGED or CLOSED, exit
+      immediately. (2) Check if the PR is already green — verify all 7 conditions:
+      (a) CI passing, (b) mergeable (no conflicts), (c) CR genuinely APPROVED, (d)
+      Bugbot neutral/success, (e) all review threads resolved, (f) evidence review
+      PASS (run /er via evidence-reviewer subagent, require PASS, post as PR comment).
+      If ALL 6 pass: post ''PR is green (7/7 criteria met — awaiting auto-merge)''
+      if not already posted, then exit. (3) If ANY of the above conditions is not
+      yet met, there is work to do: identify the highest-priority blocker (CI failure
+      > merge conflict > CR CHANGES_REQUESTED > Bugbot findings > unresolved threads)
+      and fix it. Do not restart from scratch — read the PR description and existing
+      comments to understand what was already done.'
+  session-spawned:
+    auto: false
+    action: notify
+    priority: action
+    message: AO worker {{sessionId}} started — project {{projectId}}. Routing to mcp-mail
+      thread.
+  session-exited:
+    auto: true
+    action: notify
+    priority: urgent
+    retries: 3
+    escalateAfter: 2
+    message: AO worker {{sessionId}} exited — project {{projectId}}. Routing to mcp-mail
+      thread for session reconciliation.
+  worker-signals-completion:
+    auto: true
+    action: skeptic-review
+    retries: 1
+    escalateAfter: 10m
+  composio:
+    name: Composio upstream cursor-gemini PR
+    repo: ComposioHQ/agent-orchestrator
+    path: ~/.worktrees/composio-pr592
+    defaultBranch: main
+    sessionPrefix: co
+    workspace: worktree
+    worktreeDir: ~/.worktrees/composio-pr592
+    backfillAllPRs: false
+    agentConfig:
+      permissions: skip
+      model: claude-sonnet-4-6
+    agentRules: 'You are working in the ComposioHQ/agent-orchestrator upstream repo,
+      NOT the jleechanorg fork.
+
+      PR #592 from jleechanorg/agent-orchestrator-mirror branch feat/cursor-gemini-plugins-clean.
+
+
+      **5-GREEN CRITERIA (skip CodeRabbit — upstream doesn''t use it):**
+
+      1. CI green — lint, typecheck, test, test-web all passing
+
+      2. No merge conflicts — MERGEABLE (currently CONFLICTING — rebase on main)
+
+      3. Cursor Bugbot finished — conclusion neutral/success (currently SKIPPED —
+      need to trigger)
+
+      4. All inline comments resolved — 26 open comments from Copilot + Cursor Bugbot
+
+      5. Skeptic agent review — spawn skeptic agent via Agent tool (subagent_type=evidence-reviewer),
+      collect PASS verdict, post as PR comment
+
+
+      **WORKFLOW:**
+
+      1. FIRST: git fetch origin main && git rebase origin/main — resolve merge conflicts
+
+      2. Fix High severity issues: shell escaping in claudeOverrides.setupWorkspaceHooks,
+      gitleaks checksum
+
+      3. Fix Medium severity issues: test script for agent-base, dataDir guard, JSONL
+      parser on .json files
+
+      4. Resolve all inline comments from Copilot + Cursor Bugbot
+
+      5. Push fixes
+
+      6. Run /er via skeptic agent (evidence-reviewer subagent), post verdict
+
+      7. Post final green signal
+
+
+      Use [agento] prefix for all commits.
+
+      NEVER push to main directly — update the PR branch.
+
+      After every push: gh pr view 592 --repo ComposioHQ/agent-orchestrator --json
+      state --jq .state
+
+      '

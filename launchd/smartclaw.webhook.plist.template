@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Comment</key>
+    <string>OpenClaw Webhook Daemon - receives GitHub webhooks and triggers remediation</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <!-- @HOME@ replaced by install-launchagents.sh at install time -->
+        <string>@HOME@</string>
+        <key>WEBHOOK_PORT</key>
+        <string>19888</string>
+        <key>WEBHOOK_HOST</key>
+        <string>0.0.0.0</string>
+        <key>WEBHOOK_DB_PATH</key>
+        <string>@HOME@/.smartclaw/webhook_queue.db</string>
+        <key>WEBHOOK_LOG_DIR</key>
+        <string>@HOME@/.smartclaw/logs</string>
+        <key>PATH</key>
+        <string>@HOME@/bin:@HOME@/.nvm/versions/node/v22.22.0/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>PYTHONPATH</key>
+        <string>@REPO_DIR@/src</string>
+        <key>GITHUB_WEBHOOK_SECRET</key>
+        <!-- @WEBHOOK_SECRET@ replaced by install-launchagents.sh at install time -->
+        <string>@WEBHOOK_SECRET@</string>
+        <!-- Email escalation alerts — only add keys when configured; empty strings cause LaunchAgent issues -->
+        <!-- NOTIFY_EMAIL_TO, SMTP_USER, SMTP_PASSWORD omitted — set in openclaw.json, read by orchestration.webhook -->
+    </dict>
+    <key>KeepAlive</key>
+    <true/>
+    <key>Label</key>
+    <string>ai.smartclaw.webhook</string>
+    <key>ProgramArguments</key>
+    <array>
+        <!-- @PYTHON_PATH@ replaced by install-launchagents.sh at install time -->
+        <string>@PYTHON_PATH@</string>
+        <string>-m</string>
+        <string>orchestration.webhook</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>@REPO_DIR@</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardErrorPath</key>
+    <string>@HOME@/.smartclaw/logs/webhook.err.log</string>
+    <key>StandardOutPath</key>
+    <string>@HOME@/.smartclaw/logs/webhook.log</string>
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+</dict>
+</plist>

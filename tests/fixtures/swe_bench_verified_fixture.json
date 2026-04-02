@@ -1,0 +1,10 @@
+{
+  "instances": [
+    {
+      "instance_id": "django__django-13757",
+      "repo": "django/django",
+      "base_commit": "abc123def456",
+      "problem_statement": "Fix incorrect handling of queryset slicing in admin changelist."
+    }
+  ]
+}

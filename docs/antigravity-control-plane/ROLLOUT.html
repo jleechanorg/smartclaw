@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Antigravity Control Plane — Rollout Plan</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11.13.0/dist/mermaid.min.js" integrity="sha384-tI0sDqjGJcqrQ8e/XKiQGS+ee11v5knTNWx2goxMBxe4DO9U0uKlfxJtYB9ILZ4j" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --bg2: #161b22;
+      --bg3: #21262d;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent2: #3fb950;
+      --accent3: #f78166;
+      --accent4: #d2a8ff;
+      --code-bg: #1f2937;
+      --table-header: #1c2128;
+      --link: #58a6ff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.65;
+    }
+
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 24px 0;
+    }
+
+    .sidebar-title {
+      padding: 0 20px 16px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 8px;
+    }
+
+    .sidebar nav a {
+      display: block;
+      padding: 6px 20px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13px;
+      border-left: 2px solid transparent;
+      transition: all 0.15s;
+    }
+
+    .sidebar nav a:hover,
+    .sidebar nav a.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: rgba(88, 166, 255, 0.07);
+    }
+
+    .sidebar nav a.sub {
+      padding-left: 36px;
+      font-size: 12px;
+    }
+
+    .main {
+      flex: 1;
+      max-width: 900px;
+      padding: 48px 56px;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-bottom: 40px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h2 {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text);
+      margin-top: 52px;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--accent4);
+      margin-top: 28px;
+      margin-bottom: 10px;
+    }
+
+    p {
+      margin-bottom: 14px;
+      color: var(--text);
+    }
+
+    ul, ol {
+      margin: 10px 0 14px 24px;
+      color: var(--text);
+    }
+
+    li {
+      margin-bottom: 6px;
+    }
+
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 18px;
+      overflow-x: auto;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12.5px;
+      line-height: 1.55;
+      margin: 14px 0 20px;
+      color: #cdd9e5;
+    }
+
+    code {
+      background: var(--code-bg);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12.5px;
+      color: #cdd9e5;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+      border-radius: 0;
+      font-size: inherit;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0 24px;
+      font-size: 13.5px;
+    }
+
+    th {
+      background: var(--table-header);
+      color: var(--text-muted);
+      font-weight: 600;
+      text-align: left;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    td {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .badge-green { background: rgba(63, 185, 80, 0.15); color: var(--accent2); border: 1px solid rgba(63, 185, 80, 0.3); }
+    .badge-red   { background: rgba(247, 129, 102, 0.15); color: var(--accent3); border: 1px solid rgba(247, 129, 102, 0.3); }
+    .badge-blue  { background: rgba(88, 166, 255, 0.15); color: var(--accent); border: 1px solid rgba(88, 166, 255, 0.3); }
+
+    .callout {
+      border-left: 3px solid var(--accent);
+      background: rgba(88, 166, 255, 0.06);
+      padding: 12px 16px;
+      border-radius: 0 6px 6px 0;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+
+    .callout.note { border-color: var(--accent4); background: rgba(210, 168, 255, 0.06); }
+
+    .diagram {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      margin: 20px 0;
+    }
+
+    .diagram pre {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 12px;
+      color: #cdd9e5;
+      margin: 0;
+    }
+
+    .tenet-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      margin: 16px 0 28px;
+    }
+
+    .tenet-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 20px;
+    }
+
+    .tenet-card h4 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+
+    .tenet-card p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    section { scroll-margin-top: 24px; }
+
+    .flow-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .flow-num {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: var(--bg);
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .flow-content { flex: 1; padding-top: 2px; }
+    .flow-content strong { color: var(--text); }
+    .flow-content p { margin-bottom: 4px; color: var(--text-muted); font-size: 13.5px; }
+
+    @media (max-width: 900px) {
+      .sidebar { display: none; }
+      .main { padding: 28px 20px; max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-title">Antigravity Control Plane</div>
+    <nav>
+      <a href="#rollout-overview">Rollout Overview</a>
+      <a href="#v0-design-merge">v0 — Design Merge</a>
+      <a href="#v1-skeleton">v1 — Minimal Control Plane Skeleton</a>
+      <a href="#v2-ao-integration">v2 — AO + MCP Mail Integration</a>
+      <a href="#v3-hardening">v3 — Hardening and Observability</a>
+      <a href="#rollout-sequence">Rollout Sequence</a>
+      <a href="#feature-flags">Feature Flags</a>
+    </nav>
+  </aside>
+  <main class="main">
+    <h1>Antigravity Control Plane — Rollout Plan</h1>
+    <div class="subtitle">Design Document &nbsp;·&nbsp; Bead: ORCH-ag1 &nbsp;·&nbsp; Status: Design in progress</div>
+
+    <section id="rollout-overview">
+      <h2>Rollout Overview</h2>
+      <p>Four sequential versions with explicit go/no-go gates between each phase.</p>
+      <div class="diagram">
+        <pre>v0 ────► v1 ────► v2 ────► v3
+         │         │         │
+         ▼         ▼         ▼
+      Design    AO+MCP   Hardening
+      merged     Mail     + observability
+                 integration</pre>
+      </div>
+    </section>
+
+    <section id="v0-design-merge">
+      <h2>v0 — Design Merge (THIS PR)</h2>
+      <p><strong>Goal:</strong> Commit design artifacts to <code>jleechanorg/smartclaw</code> main.</p>
+
+      <h3>Go Criteria</h3>
+      <ul>
+        <li>[ ] All 7 design documents written and reviewed</li>
+        <li>[ ] No conflicting decisions with existing smartclaw architecture</li>
+        <li>[ ] ORCH-ma4 and existing Antigravity skill referenced correctly</li>
+        <li>[ ] Branch <code>feat/antigravity-control-plane-design</code> opened as PR</li>
+      </ul>
+
+      <h3>No-Go Conditions</h3>
+      <ul>
+        <li>Any design document references a capability not confirmed to exist in the Antigravity skill</li>
+        <li>Design conflicts with existing <code>src/orchestration/</code> patterns (must be consistent)</li>
+        <li>Missing any required deliverable (OVERVIEW, ARCHITECTURE, DATA-CONTRACTS, TDD-PLAN, UI-INVENTORY, ROLLOUT, DECISIONS)</li>
+      </ul>
+
+      <h3>What Gets Merged</h3>
+      <pre><code>docs/antigravity-control-plane/
+  OVERVIEW.md
+  ARCHITECTURE.md
+  DATA-CONTRACTS.md
+  TDD-IMPLEMENTATION-PLAN.md
+  UI-CAPABILITIES-INVENTORY.md
+  ROLLOUT.md
+  DECISIONS.md</code></pre>
+      <p><strong>No runtime code</strong> — v0 is design only.</p>
+    </section>
+
+    <section id="v1-skeleton">
+      <h2>v1 — Minimal Control Plane Skeleton</h2>
+      <p><strong>Goal:</strong> Runnable control plane with no real AO or Antigravity integration.</p>
+
+      <h3>What Gets Built</h3>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>File</th><th>Description</th><th>Testing</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>src/orchestration/antig_control_plane/__init__.py</code></td><td>Package init</td><td><code>python -c "import antig_control_plane"</code></td></tr>
+            <tr><td><code>src/orchestration/antig_control_plane/models.py</code></td><td>Job, State, Priority dataclasses</td><td>Unit tests (Phase 1)</td></tr>
+            <tr><td><code>src/orchestration/antig_control_plane/db.py</code></td><td>SQLite schema + migrations</td><td>Unit tests</td></tr>
+            <tr><td><code>src/orchestration/antig_control_plane/scheduler.py</code></td><td>Enqueue, dedupe, list, update</td><td>Unit tests (Phase 1)</td></tr>
+            <tr><td><code>src/orchestration/antig_control_plane/global_lock.py</code></td><td>flock-based singleton lock</td><td>Unit tests (Phase 3)</td></tr>
+            <tr><td><code>src/orchestration/antig_control_plane/dispatcher.py</code></td><td>Poll + dispatch (mock AO)</td><td>Unit tests (Phase 2)</td></tr>
+            <tr><td><code>src/orchestration/antig_control_plane/ao_adapter.py</code></td><td>MCP Mail format builder + mock</td><td>Unit + integration tests (Phase 2)</td></tr>
+            <tr><td><code>src/orchestration/antig_control_plane/recovery_loop.py</code></td><td>Stale job detection + re-enqueue</td><td>Unit tests (Phase 3)</td></tr>
+            <tr><td><code>src/orchestration/antig_control_plane/reporter.py</code></td><td>Outcome ledger + Slack</td><td>Unit tests (Phase 4)</td></tr>
+            <tr><td><code>src/orchestration/antig_control_plane/cli.py</code></td><td>CLI: enqueue, list, cancel</td><td>Manual smoke test</td></tr>
+            <tr><td><code>src/orchestration/antig_control_plane/tests/</code></td><td>Full TDD suite</td><td>All tests pass</td></tr>
+            <tr><td><code>launchd/ai.smartclaw.antig-control-plane.plist</code></td><td>LaunchAgent for daemon</td><td>Manual load test</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Go Criteria (v1 → v2 gate)</h3>
+      <ul>
+        <li>[ ] All TDD phases 1-4 tests pass</li>
+        <li>[ ] Integration smoke test: enqueue → dispatch loop with mock AO works</li>
+        <li>[ ] CLI enqueue + list + cancel all function correctly</li>
+        <li>[ ] LaunchAgent starts, acquires lock, and stays alive</li>
+        <li>[ ] LaunchAgent fails to start if another instance is already running</li>
+        <li>[ ] Second LaunchAgent attempt logs clear error about lock contention</li>
+        <li>[ ] No peeking at Antigravity or AO required for v1 tests</li>
+      </ul>
+
+      <h3>No-Go Conditions</h3>
+      <ul>
+        <li>Any TDD phase has failing tests</li>
+        <li>Lock mechanism has a race condition</li>
+        <li>Jobs can be dispatched twice (idempotency failure)</li>
+        <li>Recovery loop re-enqueues jobs that should be deadlettered</li>
+      </ul>
+    </section>
+
+    <section id="v2-ao-integration">
+      <h2>v2 — AO + MCP Mail Integration</h2>
+      <p><strong>Goal:</strong> Real Antigravity jobs executed by AO Sonnet workers.</p>
+
+      <h3>What Gets Built</h3>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>Component</th><th>Description</th><th>Testing</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>src/orchestration/antig_control_plane/executor.py</code></td><td>Peekaboo job execution loop</td><td>Integration tests (requires Peekaboo)</td></tr>
+            <tr><td><code>src/orchestration/antig_control_plane/ao_adapter.py</code> (upgrade)</td><td>Real MCP Mail send/receive</td><td>Integration tests with stubbed AO</td></tr>
+            <tr><td>AO worker template</td><td>Script that receives job, runs Antigravity skill, reports result</td><td>Manual end-to-end test</td></tr>
+            <tr><td>Worktree manager</td><td>Creates/resets worktrees per job</td><td>Unit tests</td></tr>
+            <tr><td>Heartbeat manager</td><td>Sends periodic heartbeats from executor to control plane</td><td>Integration tests</td></tr>
+            <tr><td>Blocker resolution UI</td><td>Human resolves BLOCKED job via Slack or CLI</td><td>Manual test</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Go Criteria (v2 → v3 gate)</h3>
+      <ul>
+        <li>[ ] One real Antigravity job completes end-to-end: enqueue → dispatch → execute → complete</li>
+        <li>[ ] PR created by Antigravity worker is verifiable on GitHub</li>
+        <li>[ ] Recovery loop correctly re-enqueues a killed worker</li>
+        <li>[ ] BLOCKED jobs are reported via Slack with exact blocker description</li>
+        <li>[ ] Per-repo exclusivity verified: two jobs for same repo are not dispatched simultaneously</li>
+        <li>[ ] AO worker logs show screenshot evidence for each step</li>
+        <li>[ ] Outcome ledger contains complete record of job execution</li>
+      </ul>
+
+      <h3>No-Go Conditions</h3>
+      <ul>
+        <li>Antigravity crashes and cannot be restarted automatically</li>
+        <li>AO worker dies mid-job with no recovery</li>
+        <li>Job cancellation does not stop running Antigravity operations</li>
+        <li>Structured output (PR URL, etc.) cannot be extracted reliably</li>
+      </ul>
+
+      <h3>Known Risks at v2</h3>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>Risk</th><th>Probability</th><th>Mitigation</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Antigravity UI selector breaks</td><td>Medium</td><td>Pin Peekaboo version; add regression test</td></tr>
+            <tr><td>AO worker session timeout</td><td>Medium</td><td>Reduce job timeout to 60 min; checkpoint progress</td></tr>
+            <tr><td>Blocked jobs accumulate</td><td>Medium</td><td>Slack alert for BLOCKED &gt; 1 hour</td></tr>
+            <tr><td>Two workers race for same worktree</td><td>Low (enforced by dispatcher)</td><td>Add worktree lock file in addition to dispatcher check</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="v3-hardening">
+      <h2>v3 — Hardening and Observability</h2>
+      <p><strong>Goal:</strong> Production-ready control plane with full observability.</p>
+
+      <h3>What Gets Built</h3>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>Component</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Metrics</td><td>Prometheus-compatible <code>/metrics</code> endpoint for job throughput, latency, failure rate</td></tr>
+            <tr><td>Alerting</td><td>PagerDuty/Slack alerts for deadlettered jobs, lock contention, Peekaboo permission loss</td></tr>
+            <tr><td>Rate limiting</td><td>Executor backs off when Antigravity shows rate-limit UI</td></tr>
+            <tr><td>Session checkpointing</td><td>Executor periodically snapshots Antigravity state for faster resume</td></tr>
+            <tr><td>Automatic Peekaboo permission monitoring</td><td>Background check for Accessibility + Screen Recording permissions</td></tr>
+            <tr><td>Deadletter audit</td><td>Weekly report of deadlettered jobs with root cause analysis</td></tr>
+            <tr><td>Dashboard</td><td>Grafana board: job throughput, queue depth, worker utilization, error rate</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Go Criteria (v3 — production)</h3>
+      <ul>
+        <li>[ ] 95th percentile job completion time &lt; 2 hours</li>
+        <li>[ ] Deadletter rate &lt; 1% over 30-day window</li>
+        <li>[ ] Mean time to recovery from worker crash &lt; 10 minutes</li>
+        <li>[ ] Zero cases of two workers operating on same worktree simultaneously</li>
+        <li>[ ] All deadlettered jobs have human-readable root cause in ledger</li>
+        <li>[ ] Peekaboo permission loss detected and alerted within 5 minutes</li>
+      </ul>
+    </section>
+
+    <section id="rollout-sequence">
+      <h2>Rollout Sequence (Real Environment)</h2>
+
+      <h3>Week 1: v0 Design Merge</h3>
+      <ul>
+        <li>[ ] Review design with jleechan</li>
+        <li>[ ] Merge <code>feat/antigravity-control-plane-design</code> PR</li>
+        <li>[ ] Sonnet workers briefed on TDD implementation plan</li>
+      </ul>
+
+      <h3>Week 2-3: v1 Skeleton</h3>
+      <ul>
+        <li>[ ] Implement Phase 1 (models, scheduler, db)</li>
+        <li>[ ] Implement Phase 2 (dispatcher, ao_adapter mock)</li>
+        <li>[ ] Implement Phase 3 (global lock, recovery)</li>
+        <li>[ ] Implement Phase 4 (reporter, ledger)</li>
+        <li>[ ] Write CLI + LaunchAgent</li>
+        <li>[ ] Pass all go criteria</li>
+        <li>[ ] Open v1 PR</li>
+      </ul>
+
+      <h3>Week 4: v2 AO Integration</h3>
+      <ul>
+        <li>[ ] Implement executor with real Peekaboo</li>
+        <li>[ ] Configure AO workers with Antigravity skill</li>
+        <li>[ ] End-to-end smoke test: enqueue → Antigravity creates PR</li>
+        <li>[ ] Recovery loop test: kill worker, verify re-enqueue</li>
+        <li>[ ] Open v2 PR</li>
+      </ul>
+
+      <h3>Week 5-6: v3 Hardening</h3>
+      <ul>
+        <li>[ ] Add metrics endpoint</li>
+        <li>[ ] Configure Slack alerting</li>
+        <li>[ ] Write Grafana dashboard</li>
+        <li>[ ] 30-day run with production workload</li>
+        <li>[ ] Open v3 PR (if needed as separate PR, or merge into v2)</li>
+      </ul>
+    </section>
+
+    <section id="feature-flags">
+      <h2>Feature Flags</h2>
+      <p>For canary rollout within v2:</p>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>Flag</th><th>Default</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>antig_control_plane.enabled</code></td><td><code>false</code></td><td>Master kill switch</td></tr>
+            <tr><td><code>antig_control_plane.repos</code></td><td><code>[]</code></td><td>List of allowed repos; empty = all repos allowed</td></tr>
+            <tr><td><code>antig_control_plane.max_concurrent_per_repo</code></td><td><code>1</code></td><td>Max concurrent jobs per repo</td></tr>
+            <tr><td><code>antig_control_plane.ao_adapter.mock</code></td><td><code>true</code> in v1, <code>false</code> in v2</td><td>Use mock AO adapter</td></tr>
+            <tr><td><code>antig_control_plane.recovery.auto_reenqueue</code></td><td><code>true</code></td><td>Auto re-enqueue stale jobs vs. deadletter immediately</td></tr>
+            <tr><td><code>antig_control_plane.slack.notify.completed</code></td><td><code>true</code></td><td>Send Slack notification on job completion</td></tr>
+            <tr><td><code>antig_control_plane.slack.notify.deadlettered</code></td><td><code>true</code></td><td>Send alert on deadletter (pager-worthy)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Feature flags are set in <code>openclaw.json</code> under <code>antig_control_plane:</code> section, following the surgical update pattern (never rewrite full file).</p>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  const sections = document.querySelectorAll('section[id], h2[id], h3[id]');
+  const links = document.querySelectorAll('.sidebar nav a');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`.sidebar nav a[href="#${entry.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+
+<script>
+  if (typeof mermaid !== 'undefined') {
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      securityLevel: 'strict',
+      flowchart: { curve: 'basis', padding: 20 },
+      sequence: { mirrorActors: false, messageAlign: 'center' }
+    });
+  } else {
+    document.querySelectorAll('.mermaid').forEach(el => {
+      el.textContent = '[Diagram unavailable — mermaid CDN blocked]';
+    });
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Human Channel Bridge — smartclaw</title>
+  <style>
+    :root {
+      --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --border: #30363d;
+      --text: #e6edf3; --text-muted: #8b949e; --accent: #58a6ff;
+      --accent2: #3fb950; --accent3: #f78166; --accent4: #d2a8ff;
+      --code-bg: #1f2937; --table-header: #1c2128; --link: #58a6ff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.65; }
+    .container { max-width: 900px; margin: 0 auto; padding: 2rem; }
+    h1 { font-size: 1.8rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; margin-bottom: 1.5rem; }
+    h2 { font-size: 1.3rem; color: var(--accent2); margin: 2rem 0 0.75rem; }
+    h3 { font-size: 1.05rem; color: var(--accent4); margin: 1.5rem 0 0.5rem; }
+    p { margin-bottom: 0.75rem; }
+    a { color: var(--link); }
+    code { background: var(--code-bg); padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.9em; font-family: "SF Mono", "Fira Code", monospace; }
+    pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; overflow-x: auto; margin-bottom: 1rem; font-size: 0.85rem; line-height: 1.5; }
+    pre code { background: none; padding: 0; font-size: inherit; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; }
+    th { background: var(--table-header); color: var(--text-muted); text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--border); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    td { padding: 0.5rem 0.75rem; border: 1px solid var(--border); vertical-align: top; }
+    tr:nth-child(even) td { background: var(--bg2); }
+    ul, ol { margin: 0.5rem 0 0.75rem 1.5rem; }
+    li { margin-bottom: 0.3rem; }
+    .badge { display: inline-block; padding: 0.15em 0.5em; border-radius: 3px; font-size: 0.75rem; font-weight: 600; }
+    .badge-ok { background: var(--accent2); color: #000; }
+    .badge-warn { background: var(--accent3); color: #000; }
+    .badge-info { background: var(--accent); color: #000; }
+    .file { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 0.75rem; font-family: "SF Mono", "Fira Code", monospace; font-size: 0.85rem; }
+    .file .path { color: var(--accent4); }
+    .section { margin-bottom: 2rem; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+<h1>Human Channel Bridge</h1>
+
+<div class="section">
+<p>Mirrors AO worker lifecycle events into Slack channel <code>C0ANK6HFW66</code> with human-readable messages and thread support. Includes startup health check for MCP mail listener and worker mailbox heartbeat.</p>
+<p><span class="badge badge-ok">Live</span> MCP mail listener: <code>http://127.0.0.1:18789/mcp</code> — responding</p>
+</div>
+
+<h2>Architecture</h2>
+
+<pre><code>AO Session Lifecycle (every poll)
+  └── ~/.agent-orchestrator/{hash}-{project}/sessions/{session-id}
+        ↓
+  human_channel_bridge (every 60s via launchd)
+        ├── Health check: MCP mail server alive?
+        ├── Session scan: detect spawn / exit transitions
+        ├── Slack post: human-readable message (threaded)
+        └── Channel reader: contextual replies to human questions
+</code></pre>
+
+<h2>AO Lifecycle → Slack Mapping</h2>
+
+<table>
+  <tr><th>AO Event</th><th>Slack Message</th></tr>
+  <tr><td>Session → <code>spawning</code></td><td>"AO worker <em>{id}</em> just picked up a new ticket..."</td></tr>
+  <tr><td>Session → <code>done</code>/<code>killed</code>/<code>merged</code></td><td>"AO worker <em>{id}</em> finished up and is heading out..."</td></tr>
+  <tr><td>Periodic heartbeat</td><td>"AO workers still alive: <code>jc-613</code>, <code>jc-614</code>..."</td></tr>
+</table>
+
+<h2>Configuration</h2>
+
+<table>
+  <tr><th>Env Variable</th><th>Default</th><th>Description</th></tr>
+  <tr><td><code>BRIDGE_ENABLED</code></td><td><code>true</code></td><td>Enable/disable bridge Slack posts</td></tr>
+  <tr><td><code>BRIDGE_HEALTH_CHECK_ENABLED</code></td><td><code>true</code></td><td>Enable/disable MCP mail health check</td></tr>
+  <tr><td><code>HUMAN_CHANNEL_ID</code></td><td><code>C0ANK6HFW66</code></td><td>Slack channel for human-audience posts</td></tr>
+  <tr><td><code>SLACK_BOT_TOKEN</code></td><td>(required)</td><td>Slack bot token for posting</td></tr>
+  <tr><td><code>MCP_AGENT_MAIL_URL</code></td><td><code>http://127.0.0.1:18789/mcp</code></td><td>MCP mail server health check URL</td></tr>
+  <tr><td><code>SLACK_POST_COOLDOWN_SECONDS</code></td><td><code>30</code></td><td>Cooldown between Slack posts</td></tr>
+  <tr><td><code>BRIDGE_STATE_FILE</code></td><td><code>~/.smartclaw/state/human_channel_bridge.json</code></td><td>Persistent state file</td></tr>
+</table>
+
+<h2>Entry Points</h2>
+
+<pre><code># Full bridge: health check + session scan + Slack posts + channel reader
+./scripts/run-human-channel-bridge.sh
+
+# Health check only (exit 0 = healthy, exit 1 = unhealthy)
+./scripts/run-human-channel-bridge.sh health
+
+# Heartbeat only
+./scripts/run-human-channel-bridge.sh heartbeat</code></pre>
+
+<h2>Safety Guardrails</h2>
+
+<table>
+  <tr><th>Guardrail</th><th>Mechanism</th></tr>
+  <tr><td>Duplicate prevention</td><td>State file tracks <code>reported_spawns</code> / <code>reported_exits</code>; each session posted at most once</td></tr>
+  <tr><td>Threading</td><td>Exit messages reply in same Slack thread as spawn (<code>thread_ts</code>)</td></tr>
+  <tr><td>Cooldown</td><td><code>SLACK_POST_COOLDOWN_SECONDS=30</code> prevents rapid re-posts</td></tr>
+  <tr><td>Bot filter</td><td>Channel reader only replies to non-bot users</td></tr>
+  <tr><td>Rate limit</td><td>Max 3 contextual replies per poll cycle</td></tr>
+  <tr><td>MCP mail ack intact</td><td>No changes to mcp-mail plugin; AO notifier routes unchanged for worker-initiated messages</td></tr>
+  <tr><td>Disable flag</td><td><code>BRIDGE_ENABLED=0</code> skips all Slack operations</td></tr>
+</table>
+
+<h2>Failure Modes</h2>
+
+<table>
+  <tr><th>Failure</th><th>Behavior</th><th>Detection</th></tr>
+  <tr><td>MCP mail server down</td><td>Health check returns exit 1; bridge continues (logs warning)</td><td>Startup health check via launchd</td></tr>
+  <tr><td>Slack token missing</td><td>Bridge skips posting, logs error</td><td>Exit code 1</td></tr>
+  <tr><td>Slack API error</td><td><code>post_message</code> returns <code>None</code>; bridge continues</td><td>Logged at WARN level</td></tr>
+  <tr><td>AO data dir missing</td><td><code>scan_ao_sessions</code> returns empty dict; no posts</td><td>Logged at INFO level</td></tr>
+  <tr><td>Bridge state corruption</td><td><code>load_state</code> returns empty state on parse error; deduplication resets</td><td>Manual inspection of state file</td></tr>
+</table>
+
+<h2>AO Config Changes</h2>
+
+<p>Two changes to <code>agent-orchestrator.yaml</code> and the agent-orchestrator TypeScript source:</p>
+
+<h3>1. Session Lifecycle Events Extended</h3>
+<p>In <code>lifecycle-manager.ts</code> (agent-orchestrator):</p>
+<ul>
+  <li>Added <code>spawning → session.spawned</code> in <code>statusToEventType()</code></li>
+  <li>Added <code>terminated → session.exited</code> in <code>statusToEventType()</code></li>
+  <li>Added <code>session.spawned → session-spawned</code> and <code>session.exited → session-exited</code> in <code>eventToReactionKey()</code></li>
+</ul>
+<p>Requires rebuild: <code>npm run build</code> in <code>~/project_agento/agent-orchestrator</code></p>
+
+<h3>2. New Reactions in <code>agent-orchestrator.yaml</code></h3>
+
+<pre><code>notifiers:
+  mcp-mail:
+    plugin: mcp-mail
+    endpoint: "${MCP_AGENT_MAIL_URL:-http://127.0.0.1:18789/mcp}"
+    projectId: smartclaw
+    agentId: ao-lifecycle
+    to: ["jleechan"]
+
+notificationRouting:
+  urgent: [openclaw, orchestrator, slack, mcp-mail]
+  action: [openclaw, orchestrator, slack, mcp-mail]
+
+reactions:
+  session-spawned:
+    auto: false
+    action: notify
+    priority: action
+    message: "AO worker {{sessionId}} started — project {{projectId}}."
+  session-exited:
+    auto: true
+    action: notify
+    priority: urgent
+    retries: 3
+    escalateAfter: 2
+    message: "AO worker {{sessionId}} exited — project {{projectId}}."</code></pre>
+
+<h2>Launchd Installation</h2>
+
+<pre><code># Preview plist (substitute env var values)
+envsubst &lt; launchd/ai.smartclaw.human-channel-bridge.plist.template \
+  &gt; ~/Library/LaunchAgents/ai.smartclaw.human-channel-bridge.plist
+
+# Load
+launchctl load ~/Library/LaunchAgents/ai.smartclaw.human-channel-bridge.plist
+
+# Reload after AO rebuild
+launchctl unload ~/Library/LaunchAgents/ai.smartclaw.human-channel-bridge.plist
+launchctl load ~/Library/LaunchAgents/ai.smartclaw.human-channel-bridge.plist</code></pre>
+
+<h2>Testing</h2>
+
+<pre><code># Unit tests (mocked Slack, real session file parsing)
+PYTHONPATH=src python -m pytest src/tests/test_human_channel_bridge.py -v
+
+# Smoke test (no Slack posting)
+BRIDGE_ENABLED=false \
+  SLACK_BOT_TOKEN="" \
+  MCP_AGENT_MAIL_URL=http://127.0.0.1:18789/mcp \
+  PYTHONPATH=src \
+  python3 -c "from src.orchestration.human_channel_bridge import health_check_main; print(health_check_main())"
+# Expected: "OK — MCP mail listener responding" exit=0</code></pre>
+
+<h2>Files</h2>
+
+<table>
+  <tr><th>File</th><th>Purpose</th></tr>
+  <tr><td><code>src/orchestration/human_channel_bridge.py</code></td><td>Main bridge logic</td></tr>
+  <tr><td><code>src/tests/test_human_channel_bridge.py</code></td><td>~60 unit tests</td></tr>
+  <tr><td><code>scripts/run-human-channel-bridge.sh</code></td><td>Launcher script</td></tr>
+  <tr><td><code>launchd/ai.smartclaw.human-channel-bridge.plist.template</code></td><td>Launchd plist template</td></tr>
+  <tr><td><code>agent-orchestrator.yaml</code></td><td>AO config (reactions + mcp-mail notifier)</td></tr>
+  <tr><td><code>packages/core/src/lifecycle-manager.ts</code></td><td>Agent-orchestrator (TypeScript changes)</td></tr>
+  <tr><td><code>docs/HUMAN_CHANNEL_BRIDGE.md</code></td><td>Markdown source</td></tr>
+</table>
+
+</div>
+</body>
+</html>

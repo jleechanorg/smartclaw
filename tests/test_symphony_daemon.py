@@ -180,7 +180,7 @@ def test_enqueue_script_resolves_mise_from_env_or_metadata() -> None:
     enqueue_script = (REPO_ROOT / "scripts" / "enqueue-symphony-tasks.sh").read_text(encoding="utf-8")
     assert 'MISE_BIN="${MISE_BIN:-$(jq -r \'.mise_bin // empty\' "$METADATA")}"' in enqueue_script
     assert '"$MISE_BIN" exec -- mix run' in enqueue_script
-    assert "Application Support/jleechanclaw/symphony_daemon" in enqueue_script
+    assert "Application Support/smartclaw/symphony_daemon" in enqueue_script
 
 
 def test_setup_daemon_defaults_to_private_runtime_and_no_test_fixture_seed() -> None:
@@ -196,15 +196,15 @@ def test_sym_dispatch_and_install_use_private_runtime_default() -> None:
         encoding="utf-8"
     )
 
-    assert "Application Support/jleechanclaw/symphony_daemon" in dispatch_script
-    assert "Application Support/jleechanclaw/symphony_daemon" in install_script
-    assert "/tmp/jleechanclaw/symphony_daemon" not in dispatch_script
-    assert "/tmp/jleechanclaw/symphony_daemon" not in install_script
+    assert "Application Support/smartclaw/symphony_daemon" in dispatch_script
+    assert "Application Support/smartclaw/symphony_daemon" in install_script
+    assert "/tmp/smartclaw/symphony_daemon" not in dispatch_script
+    assert "/tmp/smartclaw/symphony_daemon" not in install_script
 
 
 def test_setup_daemon_avoids_static_cookie_literal() -> None:
     setup_script = (REPO_ROOT / "scripts" / "setup-symphony-daemon.py").read_text(encoding="utf-8")
-    assert "jleechanclaw_symphony_cookie" not in setup_script
+    assert "smartclaw_symphony_cookie" not in setup_script
     assert "secrets.token_hex(16)" in setup_script
 
 

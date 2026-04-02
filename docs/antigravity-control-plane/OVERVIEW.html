@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Antigravity Control Plane — Overview</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11.13.0/dist/mermaid.min.js" integrity="sha384-tI0sDqjGJcqrQ8e/XKiQGS+ee11v5knTNWx2goxMBxe4DO9U0uKlfxJtYB9ILZ4j" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --bg2: #161b22;
+      --bg3: #21262d;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent2: #3fb950;
+      --accent3: #f78166;
+      --accent4: #d2a8ff;
+      --code-bg: #1f2937;
+      --table-header: #1c2128;
+      --link: #58a6ff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.65;
+    }
+
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ---- Sidebar ---- */
+    .sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 24px 0;
+    }
+
+    .sidebar-title {
+      padding: 0 20px 16px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 8px;
+    }
+
+    .sidebar nav a {
+      display: block;
+      padding: 6px 20px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13px;
+      border-left: 2px solid transparent;
+      transition: all 0.15s;
+    }
+
+    .sidebar nav a:hover,
+    .sidebar nav a.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: rgba(88, 166, 255, 0.07);
+    }
+
+    .sidebar nav a.sub {
+      padding-left: 36px;
+      font-size: 12px;
+    }
+
+    /* ---- Main content ---- */
+    .main {
+      flex: 1;
+      max-width: 900px;
+      padding: 48px 56px;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-bottom: 40px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h2 {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text);
+      margin-top: 52px;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--accent4);
+      margin-top: 28px;
+      margin-bottom: 10px;
+    }
+
+    p {
+      margin-bottom: 14px;
+      color: var(--text);
+    }
+
+    ul, ol {
+      margin: 10px 0 14px 24px;
+      color: var(--text);
+    }
+
+    li {
+      margin-bottom: 6px;
+    }
+
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ---- Code ---- */
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 18px;
+      overflow-x: auto;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12.5px;
+      line-height: 1.55;
+      margin: 14px 0 20px;
+      color: #cdd9e5;
+    }
+
+    code {
+      background: var(--code-bg);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12.5px;
+      color: #cdd9e5;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+      border-radius: 0;
+      font-size: inherit;
+    }
+
+    /* ---- Tables ---- */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0 24px;
+      font-size: 13.5px;
+    }
+
+    th {
+      background: var(--table-header);
+      color: var(--text-muted);
+      font-weight: 600;
+      text-align: left;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    td {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+    /* ---- Status badges ---- */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .badge-green { background: rgba(63, 185, 80, 0.15); color: var(--accent2); border: 1px solid rgba(63, 185, 80, 0.3); }
+    .badge-red   { background: rgba(247, 129, 102, 0.15); color: var(--accent3); border: 1px solid rgba(247, 129, 102, 0.3); }
+    .badge-blue  { background: rgba(88, 166, 255, 0.15); color: var(--accent); border: 1px solid rgba(88, 166, 255, 0.3); }
+
+    /* ---- Callout boxes ---- */
+    .callout {
+      border-left: 3px solid var(--accent);
+      background: rgba(88, 166, 255, 0.06);
+      padding: 12px 16px;
+      border-radius: 0 6px 6px 0;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+
+    .callout.note { border-color: var(--accent4); background: rgba(210, 168, 255, 0.06); }
+
+    /* ---- Diagram container ---- */
+    .diagram {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      margin: 20px 0;
+    }
+
+    .diagram pre {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 12px;
+      color: #cdd9e5;
+      margin: 0;
+    }
+
+    /* ---- Tenet cards ---- */
+    .tenet-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      margin: 16px 0 28px;
+    }
+
+    .tenet-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 20px;
+    }
+
+    .tenet-card h4 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+
+    .tenet-card p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    /* ---- Section anchors ---- */
+    section { scroll-margin-top: 24px; }
+
+    /* ---- Flow steps ---- */
+    .flow-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .flow-num {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: var(--bg);
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .flow-content { flex: 1; padding-top: 2px; }
+    .flow-content strong { color: var(--text); }
+    .flow-content p { margin-bottom: 4px; color: var(--text-muted); font-size: 13.5px; }
+
+    @media (max-width: 900px) {
+      .sidebar { display: none; }
+      .main { padding: 28px 20px; max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-title">Antigravity Control Plane</div>
+    <nav>
+      <a href="#overview">Overview</a>
+      <a href="#problem-statement">Problem Statement</a>
+      <a href="#constraints">Constraints</a>
+      <a href="#non-goals">Non-Goals</a>
+      <a href="#why-smartclaw">Why smartclaw</a>
+      <a href="#why-thin-adapter">Why the AO Adapter Is Thin</a>
+      <a href="#relationship-to-existing">Relationship to Existing Artifacts</a>
+      <a href="#what-lives-where">What Lives Where</a>
+      <a href="#key-risks">Key Risks</a>
+    </nav>
+  </aside>
+  <main class="main">
+    <h1>Antigravity Control Plane — Overview</h1>
+    <div class="subtitle">Design Document &nbsp;·&nbsp; Bead: ORCH-ag1 &nbsp;·&nbsp; Status: Design in progress</div>
+
+    <section id="overview">
+      <h2>What This Is</h2>
+      <p>A <strong>singleton super-orchestrator</strong> that drives Google Antigravity IDE across multiple repositories and worktrees, coordinated from <code>jleechanorg/smartclaw</code> (the OpenClaw harness), with Agent Orchestrator (AO) workers dispatched via MCP Mail.</p>
+      <p>Antigravity is a GUI-based AI coding environment on macOS. The Antigravity skill already enables single-session control via Peekaboo CLI against the Manager window. This design extends that into a <strong>multi-repo, multi-worker control plane</strong> with durable job queuing, global locking, and AO integration.</p>
+    </section>
+
+    <section id="problem-statement">
+      <h2>Problem Statement</h2>
+      <p>Today, Antigravity is operated <strong>manually per session</strong>:</p>
+      <ul>
+        <li>One human or agent starts one Antigravity workspace for one repo.</li>
+        <li>No coordination across repos.</li>
+        <li>No durable job queue.</li>
+        <li>No global safety (two workers could stomp on the same worktree).</li>
+        <li>No integration with AO workers (which are CLI-based, not GUI-based).</li>
+      </ul>
+      <p>The Antigravity skill (<code>~/.claude/skills/antigravity-computer-use/SKILL.md</code>) provides a solid foundation for the single-session GUI automation loop. ORCH-ma4 (<code>roadmap/PEEKABOO_ANTIGRAVITY_UI_AUTOMATION.md</code>) established the Peekaboo bridge and preflight checks. This design builds the <strong>orchestration layer</strong> on top.</p>
+    </section>
+
+    <section id="constraints">
+      <h2>Constraints</h2>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>Constraint</th><th>Rationale</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Control plane lives in <code>smartclaw</code>, not <code>agent-orchestrator</code></td><td>smartclaw is the harness/home; agent-orchestrator is AO-core only</td></tr>
+            <tr><td>Antigravity is controlled via Peekaboo, not native API</td><td>No native Antigravity API confirmed; Peekaboo is the established automation layer</td></tr>
+            <tr><td>Singleton controller — never two writers</td><td>Antigravity Manager window is single-threaded from the user's perspective</td></tr>
+            <tr><td>AO workers are stateless job executors</td><td>AO workers receive job payloads via MCP Mail, execute against Antigravity UI, report results</td></tr>
+            <tr><td>Jobs are opaque to the control plane</td><td>Control plane routes and coordinates; AO workers own the execution logic</td></tr>
+            <tr><td>All state in SQLite + JSONL</td><td>Consistent with existing smartclaw patterns (see <code>src/orchestration/webhook.py</code>)</td></tr>
+            <tr><td>Design-only PR; no runtime code in v0</td><td>Sonnet workers build the implementation in follow-up phases</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="non-goals">
+      <h2>Non-Goals</h2>
+      <ul>
+        <li><strong>Not</strong> a replacement for AO core dispatch logic — AO keeps its PR polling, merge gate, and supervisor.</li>
+        <li><strong>Not</strong> a native Antigravity API client — Peekaboo is the automation substrate.</li>
+        <li><strong>Not</strong> a cross-platform solution — macOS + Antigravity on macOS is the only target.</li>
+        <li><strong>Not</strong> a general-purpose job queue — scope is Antigravity job dispatch only.</li>
+      </ul>
+    </section>
+
+    <section id="why-smartclaw">
+      <h2>Why the Control Plane Lives in smartclaw</h2>
+      <p>smartclaw is the <strong>harness repo</strong> — the home for all orchestration, automation, and coordination logic that operates across projects. It already contains:</p>
+      <ul>
+        <li><code>src/orchestration/</code> — Python orchestration layer (webhook, evidence, merge gate, AO integration)</li>
+        <li><code>cron/</code> — scheduled job definitions</li>
+        <li><code>skills/</code> — agent skills (including the Antigravity shim)</li>
+        <li><code>launchd/</code> — macOS launch agent templates</li>
+      </ul>
+      <p>The Antigravity control plane fits this mission: coordinate multi-repo work across the harness environment. AO provides the worker execution infrastructure; smartclaw provides the <strong>coordination and policy layer</strong>.</p>
+    </section>
+
+    <section id="why-thin-adapter">
+      <h2>Why the AO Adapter Is Thin</h2>
+      <p>The AO adapter is the MCP Mail bridge between the smartclaw control plane and AO workers. It is intentionally thin because:</p>
+      <ol>
+        <li><strong>AO owns worker lifecycle</strong> — spawning, supervising, respawning. The control plane should not replicate this.</li>
+        <li><strong>AO has its own event model</strong> — AO workers emit events; the adapter translates them to control plane events.</li>
+        <li><strong>Separation of concerns</strong> — control plane handles routing, locking, and policy; AO handles execution.</li>
+        <li><strong>Avoids coupling</strong> — a thin adapter can be replaced or stubbed without breaking the control plane.</li>
+      </ol>
+      <p>The thick boundary is at <strong>MCP Mail messages</strong>: well-defined JSON schemas for job dispatch and result reporting. The adapter translates to/from those schemas.</p>
+    </section>
+
+    <section id="relationship-to-existing">
+      <h2>Relationship to Existing Artifacts</h2>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>File</th><th>Relationship</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>skills/antigravity-computer-use/SKILL.md</code></td><td>Canonical single-session skill; control plane dispatches jobs that invoke this skill</td></tr>
+            <tr><td><code>roadmap/PEEKABOO_ANTIGRAVITY_UI_AUTOMATION.md</code> (ORCH-ma4)</td><td>Established Peekaboo bridge and preflight checks; control plane requires these prerequisites</td></tr>
+            <tr><td><code>roadmap/AGENT_ORCHESTRATOR_MCP_MAIL_INTEGRATION.md</code></td><td>Defines MCP Mail contract that the AO adapter implements against</td></tr>
+            <tr><td><code>src/orchestration/mcp_mail.py</code></td><td>Existing stub; AO adapter is a new module alongside this</td></tr>
+            <tr><td><code>src/orchestration/webhook.py</code></td><td>Patterns for SQLite deduplication, HMAC validation, bounded retries — control plane adopts these</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="what-lives-where">
+      <h2>What Lives Where</h2>
+      <div class="diagram">
+        <pre>smartclaw/
+  docs/antigravity-control-plane/    ← NEW (this design)
+    OVERVIEW.md                       this file
+    ARCHITECTURE.md                   component design, safety model, routing
+    DATA-CONTRACTS.md                 job schema, state machine, idempotency
+    TDD-IMPLEMENTATION-PLAN.md        phased test-first build plan
+    UI-CAPABILITIES-INVENTORY.md       what the Antigravity skill supports today
+    ROLLOUT.md                        version gates and rollout phases
+    DECISIONS.md                      ADR-style choices
+
+  src/orchestration/
+    antig_control_plane/              ← v1+ implementation (Sonnet workers)
+      __init__.py
+      scheduler.py                    job queue, priority, enqueue API
+      dispatcher.py                   MCP Mail job dispatch to AO workers
+      executor.py                     Peekaboo job execution loop (per-worker)
+      global_lock.py                  singleton safety (file lock + lease)
+      recovery_loop.py                stale job detection and re-queue
+      reporter.py                     outcome recording, Slack notification
+      ao_adapter.py                   MCP Mail ↔ control plane translation
+      models.py                       dataclasses for jobs, states, events
+      tests/                          TDD test suite
+
+  skills/antigravity-computer-use/SKILL.md   ← already exists</pre>
+      </div>
+    </section>
+
+    <section id="key-risks">
+      <h2>Key Risks</h2>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>Risk</th><th>Mitigation</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Antigravity UI changes break Peekaboo selectors</td><td>Lock selector versions; add automated regression test for Manager window</td></tr>
+            <tr><td>Two control planes race for global lock</td><td>Singleton enforced at OS level (flock); control plane refuses to start if lock held</td></tr>
+            <tr><td>AO worker dies mid-job, Antigravity left in bad state</td><td>Recovery loop detects stale <code>running</code> jobs; recovery policy = kill + re-enqueue</td></tr>
+            <tr><td>MCP Mail delivery failure</td><td>Control plane retries with exponential backoff; idempotency key prevents double-dispatch</td></tr>
+            <tr><td>Peekaboo permissions revoked</td><td>Preflight check at startup and before each job; alert via Slack if permissions missing</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  // Highlight active sidebar link on scroll
+  const sections = document.querySelectorAll('section[id], h2[id], h3[id]');
+  const links = document.querySelectorAll('.sidebar nav a');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`.sidebar nav a[href="#${entry.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+
+<script>
+  if (typeof mermaid !== 'undefined') {
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      securityLevel: 'strict',
+      flowchart: { curve: 'basis', padding: 20 },
+      sequence: { mirrorActors: false, messageAlign: 'center' }
+    });
+  } else {
+    document.querySelectorAll('.mermaid').forEach(el => {
+      el.textContent = '[Diagram unavailable — mermaid CDN blocked]';
+    });
+  }
+</script>
+</body>
+</html>

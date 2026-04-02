@@ -1,0 +1,9 @@
+{
+  "check_runs": [
+    {
+      "name": "ping-coderabbit",
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ]
+}

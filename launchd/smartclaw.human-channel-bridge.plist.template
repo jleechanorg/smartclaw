@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>ai.smartclaw.human-channel-bridge</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>${REPO_ROOT}/scripts/run-human-channel-bridge.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>${REPO_ROOT}</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>REPO_ROOT</key>
+    <string>@HOME@/.smartclaw</string>
+    <key>PYTHONPATH</key>
+    <string>${REPO_ROOT}/src</string>
+    <key>BRIDGE_ENABLED</key>
+    <string>${OPENCLAW_BRIDGE_ENABLED:-true}</string>
+    <key>BRIDGE_HEALTH_CHECK_ENABLED</key>
+    <string>${BRIDGE_HEALTH_CHECK_ENABLED:-true}</string>
+    <key>HUMAN_CHANNEL_ID</key>
+    <string>${HUMAN_CHANNEL_ID:-C0ANK6HFW66}</string>
+    <key>SLACK_BOT_TOKEN</key>
+    <string>${SLACK_BOT_TOKEN}</string>
+    <key>MCP_AGENT_MAIL_URL</key>
+    <string>${MCP_AGENT_MAIL_URL:-http://127.0.0.1:18789/mcp}</string>
+    <key>SLACK_POST_COOLDOWN_SECONDS</key>
+    <string>${SLACK_POST_COOLDOWN_SECONDS:-30}</string>
+    <key>BRIDGE_STATE_FILE</key>
+    <string>@HOME@/.smartclaw/state/human_channel_bridge.json</string>
+    <key>AO_DATA_DIR</key>
+    <string>@HOME@/.agent-orchestrator</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StartInterval</key>
+  <integer>60</integer>
+
+  <key>StandardOutPath</key>
+  <string>@HOME@/.smartclaw/logs/scheduled-jobs/human-channel-bridge.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>@HOME@/.smartclaw/logs/scheduled-jobs/human-channel-bridge.err.log</string>
+
+  <key>ProcessType</key>
+  <string>Background</string>
+</dict>
+</plist>

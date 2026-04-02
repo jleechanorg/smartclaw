@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Methodology: mem0-purge smoke test evidence</title>
+  <style>
+
+  :root {
+    --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --border: #30363d;
+    --text: #e6edf3; --text-muted: #8b949e; --accent: #58a6ff;
+    --accent2: #3fb950; --accent3: #f78166; --accent4: #d2a8ff;
+    --code-bg: #1f2937; --table-header: #1c2128; --link: #58a6ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.65; padding: 48px 56px; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+  h2 { font-size: 20px; font-weight: 600; margin-top: 36px; margin-bottom: 12px; color: var(--text); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  h3 { font-size: 16px; font-weight: 600; color: var(--accent4); margin-top: 24px; margin-bottom: 8px; }
+  p { margin-bottom: 12px; }
+  ul, ol { margin: 10px 0 14px 24px; }
+  li { margin-bottom: 6px; }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; overflow-x: auto; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 12.5px; line-height: 1.55; margin: 14px 0 20px; color: #cdd9e5; }
+  code { background: var(--code-bg); border-radius: 4px; padding: 2px 6px; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 12.5px; color: #cdd9e5; }
+  pre code { background: none; padding: 0; border-radius: 0; font-size: inherit; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: 13.5px; }
+  th { background: var(--table-header); color: var(--text-muted); font-weight: 600; text-align: left; padding: 8px 12px; border: 1px solid var(--border); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+  td { padding: 8px 12px; border: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+  .subtitle { color: var(--text-muted); font-size: 13px; margin-bottom: 40px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .badge-green { background: rgba(63, 185, 80, 0.15); color: var(--accent2); border: 1px solid rgba(63, 185, 80, 0.3); }
+  .badge-red { background: rgba(247, 129, 102, 0.15); color: var(--accent3); border: 1px solid rgba(247, 129, 102, 0.3); }
+  .badge-blue { background: rgba(88, 166, 255, 0.15); color: var(--accent); border: 1px solid rgba(88, 166, 255, 0.3); }
+
+  </style>
+</head>
+<body>
+  <h1>Methodology: mem0-purge smoke test evidence</h1>
+  <div class="subtitle">Evidence Collection Methodology · PR #417/420 · iteration_001 · 2026-03-28</div>
+  <h1>Methodology: mem0-purge smoke test evidence</h1>
+<h2>Claim</h2>
+<p>PR #417 adds a safe one-off memory deletion script (<code>scripts/mem0-purge.sh</code>) with deterministic shell-check + dry-run smoke tests (<code>tests/test_mem0_purge_smoke.py</code>).</p>
+<h2>Evidence collection method</h2>
+<h3>Unit tests (claim class: unit_test_coverage)</h3>
+<p>- <strong>Test runner</strong>: pytest 9.0.2</p>
+<p>- <strong>Command</strong>: <code>PYTHONPATH=src python -m pytest tests/test_mem0_purge_smoke.py -v --tb=short</code></p>
+<p>- <strong>Environment</strong>: macOS, Python 3.14.3</p>
+<p>- <strong>Realism</strong>: Tests invoke the actual script via <code>subprocess.run(["bash", "scripts/mem0-purge.sh", ...])</code></p>
+<p>— not mocked. They test real bash + python3 code paths.</p>
+<p>- <strong>Hermeticity</strong>: <code>test_verify_only_exits_zero</code> skips when Qdrant is unreachable (no hard dependency on live Qdrant for dry-run tests). All other tests are pure parsing/guard logic with no external I/O.</p>
+<p>- <strong>Static analysis</strong>: <code>shellcheck</code> runs via <code>shutil.which("shellcheck")</code>; skips if unavailable.</p>
+<h3>Skip rationale</h3>
+<p><code>test_verify_only_exits_zero</code> is SKIPPED because Qdrant is not running locally. This is the correct behavior — the test explicitly checks Qdrant reachability via <code>urllib.request.urlopen("http://127.0.0.1:6333/healthz", timeout=2)</code> before running. A skipped test due to missing external dependency is valid; it is not a failure.</p>
+<h2>Files covered</h2>
+<table><thead>
+<tr><th>File</th><th>SHA256 (truncated)</th></tr>
+</thead><tbody>
+</tbody></table>
+<table><thead>
+<tr><th>`scripts/mem0-purge.sh`</th><th>bfcee7c2df4b7d0c...</th></tr>
+</thead><tbody>
+<tr><td>`tests/test_mem0_purge_smoke.py`</td><td>17e500e351d1b76d...</td></tr>
+<tr><td>`docs/mem0-purge-runbook.md`</td><td>c8a65eba7469aace...</td></tr>
+</tbody></table>
+  <script>
+  if (typeof mermaid !== 'undefined') {
+    mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+  }
+  </script>
+</body>
+</html>

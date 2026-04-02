@@ -3,18 +3,22 @@
 
 set -u
 
-LOG_FILE="$HOME/.openclaw/logs/monitor-agent.log"
+LOG_FILE="$HOME/.smartclaw/logs/monitor-agent.log"
 LOG_DIR="$(dirname "$LOG_FILE")"
-LOCK_DIR="$HOME/.openclaw/locks/monitor-agent.lock"
+LOCK_DIR="$HOME/.smartclaw/locks/monitor-agent.lock"
 LOCK_PID_FILE="$LOCK_DIR/pid"
 LOCK_STALE_SECONDS="${OPENCLAW_MONITOR_LOCK_STALE_SECONDS:-7200}"
 
 export PATH="$HOME/.nvm/versions/node/current/bin:$HOME/Library/pnpm:$HOME/.bun/bin:$HOME/.local/bin:$HOME/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 OPENCLAW_BIN="$(command -v openclaw || true)"
-ALERT_SLACK_TARGET="${OPENCLAW_MONITOR_SLACK_TARGET:-}"
+ALERT_SLACK_TARGET="${OPENCLAW_MONITOR_SLACK_TARGET:-C0AP8LRKM9N}"
+# On failures, send the full monitor report to the doctor/failures channel.
+FAILURE_SLACK_TARGET="${OPENCLAW_MONITOR_FAILURE_SLACK_TARGET:-${SLACK_CHANNEL_ID}}"
 PROBE_SLACK_TARGET="${OPENCLAW_MONITOR_PROBE_SLACK_TARGET:-$ALERT_SLACK_TARGET}"
 GATEWAY_PROBE_TARGET="${OPENCLAW_MONITOR_GATEWAY_PROBE_TARGET:-$PROBE_SLACK_TARGET}"
+# 0 = silent by default (avoid routine monitor chatter), 1 = post startup probe message.
+GATEWAY_PROBE_MESSAGE_ENABLED="${OPENCLAW_MONITOR_GATEWAY_PROBE_MESSAGE_ENABLE:-0}"
 HTTP_GATEWAY_URL="${OPENCLAW_MONITOR_HTTP_GATEWAY_URL:-http://127.0.0.1:18789/health}"
 SLACK_API_BASE="${OPENCLAW_MONITOR_SLACK_API_BASE:-https://slack.com/api}"
 CANARY_TIMEOUT_SECONDS="${OPENCLAW_MONITOR_CANARY_TIMEOUT_SECONDS:-45}"
@@ -25,8 +29,10 @@ PHASE2_AUTOFIX_ENABLED="${OPENCLAW_MONITOR_PHASE2_AUTOFIX_ENABLE:-1}"
 PHASE2_ALLOW_CONFIG_MUTATIONS="${OPENCLAW_MONITOR_PHASE2_ALLOW_CONFIG_MUTATIONS:-0}"
 PHASE2_TIMEOUT_SECONDS="${OPENCLAW_MONITOR_PHASE2_TIMEOUT_SECONDS:-120}"
 RUN_CANARY="${OPENCLAW_MONITOR_RUN_CANARY:-1}"
+# Optional explicit token for canary sender identity (prefer dedicated second bot).
+MONITOR_CANARY_BOT_TOKEN="${OPENCLAW_MONITOR_CANARY_BOT_TOKEN:-}"
 STATUS_BROADCAST_ENABLED="${OPENCLAW_MONITOR_STATUS_BROADCAST_ENABLE:-1}"
-STATUS_BROADCAST_SLACK_TARGET="${OPENCLAW_MONITOR_STATUS_SLACK_TARGET:-}"
+STATUS_BROADCAST_SLACK_TARGET="${OPENCLAW_MONITOR_STATUS_SLACK_TARGET:-C0AP8LRKM9N}"
 THREAD_REPLY_CHECK_ENABLED="${OPENCLAW_MONITOR_THREAD_REPLY_CHECK:-1}"
 THREAD_REPLY_CHANNEL="${OPENCLAW_MONITOR_THREAD_REPLY_CHANNEL:-$ALERT_SLACK_TARGET}"
 THREAD_REPLY_LOOKBACK_SECONDS="${OPENCLAW_MONITOR_THREAD_REPLY_LOOKBACK_SECONDS:-21600}"
@@ -39,8 +45,6 @@ THREAD_REPLY_BOT_USER_ID="${OPENCLAW_MONITOR_BOT_USER_ID:-}"
 DOCTOR_SH_ENABLED="${OPENCLAW_MONITOR_DOCTOR_SH_ENABLE:-1}"
 DOCTOR_SH_ALWAYS="${OPENCLAW_MONITOR_DOCTOR_SH_ALWAYS:-1}"
 DOCTOR_SH_PATH_OVERRIDE="${OPENCLAW_MONITOR_DOCTOR_SH_PATH:-}"
-DOCTOR_SH_SEARCH_PATHS="${OPENCLAW_MONITOR_DOCTOR_SH_SEARCH_PATHS:-}"
-DOCTOR_SH_SEARCH_DIRS="${OPENCLAW_MONITOR_DOCTOR_SH_SEARCH_DIRS:-$PWD:$HOME/.openclaw}"
 INFERENCE_PROBE_ENABLED="${OPENCLAW_MONITOR_INFERENCE_PROBE_ENABLE:-1}"
 INFERENCE_PROBE_TIMEOUT="${OPENCLAW_MONITOR_INFERENCE_PROBE_TIMEOUT:-30}"
 # When doctor.sh always runs, it already includes an end-to-end LLM inference probe.
@@ -62,11 +66,15 @@ log() {
 
 is_placeholder_token() {
   local token="${1:-}"
-  if [ -z "$token" ] || [ "$token" = "null" ] || [ "$token" = '${OPENCLAW_GATEWAY_TOKEN}' ] || [ "$token" = "your-local-auth-token-here" ]; then
+  if [ -z "$token" ] || [ "$token" = "null" ] || [ "$token" = "your-local-auth-token-here" ]; then
+    return 0
+  fi
+  # Catch any unexpanded ${VAR} reference (e.g. ${OPENCLAW_GATEWAY_TOKEN})
+  if [[ "$token" =~ ^\$\{[A-Z0-9_]+\}$ ]]; then
     return 0
   fi
   case "$token" in
-    PLACEHOLDER*|*PLACEHOLDER*)
+    REDACTED|PLACEHOLDER*|*PLACEHOLDER*|your-*)
       return 0
       ;;
   esac
@@ -103,24 +111,14 @@ resolve_doctor_sh_path() {
     printf '%s' "$DOCTOR_SH_PATH_OVERRIDE"
     return 0
   fi
-  if [ -n "$DOCTOR_SH_SEARCH_PATHS" ]; then
-    local IFS=':'
-    for candidate in $DOCTOR_SH_SEARCH_PATHS; do
-      if [ -f "$candidate" ]; then
-        printf '%s' "$candidate"
-        return 0
-      fi
-    done
-  fi
-  local doctor_dir=""
-  local IFS=':'
-  for doctor_dir in $DOCTOR_SH_SEARCH_DIRS; do
-    for candidate in "$doctor_dir/doctor.sh" "$doctor_dir/scripts/doctor.sh"; do
-      if [ -f "$candidate" ]; then
-        printf '%s' "$candidate"
-        return 0
-      fi
-    done
+  for candidate in \
+    "$PWD/doctor.sh" \
+    "$HOME/.smartclaw/smartclaw/doctor.sh" \
+    "$HOME/.smartclaw/doctor.sh"; do
+    if [ -f "$candidate" ]; then
+      printf '%s' "$candidate"
+      return 0
+    fi
   done
   if command -v doctor.sh >/dev/null 2>&1; then
     command -v doctor.sh
@@ -185,15 +183,18 @@ fi
 trap 'rm -f "$LOCK_PID_FILE" 2>/dev/null || true; rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
 if [ -f "$HOME/.profile" ]; then
-  # Needed for SLACK_USER_TOKEN (xoxp) canary posts as the real user identity.
+  # Load optional environment overrides for monitor behavior.
   # shellcheck disable=SC1090
   source "$HOME/.profile"
 fi
 
-# Tokens are hardcoded in ~/.openclaw/openclaw.json — the gateway reads them directly.
+# Tokens are hardcoded in ~/.smartclaw/openclaw.json — the gateway reads them directly.
 # Only hydrate behavioral tunables (channel targets, feature flags) that may be
-# overridden via .bashrc exports. Token env vars (bot/app/gateway tokens) are NOT
-# read here; they live in openclaw.json and are not expected in plist or .bashrc.
+# overridden via .bashrc exports. Most token env vars are NOT read here.
+# Exception: OPENCLAW_MONITOR_CANARY_BOT_TOKEN is intentionally hydrated from .bashrc
+# to support dedicated canary bot tokens without requiring a full openclaw.json update.
+# Note: read_bashrc_export() requires double-quoted values, e.g.:
+#   export OPENCLAW_MONITOR_CANARY_BOT_TOKEN="xoxb-..."
 read_bashrc_export() {
   local key="$1"
   local rc_file="$HOME/.bashrc"
@@ -213,19 +214,70 @@ set_env_var_if_nonempty() {
 }
 
 set_env_var_if_nonempty OPENCLAW_MONITOR_SLACK_TARGET "$(read_bashrc_export OPENCLAW_MONITOR_SLACK_TARGET)"
+set_env_var_if_nonempty OPENCLAW_MONITOR_FAILURE_SLACK_TARGET "$(read_bashrc_export OPENCLAW_MONITOR_FAILURE_SLACK_TARGET)"
 set_env_var_if_nonempty OPENCLAW_MONITOR_PROBE_SLACK_TARGET "$(read_bashrc_export OPENCLAW_MONITOR_PROBE_SLACK_TARGET)"
 set_env_var_if_nonempty OPENCLAW_MONITOR_GATEWAY_PROBE_TARGET "$(read_bashrc_export OPENCLAW_MONITOR_GATEWAY_PROBE_TARGET)"
+set_env_var_if_nonempty OPENCLAW_MONITOR_GATEWAY_PROBE_MESSAGE_ENABLE "$(read_bashrc_export OPENCLAW_MONITOR_GATEWAY_PROBE_MESSAGE_ENABLE)"
 set_env_var_if_nonempty OPENCLAW_MONITOR_STATUS_SLACK_TARGET "$(read_bashrc_export OPENCLAW_MONITOR_STATUS_SLACK_TARGET)"
 set_env_var_if_nonempty OPENCLAW_MONITOR_THREAD_REPLY_CHANNEL "$(read_bashrc_export OPENCLAW_MONITOR_THREAD_REPLY_CHANNEL)"
 set_env_var_if_nonempty OPENCLAW_MONITOR_RUN_CANARY "$(read_bashrc_export OPENCLAW_MONITOR_RUN_CANARY)"
+set_env_var_if_nonempty OPENCLAW_MONITOR_CANARY_BOT_TOKEN "$(read_bashrc_export OPENCLAW_MONITOR_CANARY_BOT_TOKEN)"
+# Hydrate the primary bot token so resolve_thread_probe_slack_token() finds it
+# (launchd agents don't source .bashrc, so this var is empty without explicit hydration).
+set_env_var_if_nonempty SLACK_BOT_TOKEN "$(read_bashrc_export SLACK_BOT_TOKEN)"
 
 # Recompute monitor channels after env hydration from launchd/profile/bashrc.
 ALERT_SLACK_TARGET="${OPENCLAW_MONITOR_SLACK_TARGET:-$ALERT_SLACK_TARGET}"
+FAILURE_SLACK_TARGET="${OPENCLAW_MONITOR_FAILURE_SLACK_TARGET:-$FAILURE_SLACK_TARGET}"
 PROBE_SLACK_TARGET="${OPENCLAW_MONITOR_PROBE_SLACK_TARGET:-$ALERT_SLACK_TARGET}"
 GATEWAY_PROBE_TARGET="${OPENCLAW_MONITOR_GATEWAY_PROBE_TARGET:-$PROBE_SLACK_TARGET}"
+GATEWAY_PROBE_MESSAGE_ENABLED="${OPENCLAW_MONITOR_GATEWAY_PROBE_MESSAGE_ENABLE:-$GATEWAY_PROBE_MESSAGE_ENABLED}"
 STATUS_BROADCAST_SLACK_TARGET="${OPENCLAW_MONITOR_STATUS_SLACK_TARGET:-$STATUS_BROADCAST_SLACK_TARGET}"
 THREAD_REPLY_CHANNEL="${OPENCLAW_MONITOR_THREAD_REPLY_CHANNEL:-$ALERT_SLACK_TARGET}"
 RUN_CANARY="${OPENCLAW_MONITOR_RUN_CANARY:-$RUN_CANARY}"
+MONITOR_CANARY_BOT_TOKEN="${OPENCLAW_MONITOR_CANARY_BOT_TOKEN:-$MONITOR_CANARY_BOT_TOKEN}"
+
+resolve_canary_slack_token() {
+  # Precedence:
+  # 1) OPENCLAW_MONITOR_CANARY_BOT_TOKEN (explicit dedicated bot)
+  # 2) ~/.mcp_mail/credentials.json: SLACK_BOT_TOKEN (second bot)
+  if [ -n "${MONITOR_CANARY_BOT_TOKEN:-}" ] && ! is_placeholder_token "$MONITOR_CANARY_BOT_TOKEN"; then
+    printf '%s|%s\n' "$MONITOR_CANARY_BOT_TOKEN" "OPENCLAW_MONITOR_CANARY_BOT_TOKEN"
+    return 0
+  fi
+
+  local mcp_creds="$HOME/.mcp_mail/credentials.json"
+  if [ -f "$mcp_creds" ] && command -v jq >/dev/null 2>&1; then
+    local mcp_bot_token
+    mcp_bot_token="$(jq -r '.SLACK_BOT_TOKEN // empty' "$mcp_creds" 2>/dev/null || true)"
+    if [ -n "$mcp_bot_token" ] && ! is_placeholder_token "$mcp_bot_token"; then
+      printf '%s|%s\n' "$mcp_bot_token" "~/.mcp_mail/credentials.json:SLACK_BOT_TOKEN"
+      return 0
+    fi
+  fi
+
+  printf '%s|%s\n' "" ""
+}
+
+resolve_thread_probe_slack_token() {
+  # Precedence:
+  # 1) SLACK_BOT_TOKEN (primary OpenClaw bot)
+  # 2) OPENCLAW_MONITOR_CANARY_BOT_TOKEN (dedicated monitor/canary bot)
+  # 3) ~/.mcp_mail/credentials.json: SLACK_BOT_TOKEN
+  if [ -n "${SLACK_BOT_TOKEN:-}" ] && ! is_placeholder_token "$SLACK_BOT_TOKEN"; then
+    printf '%s|%s\n' "$SLACK_BOT_TOKEN" "SLACK_BOT_TOKEN"
+    return 0
+  fi
+
+  local canary_line
+  canary_line="$(resolve_canary_slack_token)"
+  if [ -n "${canary_line%%|*}" ]; then
+    printf '%s\n' "$canary_line"
+    return 0
+  fi
+
+  printf '%s|%s\n' "" ""
+}
 
 # --- Initial probes (parallelized) ---
 _PROBE_TMPDIR="$(mktemp -d /tmp/monitor-init-probes.XXXXXX)"
@@ -239,9 +291,14 @@ _PROBE_TMPDIR="$(mktemp -d /tmp/monitor-init-probes.XXXXXX)"
 _PROBE_READ_PID=$!
 
 (
-  out="$("$OPENCLAW_BIN" message send --channel slack --target "$GATEWAY_PROBE_TARGET" \
-    --message "OpenClaw monitor check started: $(date '+%Y-%m-%d %H:%M:%S %Z')" --json 2>&1)"
-  rc=$?
+  if [ "$GATEWAY_PROBE_MESSAGE_ENABLED" = "1" ]; then
+    out="$("$OPENCLAW_BIN" message send --channel slack --target "$GATEWAY_PROBE_TARGET" \
+      --message "OpenClaw monitor check started: $(date '+%Y-%m-%d %H:%M:%S %Z')" --json 2>&1)"
+    rc=$?
+  else
+    out="gateway startup probe message disabled (OPENCLAW_MONITOR_GATEWAY_PROBE_MESSAGE_ENABLE=0)"
+    rc=0
+  fi
   printf '%s\n' "$rc" > "$_PROBE_TMPDIR/send.rc"
   printf '%s\n' "$out" > "$_PROBE_TMPDIR/send.out"
 ) &
@@ -296,8 +353,9 @@ TOKEN_PROBE_RC=0
 TOKEN_PROBE_SUMMARY="token probes not run"
 
 run_token_probes() {
-  local cfg="$HOME/.openclaw/openclaw.json"
+  local cfg="$HOME/.smartclaw/openclaw.json"
   local timeout=10
+  local inference_timeout=20  # minimax probe does inference, needs longer than auth-only probes
 
   if ! command -v jq >/dev/null 2>&1; then
     TOKEN_PROBE_RC=1
@@ -323,9 +381,21 @@ run_token_probes() {
     else
       code="$(curl -sS --max-time "$timeout" -o "$td/gateway.json" -w '%{http_code}' \
         -H "Authorization: Bearer $gateway_token" -H 'Accept: application/json' \
-        "$HTTP_GATEWAY_URL" 2>/dev/null || true)"
+        http://127.0.0.1:18789/health 2>/dev/null)"
+      curl_rc=$?
+      # http_code 000 = curl error (connection refused, timeout, DNS, TLS, etc.)
+      # Distinguish gateway-down from auth-failure (bd-23ej)
       if [ "$code" = "200" ] && jq -e '.ok == true' "$td/gateway.json" >/dev/null 2>&1; then
         printf 'PASS:gateway.auth.token\n' > "$td/gateway"
+      elif [ "$code" = "000" ]; then
+        # curl exit codes: 7=refused, 6=host not found, 28=timeout, 35=TLS error, 6=resolve
+        case "$curl_rc" in
+          7)   printf 'FAIL:gateway.down:connection_refused\n' > "$td/gateway" ;;
+          28)  printf 'FAIL:gateway.down:request_timeout\n' > "$td/gateway" ;;
+          6)   printf 'FAIL:gateway.down:host_not_found\n' > "$td/gateway" ;;
+          35|55|58) printf 'FAIL:gateway.down:tls_error\n' > "$td/gateway" ;;
+          *)   printf 'FAIL:gateway.down:curl_exit=%d\n' "$curl_rc" > "$td/gateway" ;;
+        esac
       else
         printf 'FAIL:gateway.auth.token:health_http=%s\n' "$code" > "$td/gateway"
       fi
@@ -343,7 +413,7 @@ run_token_probes() {
         -H "Authorization: Bearer $slack_bot_token" \
         -H 'Content-Type: application/x-www-form-urlencoded' \
         -o "$td/slack_bot.json" -w '%{http_code}' \
-        "$SLACK_API_BASE/auth.test" 2>/dev/null || true)"
+        'https://slack.com/api/auth.test' 2>/dev/null || true)"
       if [ "$code" = "200" ] && jq -e '.ok == true' "$td/slack_bot.json" >/dev/null 2>&1; then
         printf 'PASS:channels.slack.botToken\n' > "$td/slack_bot"
       else
@@ -363,34 +433,11 @@ run_token_probes() {
         -H "Authorization: Bearer $slack_app_token" \
         -H 'Content-Type: application/x-www-form-urlencoded' \
         -o "$td/slack_app.json" -w '%{http_code}' \
-        "$SLACK_API_BASE/apps.connections.open" 2>/dev/null || true)"
+        'https://slack.com/api/apps.connections.open' 2>/dev/null || true)"
       if [ "$code" = "200" ] && jq -e '.ok == true' "$td/slack_app.json" >/dev/null 2>&1; then
         printf 'PASS:channels.slack.appToken\n' > "$td/slack_app"
       else
         printf 'FAIL:channels.slack.appToken:apps_open_http=%s\n' "$code" > "$td/slack_app"
-      fi
-    fi
-  ) &
-
-  # --- minimax token ---
-  local minimax_token minimax_base_url
-  minimax_token="$(resolve_secret_ref "$(jq -r '.models.providers."minimax-portal".apiKey // empty' "$cfg" 2>/dev/null || true)")"
-  minimax_base_url="$(jq -r '.models.providers."minimax-portal".baseUrl // "https://api.minimax.io/anthropic"' "$cfg" 2>/dev/null || echo 'https://api.minimax.io/anthropic')"
-  (
-    if is_placeholder_token "$minimax_token"; then
-      printf 'FAIL:models.providers.minimax-portal.apiKey:missing/placeholder\n' > "$td/minimax"
-    else
-      code="$(curl -sS --max-time "$timeout" \
-        -H "Authorization: Bearer $minimax_token" \
-        -H 'anthropic-version: 2023-06-01' \
-        -H 'Content-Type: application/json' \
-        -d '{"model":"MiniMax-M2.5","max_tokens":8,"messages":[{"role":"user","content":"ping"}]}' \
-        -o "$td/minimax.json" -w '%{http_code}' \
-        "${minimax_base_url}/v1/messages" 2>/dev/null || true)"
-      if [[ "$code" =~ ^2 ]]; then
-        printf 'PASS:models.providers.minimax-portal.apiKey\n' > "$td/minimax"
-      else
-        printf 'FAIL:models.providers.minimax-portal.apiKey:http=%s\n' "$code" > "$td/minimax"
       fi
     fi
   ) &
@@ -486,7 +533,7 @@ run_token_probes() {
   # Aggregate results from temp files
   local fail_count=0 warn_count=0 details=""
   local line key reason
-  for f in "$td"/gateway "$td"/slack_bot "$td"/slack_app "$td"/minimax \
+  for f in "$td"/gateway "$td"/slack_bot "$td"/slack_app \
             "$td"/openai "$td"/xai "$td"/discord "$td"/mcp_mail; do
     [ -f "$f" ] || continue
     line="$(cat "$f")"
@@ -520,6 +567,31 @@ run_token_probes() {
 MEMORY_LOOKUP_RC=0
 MEMORY_LOOKUP_SUMMARY="memory lookup check not run"
 
+# Core markdown file health check
+# Tracks the 8 policy/identity files that openclaw reads at startup.
+# Broken symlinks (pointing to non-existent workspace/ paths) are the primary failure mode.
+CORE_MD_RC=0
+CORE_MD_SUMMARY=""
+
+# Probe logic lives in lib/core-md-probe.sh (single source of truth for prod + tests).
+# shellcheck source=lib/core-md-probe.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/core-md-probe.sh"
+
+run_core_md_probe() {
+  CORE_MD_RC=0
+  CORE_MD_SUMMARY=""
+
+  local result
+  result=$(_core_md_probe)
+  CORE_MD_RC=$(printf '%s' "$result" | sed -n 's/^RC=//p')
+  CORE_MD_SUMMARY=$(printf '%s' "$result" | sed -n 's/^SUMMARY=//p')
+  # Defensive: if parsing failed (empty output), treat as healthy to avoid
+  # propagating an invalid RC that would break [ "$CORE_MD_RC" -eq 1 ] comparisons.
+  [ -z "$CORE_MD_RC" ] && CORE_MD_RC=0
+
+  return "$CORE_MD_RC"
+}
+
 run_memory_lookup_probe() {
   MEMORY_LOOKUP_RC=0
   MEMORY_LOOKUP_SUMMARY="memory lookup check passed"
@@ -535,9 +607,9 @@ run_memory_lookup_probe() {
     return "$MEMORY_LOOKUP_RC"
   fi
 
-  local memory_timeout=15
+  local memory_timeout=30
   local memory_output
-  memory_output="$(timeout "$memory_timeout" openclaw memory search "test" 2>&1)"
+  memory_output="$(timeout "$memory_timeout" openclaw mem0 search "test" 2>&1)"
   local memory_rc=$?
 
   # Check for NODE_MODULE_VERSION mismatch (better-sqlite3 native module issue)
@@ -553,8 +625,8 @@ run_memory_lookup_probe() {
     return "$MEMORY_LOOKUP_RC"
   fi
 
-  # Check if we got results (look for score prefix like "0.531" at line start)
-  if printf '%s\n' "$memory_output" | grep -qE '^\s*[0-9]+\.'; then
+  # Check if we got results (legacy: score at line start "0.531 text", or JSON: '"score": 0.531')
+  if printf '%s\n' "$memory_output" | grep -qE '^\s*[0-9]+\.|"score"\s*:\s*[0-9]'; then
     MEMORY_LOOKUP_RC=0
     MEMORY_LOOKUP_SUMMARY="memory lookup returned results"
   elif printf '%s\n' "$memory_output" | grep -qi "No matches"; then
@@ -581,9 +653,14 @@ run_thread_reply_probe() {
     THREAD_REPLY_SUMMARY="thread reply check disabled"
     return 0
   fi
-  if [ -z "${SLACK_USER_TOKEN:-}" ]; then
+  local THREAD_PROBE_TOKEN_LINE THREAD_PROBE_SLACK_TOKEN THREAD_PROBE_TOKEN_SOURCE
+  THREAD_PROBE_TOKEN_LINE="$(resolve_thread_probe_slack_token)"
+  THREAD_PROBE_SLACK_TOKEN="${THREAD_PROBE_TOKEN_LINE%%|*}"
+  THREAD_PROBE_TOKEN_SOURCE="${THREAD_PROBE_TOKEN_LINE#*|}"
+
+  if [ -z "$THREAD_PROBE_SLACK_TOKEN" ]; then
     THREAD_REPLY_RC=3
-    THREAD_REPLY_SUMMARY="SLACK_USER_TOKEN missing for thread reply probe"
+    THREAD_REPLY_SUMMARY="bot token missing for thread reply probe (checked SLACK_BOT_TOKEN, OPENCLAW_MONITOR_CANARY_BOT_TOKEN, ~/.mcp_mail/credentials.json)"
     return "$THREAD_REPLY_RC"
   fi
   if ! command -v jq >/dev/null 2>&1; then
@@ -597,7 +674,7 @@ run_thread_reply_probe() {
   oldest_ts=$(( now - THREAD_REPLY_LOOKBACK_SECONDS ))
   history_output="$(
     curl -sS -G "$SLACK_API_BASE/conversations.history" \
-      -H "Authorization: Bearer $SLACK_USER_TOKEN" \
+      -H "Authorization: Bearer $THREAD_PROBE_SLACK_TOKEN" \
       --data-urlencode "channel=$THREAD_REPLY_CHANNEL" \
       --data-urlencode "oldest=$oldest_ts" \
       --data-urlencode "inclusive=true" \
@@ -614,10 +691,10 @@ run_thread_reply_probe() {
 
   local resolved_bot_user bot_auth_output
   resolved_bot_user="$THREAD_REPLY_BOT_USER_ID"
-  if [ -z "$resolved_bot_user" ] && [ -n "${OPENCLAW_SLACK_BOT_TOKEN:-}" ]; then
+  if [ -z "$resolved_bot_user" ] && [ -n "${SLACK_BOT_TOKEN:-}" ]; then
     bot_auth_output="$(
       curl -sS -X POST "$SLACK_API_BASE/auth.test" \
-        -H "Authorization: Bearer $OPENCLAW_SLACK_BOT_TOKEN" \
+        -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
         -H "Content-Type: application/x-www-form-urlencoded" 2>&1
     )"
     resolved_bot_user="$(printf '%s\n' "$bot_auth_output" | jq -r '.user_id // empty' 2>/dev/null || true)"
@@ -652,7 +729,7 @@ run_thread_reply_probe() {
 
     replies_output="$(
       curl -sS -G "$SLACK_API_BASE/conversations.replies" \
-        -H "Authorization: Bearer $SLACK_USER_TOKEN" \
+        -H "Authorization: Bearer $THREAD_PROBE_SLACK_TOKEN" \
         --data-urlencode "channel=$THREAD_REPLY_CHANNEL" \
         --data-urlencode "ts=$thread_ts" \
         --data-urlencode "limit=80" 2>&1
@@ -723,15 +800,67 @@ run_thread_reply_probe() {
 
 run_token_probes || true
 run_thread_reply_probe || true
+run_core_md_probe || true
 run_memory_lookup_probe || true
 
+# WS churn check: detect Slack WebSocket cycling (event loop blocked → pong timeout → reconnect)
+WS_CHURN_RC=0
+WS_CHURN_SUMMARY="skipped"
+LOG_TODAY="/tmp/openclaw/openclaw-$(date +%F).log"
+if [ -f "$LOG_TODAY" ]; then
+  WS_THRESHOLD="${OPENCLAW_MONITOR_WS_CHURN_THRESHOLD:-10}"
+  # Only scan the last WS_LOOKBACK_MINUTES (default 60) to avoid false positives
+  # from past incidents earlier in the same day's log file.
+  WS_LOOKBACK_MINUTES="${OPENCLAW_MONITOR_WS_CHURN_LOOKBACK:-60}"
+  # Validate numeric (CR: non-numeric override would break date arithmetic)
+  if ! [[ "$WS_LOOKBACK_MINUTES" =~ ^[0-9]+$ ]]; then
+    log "OPENCLAW_MONITOR_WS_CHURN_LOOKBACK='$WS_LOOKBACK_MINUTES' is not numeric; defaulting to 60"
+    WS_LOOKBACK_MINUTES=60
+  fi
+  WS_CUTOFF=$(date -v-${WS_LOOKBACK_MINUTES}M '+%Y-%m-%dT%H:%M' 2>/dev/null || \
+              date -d "${WS_LOOKBACK_MINUTES} minutes ago" '+%Y-%m-%dT%H:%M' 2>/dev/null || echo "")
+  WS_MAX=""
+  WS_TS_OK=0
+  while IFS= read -r _ws_line; do
+    _ts=$(printf '%s\n' "$_ws_line" \
+      | grep -oE '"time":"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}' \
+      | sed 's/"time":"//' | head -1)
+    # Fail-closed: skip lines with no parseable timestamp
+    if [ -z "$_ts" ]; then
+      continue
+    fi
+    WS_TS_OK=1
+    # Skip entries older than the lookback window (ISO timestamps sort lexicographically)
+    if [ -n "$WS_CUTOFF" ] && [[ "$_ts" < "$WS_CUTOFF" ]]; then
+      continue
+    fi
+    _val=$(printf '%s\n' "$_ws_line" | grep -oE 'SlackWebSocket:[0-9]+' | grep -oE '[0-9]+$' | head -1)
+    if [ -n "$_val" ] && { [ -z "$WS_MAX" ] || [ "$_val" -gt "$WS_MAX" ]; }; then
+      WS_MAX="$_val"
+    fi
+  done < <(grep "SlackWebSocket:[0-9]" "$LOG_TODAY" 2>/dev/null)
+  # Fallback: only when all log lines had unparseable timestamps (WS_TS_OK=0).
+  # Not when the lookback window simply had no entries — that case is healthy.
+  if [ -z "$WS_MAX" ] && [ "$WS_TS_OK" -eq 0 ]; then
+    WS_MAX=$(grep -oE 'SlackWebSocket:[0-9]+' "$LOG_TODAY" 2>/dev/null \
+      | grep -oE '[0-9]+$' | sort -n | tail -1 || echo "")
+  fi
+  if [ -n "$WS_MAX" ] && [ "$WS_MAX" -gt "$WS_THRESHOLD" ]; then
+    WS_CHURN_RC=1
+    WS_CHURN_SUMMARY="SlackWebSocket:$WS_MAX > threshold $WS_THRESHOLD — event loop blocking pong responses"
+    HTTP_GATEWAY_RC=1  # Trigger Phase 1 restart
+  else
+    WS_CHURN_SUMMARY="ok (max=${WS_MAX:-0} threshold=$WS_THRESHOLD lookback=${WS_LOOKBACK_MINUTES}m)"
+  fi
+fi
+
 PHASE1_REMEDIATION_ACTIONS=()
-if [ "$PHASE1_REMEDIATION_ENABLED" = "1" ] && [ "$(uname)" = "Darwin" ]; then
+if [ "$PHASE1_REMEDIATION_ENABLED" = "1" ]; then
   if [ "$HTTP_GATEWAY_RC" -ne 0 ]; then
     # SAFE: use launchctl directly — never 'gateway restart/install' which may regenerate plist and wipe real secrets
-    launchctl unload "$HOME/Library/LaunchAgents/ai.openclaw.gateway.plist" >> "$LOG_FILE" 2>&1 || true
+    launchctl unload "$HOME/Library/LaunchAgents/ai.smartclaw.gateway.plist" >> "$LOG_FILE" 2>&1 || true
     sleep 1
-    if launchctl load "$HOME/Library/LaunchAgents/ai.openclaw.gateway.plist" >> "$LOG_FILE" 2>&1; then
+    if launchctl load "$HOME/Library/LaunchAgents/ai.smartclaw.gateway.plist" >> "$LOG_FILE" 2>&1; then
       PHASE1_REMEDIATION_ACTIONS+=("gateway_restart_ok")
     else
       PHASE1_REMEDIATION_ACTIONS+=("gateway_restart_failed")
@@ -740,7 +869,7 @@ if [ "$PHASE1_REMEDIATION_ENABLED" = "1" ] && [ "$(uname)" = "Darwin" ]; then
   fi
 
   if [ "$PROBE_REQUEST_RC" -ne 0 ] || [ "$GATEWAY_PROBE_RC" -ne 0 ]; then
-    if launchctl kickstart -k "gui/$(id -u)/ai.openclaw.gateway" >> "$LOG_FILE" 2>&1; then
+    if launchctl kickstart -k "gui/$(id -u)/ai.smartclaw.gateway" >> "$LOG_FILE" 2>&1; then
       PHASE1_REMEDIATION_ACTIONS+=("launchctl_kickstart_gateway_ok")
     else
       PHASE1_REMEDIATION_ACTIONS+=("launchctl_kickstart_gateway_failed")
@@ -789,7 +918,13 @@ if [ "${#PHASE1_REMEDIATION_ACTIONS[@]}" -gt 0 ]; then
 
   run_token_probes || true
   run_thread_reply_probe || true
+  run_core_md_probe || true
   run_memory_lookup_probe || true
+fi
+
+PRE_CANARY_FAILURE=0
+if [ "$PROBE_REQUEST_RC" -ne 0 ] || [ "$GATEWAY_PROBE_RC" -ne 0 ] || [ "$HTTP_GATEWAY_RC" -ne 0 ] || [ "$THREAD_REPLY_RC" -ne 0 ] || [ "$TOKEN_PROBE_RC" -eq 1 ] || [ "$MEMORY_LOOKUP_RC" -eq 2 ] || [ "$MEMORY_LOOKUP_RC" -eq 3 ] || [ "$WS_CHURN_RC" -ne 0 ]; then
+  PRE_CANARY_FAILURE=1
 fi
 
 SLACK_CANARY_TEXT="[monitor-e2e-canary] $(date '+%Y-%m-%d %H:%M:%S %Z')"
@@ -797,14 +932,18 @@ SLACK_CANARY_RC=0
 SLACK_CANARY_SUMMARY="canary skipped"
 SLACK_CANARY_THREAD_TS=""
 
-if [ "$RUN_CANARY" = "1" ]; then
-  if [ -z "${SLACK_USER_TOKEN:-}" ]; then
+if [ "$RUN_CANARY" = "1" ] && [ "$PRE_CANARY_FAILURE" = "0" ]; then
+  CANARY_TOKEN_LINE="$(resolve_canary_slack_token)"
+  CANARY_SLACK_TOKEN="${CANARY_TOKEN_LINE%%|*}"
+  CANARY_TOKEN_SOURCE="${CANARY_TOKEN_LINE#*|}"
+
+  if [ -z "${CANARY_SLACK_TOKEN:-}" ]; then
     SLACK_CANARY_RC=2
-    SLACK_CANARY_SUMMARY="SLACK_USER_TOKEN missing; cannot run inbound Slack E2E canary"
+    SLACK_CANARY_SUMMARY="no canary sender token found (checked OPENCLAW_MONITOR_CANARY_BOT_TOKEN, ~/.mcp_mail/credentials.json)"
   else
     SLACK_POST_OUTPUT="$(
       curl -sS -X POST "$SLACK_API_BASE/chat.postMessage" \
-        -H "Authorization: Bearer $SLACK_USER_TOKEN" \
+        -H "Authorization: Bearer $CANARY_SLACK_TOKEN" \
         -H "Content-Type: application/json; charset=utf-8" \
         -d "{\"channel\":\"$ALERT_SLACK_TARGET\",\"text\":\"$SLACK_CANARY_TEXT\"}" 2>&1
     )"
@@ -813,16 +952,28 @@ if [ "$RUN_CANARY" = "1" ]; then
 
     if [ "$SLACK_POST_OK" != "true" ] || [ -z "$SLACK_CANARY_THREAD_TS" ]; then
       SLACK_CANARY_RC=3
-      SLACK_CANARY_SUMMARY="canary post failed: $(printf '%s\n' "$SLACK_POST_OUTPUT" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | cut -c1-220)"
-    else
+      SLACK_CANARY_SUMMARY="canary post failed via $CANARY_TOKEN_SOURCE: $(printf '%s\n' "$SLACK_POST_OUTPUT" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | cut -c1-220)"
+    fi
+
+    if [ "$SLACK_POST_OK" = "true" ] && [ -n "$SLACK_CANARY_THREAD_TS" ]; then
       CANARY_DEADLINE=$(( $(date +%s) + CANARY_TIMEOUT_SECONDS ))
       SLACK_CANARY_RC=4
-      SLACK_CANARY_SUMMARY="canary posted (ts=$SLACK_CANARY_THREAD_TS), waiting for agent thread reply timed out"
+      SLACK_CANARY_SUMMARY="canary posted via $CANARY_TOKEN_SOURCE (ts=$SLACK_CANARY_THREAD_TS), waiting for agent thread reply timed out"
+
+      # For reading replies, prefer a token whose bot is already in the channel.
+      # The canary sender may have chat:write.public (can post without membership)
+      # but lack channel membership needed for conversations.replies.
+      _replies_token="$CANARY_SLACK_TOKEN"
+      _replies_token_src="$CANARY_TOKEN_SOURCE"
+      if [ -n "${SLACK_BOT_TOKEN:-}" ] && ! is_placeholder_token "$SLACK_BOT_TOKEN"; then
+        _replies_token="$SLACK_BOT_TOKEN"
+        _replies_token_src="SLACK_BOT_TOKEN(replies-fallback)"
+      fi
 
       while [ "$(date +%s)" -lt "$CANARY_DEADLINE" ]; do
         SLACK_REPLIES_OUTPUT="$(
           curl -sS -G "$SLACK_API_BASE/conversations.replies" \
-            -H "Authorization: Bearer $SLACK_USER_TOKEN" \
+            -H "Authorization: Bearer $_replies_token" \
             --data-urlencode "channel=$ALERT_SLACK_TARGET" \
             --data-urlencode "ts=$SLACK_CANARY_THREAD_TS" \
             --data-urlencode "limit=20" 2>&1
@@ -836,11 +987,31 @@ if [ "$RUN_CANARY" = "1" ]; then
           fi
 
           REPLY_COUNT="$(printf '%s\n' "$SLACK_REPLIES_OUTPUT" | rg -o '"ts":"[^"]+"' | wc -l | tr -d ' ')"
-          if [ "${REPLY_COUNT:-0}" -gt 1 ]; then
+          # Also accept :eyes: reaction on the parent message — openclaw acks bot messages
+          # via reaction rather than a thread reply (confirmed 2026-03-24).
+          HAS_EYES_REACTION="$(printf '%s\n' "$SLACK_REPLIES_OUTPUT" | rg -o '"name":"eyes"' | head -n1 || true)"
+          if [ "${REPLY_COUNT:-0}" -gt 1 ] || [ -n "$HAS_EYES_REACTION" ]; then
             SLACK_CANARY_RC=0
-            SLACK_CANARY_SUMMARY="canary reply received in thread (ts=$SLACK_CANARY_THREAD_TS)"
+            if [ -n "$HAS_EYES_REACTION" ]; then
+              SLACK_CANARY_SUMMARY="canary acked via :eyes: reaction (ts=$SLACK_CANARY_THREAD_TS, sender=$CANARY_TOKEN_SOURCE)"
+            else
+              SLACK_CANARY_SUMMARY="canary reply received in thread (ts=$SLACK_CANARY_THREAD_TS, sender=$CANARY_TOKEN_SOURCE)"
+            fi
             break
           fi
+        else
+          # Transient errors (rate limit, server error): retry on next poll interval.
+          replies_error="$(printf '%s\n' "$SLACK_REPLIES_OUTPUT" | rg -o '"error":"[^"]+"' | head -n1 | cut -d: -f2 | tr -d '"' || true)"
+          if printf '%s\n' "${replies_error:-}" | rg -q 'ratelimited|internal_error|service_unavailable'; then
+            sleep "$CANARY_POLL_INTERVAL_SECONDS"
+            continue
+          fi
+          # Permanent failure: break fast with the real API error instead of
+          # spinning for the remaining timeout window.
+          [ -z "$replies_error" ] && replies_error="$(printf '%s\n' "$SLACK_REPLIES_OUTPUT" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | cut -c1-160)"
+          SLACK_CANARY_RC=3
+          SLACK_CANARY_SUMMARY="canary replies failed via $_replies_token_src: $replies_error"
+          break
         fi
 
         sleep "$CANARY_POLL_INTERVAL_SECONDS"
@@ -862,6 +1033,10 @@ collect_force_reasons() {
   # Empty results (RC=4) is a warning but not a hard failure (corpus may be empty)
   [ "$MEMORY_LOOKUP_RC" -eq 2 ] && FORCE_REASONS+=("memory_lookup rc=$MEMORY_LOOKUP_RC summary=$MEMORY_LOOKUP_SUMMARY")
   [ "$MEMORY_LOOKUP_RC" -eq 3 ] && FORCE_REASONS+=("memory_lookup rc=$MEMORY_LOOKUP_RC summary=$MEMORY_LOOKUP_SUMMARY")
+  # Core md: only missing/broken files (RC=1) are critical; empty files (RC=2) are a warning
+  [ "$CORE_MD_RC" -eq 1 ] && FORCE_REASONS+=("core_md rc=$CORE_MD_RC summary=$CORE_MD_SUMMARY")
+  # WS churn: Slack WebSocket cycling > threshold means event loop blocking pong → silent event drops
+  [ "$WS_CHURN_RC" -ne 0 ] && FORCE_REASONS+=("ws_churn rc=$WS_CHURN_RC summary=$WS_CHURN_SUMMARY")
 }
 
 collect_force_reasons
@@ -879,7 +1054,7 @@ if [ "$FORCE_PROBLEM" -eq 1 ] && [ "$PHASE2_ENABLED" = "1" ]; then
     PHASE2_MODE="diagnose_and_fix"
   fi
 
-  PHASE2_CONFIG_RULE="Do NOT run config-mutating commands (openclaw doctor, openclaw config set, cp/mv/jq edits on ~/.openclaw/openclaw.json)."
+  PHASE2_CONFIG_RULE="Do NOT run config-mutating commands (openclaw doctor, openclaw config set, cp/mv/jq edits on ~/.smartclaw/openclaw.json)."
   if [ "$PHASE2_ALLOW_CONFIG_MUTATIONS" = "1" ]; then
     PHASE2_CONFIG_RULE="Config mutation is allowed, but only if directly required for the unresolved failures."
   fi
@@ -922,12 +1097,62 @@ If mode is diagnose_only, return:
   _PHASE2_BG_PID=$!
 fi
 
+if [ "$FORCE_PROBLEM" -eq 1 ] && [ "$PHASE2_ENABLED" = "1" ] && [ "$PHASE2_AUTOFIX_ENABLED" = "1" ] && [ "$PHASE2_RC" -eq 0 ]; then
+  PROBE_REQUEST_OUTPUT="$("$OPENCLAW_BIN" message read --channel slack --target "$PROBE_SLACK_TARGET" --limit 1 --json 2>&1)"
+  PROBE_REQUEST_RC=$?
+  PROBE_REQUEST_SUMMARY="$(printf '%s\n' "$PROBE_REQUEST_OUTPUT" | rg -m1 '"ts"|"timestampUtc"|"thread_ts"|^Error|^gateway connect failed' || true)"
+  if [ -z "$PROBE_REQUEST_SUMMARY" ]; then
+    PROBE_REQUEST_SUMMARY="$(printf '%s\n' "$PROBE_REQUEST_OUTPUT" | head -n 1)"
+  fi
+  PROBE_REQUEST_SUMMARY="$(printf '%s\n' "$PROBE_REQUEST_SUMMARY" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | cut -c1-240)"
+
+  GATEWAY_PROBE_TEXT="OpenClaw monitor recheck after phase 2: $(date '+%Y-%m-%d %H:%M:%S %Z')"
+  GATEWAY_PROBE_OUTPUT="$("$OPENCLAW_BIN" message send --channel slack --target "$GATEWAY_PROBE_TARGET" --message "$GATEWAY_PROBE_TEXT" --json 2>&1)"
+  GATEWAY_PROBE_RC=$?
+  GATEWAY_PROBE_SUMMARY="$(printf '%s\n' "$GATEWAY_PROBE_OUTPUT" | rg -m1 '"messageId"|"ts"|"ok"|^Error|^gateway connect failed' || true)"
+  if [ -z "$GATEWAY_PROBE_SUMMARY" ]; then
+    GATEWAY_PROBE_SUMMARY="$(printf '%s\n' "$GATEWAY_PROBE_OUTPUT" | head -n 1)"
+  fi
+  GATEWAY_PROBE_SUMMARY="$(printf '%s\n' "$GATEWAY_PROBE_SUMMARY" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | cut -c1-240)"
+
+  HTTP_GATEWAY_OUTPUT="$(
+    curl -sS -X GET "$HTTP_GATEWAY_URL" \
+      -H "X-OpenClaw-Monitor-Message: [monitor-http-probe-post-phase2] $(date '+%Y-%m-%d %H:%M:%S %Z')" \
+      -H "Accept: application/json" \
+      -w '\nHTTP_STATUS:%{http_code}' 2>&1
+  )"
+  HTTP_GATEWAY_RC=$?
+  HTTP_GATEWAY_SUMMARY="$(printf '%s\n' "$HTTP_GATEWAY_OUTPUT" | rg -m1 'HTTP_STATUS:|\"ok\"|\"status\"|^curl:|^Error' || true)"
+  if [ -z "$HTTP_GATEWAY_SUMMARY" ]; then
+    HTTP_GATEWAY_SUMMARY="$(printf '%s\n' "$HTTP_GATEWAY_OUTPUT" | head -n 1)"
+  fi
+  HTTP_GATEWAY_SUMMARY="$(printf '%s\n' "$HTTP_GATEWAY_SUMMARY" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | cut -c1-240)"
+  HTTP_GATEWAY_STATUS="$(printf '%s\n' "$HTTP_GATEWAY_OUTPUT" | rg -o 'HTTP_STATUS:[0-9]+' | tail -n1 | cut -d: -f2)"
+  if [ -z "$HTTP_GATEWAY_STATUS" ]; then
+    HTTP_GATEWAY_STATUS="0"
+  fi
+  if [ "$HTTP_GATEWAY_STATUS" -lt 200 ] || [ "$HTTP_GATEWAY_STATUS" -ge 300 ]; then
+    HTTP_GATEWAY_RC=1
+  fi
+
+  run_token_probes || true
+  run_thread_reply_probe || true
+  run_core_md_probe || true
+  run_memory_lookup_probe || true
+  collect_force_reasons
+  FORCE_PROBLEM=0
+  if [ "${#FORCE_REASONS[@]}" -gt 0 ]; then
+    FORCE_PROBLEM=1
+  fi
+fi
+
 DOCTOR_SH_RAN=0
 DOCTOR_SH_RC=0
 DOCTOR_SH_PATH=""
 DOCTOR_SH_LEVEL="skipped"
 DOCTOR_SH_SUMMARY="doctor.sh skipped in this cycle"
 DOCTOR_SH_OUTPUT=""
+DOCTOR_SH_TRANSIENT_RECOVERED=0
 if [ "$DOCTOR_SH_ENABLED" = "1" ]; then
   SHOULD_RUN_DOCTOR_SH=0
   if [ "$DOCTOR_SH_ALWAYS" = "1" ] || [ "$FORCE_PROBLEM" -eq 1 ] || [ "$TOKEN_PROBE_RC" -eq 2 ]; then
@@ -937,14 +1162,30 @@ if [ "$DOCTOR_SH_ENABLED" = "1" ]; then
   if [ "$SHOULD_RUN_DOCTOR_SH" -eq 1 ]; then
     if DOCTOR_SH_PATH="$(resolve_doctor_sh_path)"; then
       DOCTOR_SH_RAN=1
-      # Skip inference probe in doctor.sh only when the monitor itself runs an inference probe;
-      # if the monitor's own probe is disabled, let doctor.sh perform the LLM round-trip.
-      if [ "$INFERENCE_PROBE_ENABLED" = "1" ]; then
-        DOCTOR_SH_OUTPUT="$(OPENCLAW_DOCTOR_SKIP_INFERENCE=1 bash "$DOCTOR_SH_PATH" 2>&1)"
-      else
-        DOCTOR_SH_OUTPUT="$(bash "$DOCTOR_SH_PATH" 2>&1)"
-      fi
+      # Skip inference probe: monitor already runs a canary E2E test for LLM reachability.
+      DOCTOR_SH_OUTPUT="$(OPENCLAW_DOCTOR_SKIP_INFERENCE=1 bash "$DOCTOR_SH_PATH" 2>&1)"
       DOCTOR_SH_RC=$?
+
+      # Intermittent hardening: retry once when failure appears to be only
+      # "openclaw gateway health command failed" (transient gateway blip).
+      DOCTOR_SH_RETRY_ON_GATEWAY_HEALTH_FAIL="${OPENCLAW_MONITOR_DOCTOR_SH_RETRY_ON_GATEWAY_HEALTH_FAIL:-1}"
+      DOCTOR_SH_RETRY_DELAY_SEC="${OPENCLAW_MONITOR_DOCTOR_SH_RETRY_DELAY_SEC:-12}"
+      if [ "$DOCTOR_SH_RETRY_ON_GATEWAY_HEALTH_FAIL" = "1" ] \
+        && [ "$DOCTOR_SH_RC" -ne 0 ] \
+        && printf '%s\n' "$DOCTOR_SH_OUTPUT" | rg -q '^\[FAIL\] openclaw gateway health command failed'; then
+        sleep "$DOCTOR_SH_RETRY_DELAY_SEC"
+        _doctor_retry_output="$(OPENCLAW_DOCTOR_SKIP_INFERENCE=1 bash "$DOCTOR_SH_PATH" 2>&1)"
+        _doctor_retry_rc=$?
+        if [ "$_doctor_retry_rc" -eq 0 ]; then
+          DOCTOR_SH_OUTPUT="$DOCTOR_SH_OUTPUT\n\n[INFO] monitor retry: recovered after ${DOCTOR_SH_RETRY_DELAY_SEC}s backoff\n$_doctor_retry_output"
+          DOCTOR_SH_RC=0
+          DOCTOR_SH_TRANSIENT_RECOVERED=1
+        else
+          DOCTOR_SH_OUTPUT="$DOCTOR_SH_OUTPUT\n\n[INFO] monitor retry: still failing after ${DOCTOR_SH_RETRY_DELAY_SEC}s backoff (rc=$_doctor_retry_rc)\n$_doctor_retry_output"
+          DOCTOR_SH_RC=$_doctor_retry_rc
+        fi
+      fi
+
       if [ "$DOCTOR_SH_RC" -eq 0 ]; then
         DOCTOR_SH_LEVEL="good"
       elif printf '%s\n' "$DOCTOR_SH_OUTPUT" | rg -qi '\[FAIL\]|Doctor errors|fatal|invalid_auth'; then
@@ -952,20 +1193,24 @@ if [ "$DOCTOR_SH_ENABLED" = "1" ]; then
       else
         DOCTOR_SH_LEVEL="warn"
       fi
-      # Prefer FAIL lines for actionable summary; fall back to Summary line, then first line
-      DOCTOR_SH_SUMMARY="$(printf '%s\n' "$DOCTOR_SH_OUTPUT" | rg -i '\[FAIL\]' | head -3 | tr '\n' ' ' || true)"
+      # Actionable summary: [FAIL] lines (doctor.sh uses this prefix), then [WARN], then Summary:,
+      # then last non-empty lines (avoids useless first line like "OpenClaw Repo Doctor").
+      DOCTOR_SH_SUMMARY="$(printf '%s\n' "$DOCTOR_SH_OUTPUT" | rg '^\[FAIL\]' | head -5 | awk 'BEGIN{sep=""} {printf "%s%s", sep, $0; sep=" | "} END{print ""}' || true)"
       if [ -z "$DOCTOR_SH_SUMMARY" ]; then
-        DOCTOR_SH_SUMMARY="$(printf '%s\n' "$DOCTOR_SH_OUTPUT" | rg -m1 'Summary:' || true)"
+        DOCTOR_SH_SUMMARY="$(printf '%s\n' "$DOCTOR_SH_OUTPUT" | rg '^\[WARN\]' | head -5 | awk 'BEGIN{sep=""} {printf "%s%s", sep, $0; sep=" | "} END{print ""}' || true)"
       fi
       if [ -z "$DOCTOR_SH_SUMMARY" ]; then
-        DOCTOR_SH_SUMMARY="$(printf '%s\n' "$DOCTOR_SH_OUTPUT" | head -n 1)"
+        DOCTOR_SH_SUMMARY="$(printf '%s\n' "$DOCTOR_SH_OUTPUT" | rg -m1 '^Summary:' || true)"
       fi
-      DOCTOR_SH_SUMMARY="$(printf '%s\n' "$DOCTOR_SH_SUMMARY" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | cut -c1-240)"
+      if [ -z "$DOCTOR_SH_SUMMARY" ]; then
+        DOCTOR_SH_SUMMARY="$(printf '%s\n' "$DOCTOR_SH_OUTPUT" | sed '/^$/d' | tail -n 3 | head -n 1)"
+      fi
+      DOCTOR_SH_SUMMARY="$(printf '%s\n' "$DOCTOR_SH_SUMMARY" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | cut -c1-360)"
     else
       DOCTOR_SH_RAN=1
       DOCTOR_SH_RC=127
       DOCTOR_SH_LEVEL="bad"
-      DOCTOR_SH_SUMMARY="doctor.sh not found. Set OPENCLAW_MONITOR_DOCTOR_SH_PATH or OPENCLAW_MONITOR_DOCTOR_SH_SEARCH_PATHS."
+      DOCTOR_SH_SUMMARY="doctor.sh not found. Set OPENCLAW_MONITOR_DOCTOR_SH_PATH."
     fi
   fi
 fi
@@ -1022,54 +1267,6 @@ if [ "${_PHASE2_BG_PID:-}" != "" ]; then
   fi
 fi
 
-if [ "$FORCE_PROBLEM" -eq 1 ] && [ "$PHASE2_ENABLED" = "1" ] && [ "$PHASE2_AUTOFIX_ENABLED" = "1" ] && [ "$PHASE2_RC" -eq 0 ]; then
-  PROBE_REQUEST_OUTPUT="$("$OPENCLAW_BIN" message read --channel slack --target "$PROBE_SLACK_TARGET" --limit 1 --json 2>&1)"
-  PROBE_REQUEST_RC=$?
-  PROBE_REQUEST_SUMMARY="$(printf '%s\n' "$PROBE_REQUEST_OUTPUT" | rg -m1 '"ts"|"timestampUtc"|"thread_ts"|^Error|^gateway connect failed' || true)"
-  if [ -z "$PROBE_REQUEST_SUMMARY" ]; then
-    PROBE_REQUEST_SUMMARY="$(printf '%s\n' "$PROBE_REQUEST_OUTPUT" | head -n 1)"
-  fi
-  PROBE_REQUEST_SUMMARY="$(printf '%s\n' "$PROBE_REQUEST_SUMMARY" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | cut -c1-240)"
-
-  GATEWAY_PROBE_TEXT="OpenClaw monitor recheck after phase 2: $(date '+%Y-%m-%d %H:%M:%S %Z')"
-  GATEWAY_PROBE_OUTPUT="$("$OPENCLAW_BIN" message send --channel slack --target "$GATEWAY_PROBE_TARGET" --message "$GATEWAY_PROBE_TEXT" --json 2>&1)"
-  GATEWAY_PROBE_RC=$?
-  GATEWAY_PROBE_SUMMARY="$(printf '%s\n' "$GATEWAY_PROBE_OUTPUT" | rg -m1 '"messageId"|"ts"|"ok"|^Error|^gateway connect failed' || true)"
-  if [ -z "$GATEWAY_PROBE_SUMMARY" ]; then
-    GATEWAY_PROBE_SUMMARY="$(printf '%s\n' "$GATEWAY_PROBE_OUTPUT" | head -n 1)"
-  fi
-  GATEWAY_PROBE_SUMMARY="$(printf '%s\n' "$GATEWAY_PROBE_SUMMARY" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | cut -c1-240)"
-
-  HTTP_GATEWAY_OUTPUT="$(
-    curl -sS -X GET "$HTTP_GATEWAY_URL" \
-      -H "X-OpenClaw-Monitor-Message: [monitor-http-probe-post-phase2] $(date '+%Y-%m-%d %H:%M:%S %Z')" \
-      -H "Accept: application/json" \
-      -w '\nHTTP_STATUS:%{http_code}' 2>&1
-  )"
-  HTTP_GATEWAY_RC=$?
-  HTTP_GATEWAY_SUMMARY="$(printf '%s\n' "$HTTP_GATEWAY_OUTPUT" | rg -m1 'HTTP_STATUS:|\"ok\"|\"status\"|^curl:|^Error' || true)"
-  if [ -z "$HTTP_GATEWAY_SUMMARY" ]; then
-    HTTP_GATEWAY_SUMMARY="$(printf '%s\n' "$HTTP_GATEWAY_OUTPUT" | head -n 1)"
-  fi
-  HTTP_GATEWAY_SUMMARY="$(printf '%s\n' "$HTTP_GATEWAY_SUMMARY" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | cut -c1-240)"
-  HTTP_GATEWAY_STATUS="$(printf '%s\n' "$HTTP_GATEWAY_OUTPUT" | rg -o 'HTTP_STATUS:[0-9]+' | tail -n1 | cut -d: -f2)"
-  if [ -z "$HTTP_GATEWAY_STATUS" ]; then
-    HTTP_GATEWAY_STATUS="0"
-  fi
-  if [ "$HTTP_GATEWAY_STATUS" -lt 200 ] || [ "$HTTP_GATEWAY_STATUS" -ge 300 ]; then
-    HTTP_GATEWAY_RC=1
-  fi
-
-  run_token_probes || true
-  run_thread_reply_probe || true
-  run_memory_lookup_probe || true
-  collect_force_reasons
-  FORCE_PROBLEM=0
-  if [ "${#FORCE_REASONS[@]}" -gt 0 ]; then
-    FORCE_PROBLEM=1
-  fi
-fi
-
 # Inference probe: real end-to-end LLM call through gateway
 INFERENCE_PROBE_RC=0
 INFERENCE_PROBE_OUTPUT=""
@@ -1101,10 +1298,14 @@ if [ "$STATUS" = "GOOD" ]; then
     HUMAN_SUMMARY_LINES+=("Non-blocking token warnings detected. Details are in token_probes evidence.")
   fi
   if [ "$DOCTOR_SH_RAN" -eq 1 ] && [ "$DOCTOR_SH_LEVEL" = "warn" ]; then
-    HUMAN_SUMMARY_LINES+=("doctor.sh reported warnings (rc=$DOCTOR_SH_RC).")
+    HUMAN_SUMMARY_LINES+=("doctor.sh warnings (rc=$DOCTOR_SH_RC): ${DOCTOR_SH_SUMMARY:-no parsed detail}")
   elif [ "$DOCTOR_SH_RAN" -eq 1 ] && [ "$DOCTOR_SH_LEVEL" = "bad" ]; then
-    HUMAN_SUMMARY_LINES+=("doctor.sh reported failures (rc=$DOCTOR_SH_RC).")
+    HUMAN_SUMMARY_LINES+=("doctor.sh failures (rc=$DOCTOR_SH_RC): ${DOCTOR_SH_SUMMARY:-no parsed detail}")
+  elif [ "$DOCTOR_SH_RAN" -eq 1 ] && [ "$DOCTOR_SH_TRANSIENT_RECOVERED" -eq 1 ]; then
+    HUMAN_SUMMARY_LINES+=("doctor.sh transient gateway-health failure recovered after retry (${OPENCLAW_MONITOR_DOCTOR_SH_RETRY_DELAY_SEC:-12}s backoff).")
   fi
+  # Empty core md files (RC=2) are a warning but do not change overall STATUS.
+  [ "$CORE_MD_RC" -eq 2 ] && HUMAN_SUMMARY_LINES+=("Core markdown file(s) are empty: $CORE_MD_SUMMARY")
 else
   HUMAN_SUMMARY_LINES+=("One or more active checks are failing right now.")
   [ "$PROBE_REQUEST_RC" -ne 0 ] && HUMAN_SUMMARY_LINES+=("OpenClaw could not read recent Slack messages from channel $PROBE_SLACK_TARGET.")
@@ -1113,10 +1314,11 @@ else
   [ "$THREAD_REPLY_RC" -ne 0 ] && HUMAN_SUMMARY_LINES+=("Thread reply check found an unanswered human message or a recent failure marker in channel $THREAD_REPLY_CHANNEL.")
   [ "$TOKEN_PROBE_RC" -eq 1 ] && HUMAN_SUMMARY_LINES+=("At least one required token probe failed. See token_probes evidence for the exact token path.")
   [ "$SLACK_CANARY_RC" -ne 0 ] && HUMAN_SUMMARY_LINES+=("Slack inbound E2E canary failed in this run.")
-  [ "$DOCTOR_SH_RAN" -eq 1 ] && [ "$DOCTOR_SH_LEVEL" = "warn" ] && HUMAN_SUMMARY_LINES+=("doctor.sh reported warnings (rc=$DOCTOR_SH_RC).")
-  [ "$DOCTOR_SH_RAN" -eq 1 ] && [ "$DOCTOR_SH_LEVEL" = "bad" ] && HUMAN_SUMMARY_LINES+=("doctor.sh reported failures (rc=$DOCTOR_SH_RC).")
+  [ "$DOCTOR_SH_RAN" -eq 1 ] && [ "$DOCTOR_SH_LEVEL" = "warn" ] && HUMAN_SUMMARY_LINES+=("doctor.sh warnings (rc=$DOCTOR_SH_RC): ${DOCTOR_SH_SUMMARY:-no parsed detail}")
+  [ "$DOCTOR_SH_RAN" -eq 1 ] && [ "$DOCTOR_SH_LEVEL" = "bad" ] && HUMAN_SUMMARY_LINES+=("doctor.sh failures (rc=$DOCTOR_SH_RC): ${DOCTOR_SH_SUMMARY:-no parsed detail}")
   [ "$AO_DOCTOR_RAN" -eq 1 ] && [ "$AO_DOCTOR_LEVEL" = "warn" ] && HUMAN_SUMMARY_LINES+=("ao doctor reported warnings: $AO_DOCTOR_SUMMARY")
   [ "$AO_DOCTOR_RAN" -eq 1 ] && [ "$AO_DOCTOR_LEVEL" = "bad" ] && HUMAN_SUMMARY_LINES+=("ao doctor reported failures: $AO_DOCTOR_SUMMARY")
+  [ "$CORE_MD_RC" -eq 1 ] && HUMAN_SUMMARY_LINES+=("Core markdown file(s) missing or broken: $CORE_MD_SUMMARY")
 fi
 
 REPORT="STATUS=$STATUS
@@ -1138,8 +1340,9 @@ ACTIVE EVIDENCE:
 - slack_thread_reply_probe rc=$THREAD_REPLY_RC summary=$THREAD_REPLY_SUMMARY
 - token_probes rc=$TOKEN_PROBE_RC summary=$TOKEN_PROBE_SUMMARY
 - memory_lookup rc=$MEMORY_LOOKUP_RC summary=$MEMORY_LOOKUP_SUMMARY
+- core_md rc=$CORE_MD_RC summary=$CORE_MD_SUMMARY
 - slack_canary rc=$SLACK_CANARY_RC summary=$SLACK_CANARY_SUMMARY
-- doctor_sh ran=$DOCTOR_SH_RAN level=$DOCTOR_SH_LEVEL rc=$DOCTOR_SH_RC summary=$DOCTOR_SH_SUMMARY
+- doctor_sh ran=$DOCTOR_SH_RAN level=$DOCTOR_SH_LEVEL transient_recovered=$DOCTOR_SH_TRANSIENT_RECOVERED rc=$DOCTOR_SH_RC summary=$DOCTOR_SH_SUMMARY
 - ao_doctor ran=$AO_DOCTOR_RAN level=$AO_DOCTOR_LEVEL rc=$AO_DOCTOR_RC summary=$AO_DOCTOR_SUMMARY
 PHASE1 ACTIONS:"
 if [ "${#PHASE1_REMEDIATION_ACTIONS[@]}" -eq 0 ]; then
@@ -1209,7 +1412,7 @@ elif [ "$TOKEN_PROBE_RC" -eq 2 ]; then
 fi
 
 CANARY_STATUS_TEXT="${ICON_YELLOW} Skipped"
-if [ "$RUN_CANARY" = "1" ]; then
+if [ "$RUN_CANARY" = "1" ] && [ "$PRE_CANARY_FAILURE" = "0" ]; then
   if [ "$SLACK_CANARY_RC" -eq 0 ]; then
     CANARY_STATUS_TEXT="${ICON_GREEN} OK"
   else
@@ -1220,11 +1423,23 @@ fi
 DOCTOR_SH_STATUS_TEXT="${ICON_YELLOW} Skipped"
 if [ "$DOCTOR_SH_RAN" -eq 1 ]; then
   if [ "$DOCTOR_SH_LEVEL" = "good" ]; then
-    DOCTOR_SH_STATUS_TEXT="${ICON_GREEN} OK"
+    if [ "$DOCTOR_SH_TRANSIENT_RECOVERED" -eq 1 ]; then
+      DOCTOR_SH_STATUS_TEXT="${ICON_YELLOW} RECOVERED after retry"
+    else
+      DOCTOR_SH_STATUS_TEXT="${ICON_GREEN} OK"
+    fi
   elif [ "$DOCTOR_SH_LEVEL" = "warn" ]; then
     DOCTOR_SH_STATUS_TEXT="${ICON_YELLOW} WARNINGS (rc=$DOCTOR_SH_RC)"
+    if [ -n "$DOCTOR_SH_SUMMARY" ]; then
+      DOCTOR_SH_DOC_BRIEF="$(printf '%s' "$DOCTOR_SH_SUMMARY" | cut -c1-64)"
+      DOCTOR_SH_STATUS_TEXT="${DOCTOR_SH_STATUS_TEXT} — ${DOCTOR_SH_DOC_BRIEF}"
+    fi
   else
     DOCTOR_SH_STATUS_TEXT="${ICON_RED} FAILED (rc=$DOCTOR_SH_RC)"
+    if [ -n "$DOCTOR_SH_SUMMARY" ]; then
+      DOCTOR_SH_DOC_BRIEF="$(printf '%s' "$DOCTOR_SH_SUMMARY" | cut -c1-64)"
+      DOCTOR_SH_STATUS_TEXT="${DOCTOR_SH_STATUS_TEXT} — ${DOCTOR_SH_DOC_BRIEF}"
+    fi
   fi
 fi
 
@@ -1232,7 +1447,7 @@ WARNING_STATE=0
 if [ "$TOKEN_PROBE_RC" -eq 2 ]; then
   WARNING_STATE=1
 fi
-if [ "$DOCTOR_SH_LEVEL" = "warn" ]; then
+if [ "$DOCTOR_SH_LEVEL" = "warn" ] || [ "$DOCTOR_SH_TRANSIENT_RECOVERED" -eq 1 ]; then
   WARNING_STATE=1
 fi
 
@@ -1274,53 +1489,64 @@ if [ "$RUN_CANARY" = "1" ] && [ "$SLACK_CANARY_RC" -ne 0 ]; then
   ACTION_LINES+=("${ICON_RED} Check inbound Slack routing and agent reply path.")
 fi
 if [ "$DOCTOR_SH_RAN" -eq 1 ] && [ "$DOCTOR_SH_LEVEL" = "bad" ]; then
-  ISSUE_LINES+=("${ICON_RED} doctor.sh diagnostics failed.")
-  ACTION_LINES+=("${ICON_RED} Review doctor.sh output and remediate the reported checks.")
+  ISSUE_LINES+=("${ICON_RED} doctor.sh: ${DOCTOR_SH_SUMMARY:-failed (rc=$DOCTOR_SH_RC; no [FAIL] lines parsed)}")
+  _doctor_hint="${DOCTOR_SH_PATH:-$HOME/.smartclaw/doctor.sh}"
+  ACTION_LINES+=("${ICON_RED} Fix the checks named above; full log: bash ${_doctor_hint}")
 elif [ "$DOCTOR_SH_RAN" -eq 1 ] && [ "$DOCTOR_SH_LEVEL" = "warn" ]; then
-  ISSUE_LINES+=("${ICON_YELLOW} doctor.sh returned warnings.")
-  ACTION_LINES+=("${ICON_YELLOW} Review doctor.sh warnings and decide whether to address now.")
+  ISSUE_LINES+=("${ICON_YELLOW} doctor.sh: ${DOCTOR_SH_SUMMARY:-warnings (rc=$DOCTOR_SH_RC; no detail parsed)}")
+  _doctor_hint="${DOCTOR_SH_PATH:-$HOME/.smartclaw/doctor.sh}"
+  ACTION_LINES+=("${ICON_YELLOW} Review warnings above; full log: bash ${_doctor_hint}")
+elif [ "$DOCTOR_SH_RAN" -eq 1 ] && [ "$DOCTOR_SH_TRANSIENT_RECOVERED" -eq 1 ]; then
+  ISSUE_LINES+=("${ICON_YELLOW} doctor.sh transient gateway-health failure recovered after retry.")
+  _doctor_hint="${DOCTOR_SH_PATH:-$HOME/.smartclaw/doctor.sh}"
+  ACTION_LINES+=("${ICON_YELLOW} Monitor flapping; inspect gateway logs if this repeats. Log: bash ${_doctor_hint}")
 fi
 if [ "$PHASE2_ENABLED" = "1" ] && [ "$PHASE2_RC" -ne 0 ]; then
   ISSUE_LINES+=("${ICON_RED} Phase 2 remediation did not run successfully.")
   ACTION_LINES+=("${ICON_RED} Fix monitor phase 2 invocation and rerun monitor cycle.")
 fi
 
-# Build sorted check tables: RED → YELLOW → GREEN (important only)
+# Build sorted check tables: RED → YELLOW (passing checks omitted)
 RED_ROWS=()
 YELLOW_ROWS=()
-GREEN_ROWS=()
 
 _row() { printf '%-22s  %s' "$1" "$2"; }
 
-[ "$HTTP_GATEWAY_RC"   -ne 0 ] && RED_ROWS+=("$(_row "Gateway health"    "$HTTP_GATEWAY_STATUS_TEXT")")  || GREEN_ROWS+=("$(_row "Gateway health"    "$HTTP_GATEWAY_STATUS_TEXT")")
-[ "$PROBE_REQUEST_RC"  -ne 0 ] && RED_ROWS+=("$(_row "Slack read"        "$SLACK_READ_STATUS")")         || GREEN_ROWS+=("$(_row "Slack read"        "$SLACK_READ_STATUS")")
-[ "$GATEWAY_PROBE_RC"  -ne 0 ] && RED_ROWS+=("$(_row "Slack send"        "$SLACK_SEND_STATUS")")         || GREEN_ROWS+=("$(_row "Slack send"        "$SLACK_SEND_STATUS")")
-[ "$THREAD_REPLY_RC"   -ne 0 ] && RED_ROWS+=("$(_row "Thread replies"    "$THREAD_REPLY_STATUS_TEXT")")  || GREEN_ROWS+=("$(_row "Thread replies"    "$THREAD_REPLY_STATUS_TEXT")")
+[ "$HTTP_GATEWAY_RC"   -ne 0 ] && RED_ROWS+=("$(_row "Gateway health"    "$HTTP_GATEWAY_STATUS_TEXT $HTTP_GATEWAY_SUMMARY")")  || true
+[ "$PROBE_REQUEST_RC"  -ne 0 ] && RED_ROWS+=("$(_row "Slack read"        "$SLACK_READ_STATUS $PROBE_REQUEST_SUMMARY")")         || true
+[ "$GATEWAY_PROBE_RC"  -ne 0 ] && RED_ROWS+=("$(_row "Slack send"        "$SLACK_SEND_STATUS $GATEWAY_PROBE_SUMMARY")")         || true
+[ "$THREAD_REPLY_RC"   -ne 0 ] && RED_ROWS+=("$(_row "Thread replies"    "$THREAD_REPLY_STATUS_TEXT $THREAD_REPLY_SUMMARY")")  || true
 if [ "$TOKEN_PROBE_RC" -eq 1 ]; then
   RED_ROWS+=("$(_row "Token probes" "$TOKEN_PROBE_STATUS_TEXT")")
 elif [ "$TOKEN_PROBE_RC" -eq 2 ]; then
   YELLOW_ROWS+=("$(_row "Token probes" "$TOKEN_PROBE_STATUS_TEXT")")
 else
-  GREEN_ROWS+=("$(_row "Token probes" "$TOKEN_PROBE_STATUS_TEXT")")
+  true  # passing — omit from report
 fi
 if [ "$DOCTOR_SH_RAN" -eq 1 ]; then
   if [ "$DOCTOR_SH_LEVEL" = "good" ]; then
-    GREEN_ROWS+=("$(_row "doctor.sh" "$DOCTOR_SH_STATUS_TEXT")")
+    if [ "$DOCTOR_SH_TRANSIENT_RECOVERED" -eq 1 ]; then
+      YELLOW_ROWS+=("$(_row "doctor.sh" "$DOCTOR_SH_STATUS_TEXT")")
+    else
+      true  # passing — omit from report
+    fi
   elif [ "$DOCTOR_SH_LEVEL" = "warn" ]; then
     YELLOW_ROWS+=("$(_row "doctor.sh" "$DOCTOR_SH_STATUS_TEXT")")
   else
     RED_ROWS+=("$(_row "doctor.sh" "$DOCTOR_SH_STATUS_TEXT")")
   fi
 fi
-if [ "$RUN_CANARY" = "1" ]; then
-  [ "$SLACK_CANARY_RC" -ne 0 ] && RED_ROWS+=("$(_row "Canary" "$CANARY_STATUS_TEXT")") || GREEN_ROWS+=("$(_row "Canary" "$CANARY_STATUS_TEXT")")
+if [ "$RUN_CANARY" = "1" ] && [ "$PRE_CANARY_FAILURE" = "0" ]; then
+  [ "$SLACK_CANARY_RC" -ne 0 ] && RED_ROWS+=("$(_row "Canary" "$CANARY_STATUS_TEXT")") || true  # passing — omit
+elif [ "$RUN_CANARY" = "1" ]; then
+  YELLOW_ROWS+=("$(_row "Canary" "$CANARY_STATUS_TEXT")")
 fi
 # AO Doctor (Agent Orchestrator) check - explicit RED/YELLOW/GREEN rows
 AO_DOCTOR_STATUS_TEXT="${ICON_YELLOW} Skipped"
 if [ "$AO_DOCTOR_RAN" -eq 1 ]; then
   if [ "$AO_DOCTOR_LEVEL" = "good" ]; then
     AO_DOCTOR_STATUS_TEXT="${ICON_GREEN} OK"
-    GREEN_ROWS+=("$(_row "AO (agento)" "$AO_DOCTOR_STATUS_TEXT")")
+    true  # passing — omit from report
   elif [ "$AO_DOCTOR_LEVEL" = "warn" ]; then
     AO_DOCTOR_STATUS_TEXT="${ICON_YELLOW} WARNINGS (rc=$AO_DOCTOR_RC)"
     YELLOW_ROWS+=("$(_row "AO (agento)" "$AO_DOCTOR_STATUS_TEXT")")
@@ -1334,7 +1560,7 @@ fi
 MEMORY_STATUS_TEXT="${ICON_YELLOW} Skipped"
 if [ "$MEMORY_LOOKUP_RC" -eq 0 ]; then
   MEMORY_STATUS_TEXT="${ICON_GREEN} OK"
-  GREEN_ROWS+=("$(_row "Memory" "$MEMORY_STATUS_TEXT")")
+  true  # passing — omit from report
 elif [ "$MEMORY_LOOKUP_RC" -eq 4 ]; then
   # RC=4 means unexpected output but not critical - show as warning
   MEMORY_STATUS_TEXT="${ICON_YELLOW} WARN (unexpected output)"
@@ -1344,10 +1570,27 @@ else
   RED_ROWS+=("$(_row "Memory" "$MEMORY_STATUS_TEXT")")
 fi
 
+# Core md file health check
+CORE_MD_STATUS_TEXT="${ICON_YELLOW} Skipped"
+if [[ "$CORE_MD_SUMMARY" == *"disabled"* ]]; then
+  # Check was disabled via env var — show as skipped, not green OK
+  CORE_MD_STATUS_TEXT="${ICON_YELLOW} Skipped"
+  YELLOW_ROWS+=("$(_row "Core MD" "$CORE_MD_STATUS_TEXT")")
+elif [ "$CORE_MD_RC" -eq 0 ]; then
+  CORE_MD_STATUS_TEXT="${ICON_GREEN} OK"
+  true  # passing — omit from report
+elif [ "$CORE_MD_RC" -eq 2 ]; then
+  CORE_MD_STATUS_TEXT="${ICON_YELLOW} WARN (empty files)"
+  YELLOW_ROWS+=("$(_row "Core MD" "$CORE_MD_STATUS_TEXT")")
+else
+  CORE_MD_STATUS_TEXT="${ICON_RED} FAILED ($CORE_MD_SUMMARY)"
+  RED_ROWS+=("$(_row "Core MD" "$CORE_MD_STATUS_TEXT")")
+fi
+
 if [ "$INFERENCE_PROBE_ENABLED" = "1" ]; then
   INFERENCE_STATUS_TEXT="${ICON_GREEN} OK"
   [ "$INFERENCE_PROBE_RC" -ne 0 ] && INFERENCE_STATUS_TEXT="${ICON_RED} FAILED (rc=$INFERENCE_PROBE_RC)"
-  [ "$INFERENCE_PROBE_RC" -ne 0 ] && RED_ROWS+=("$(_row "Inference (LLM)" "$INFERENCE_STATUS_TEXT")") || GREEN_ROWS+=("$(_row "Inference (LLM)" "$INFERENCE_STATUS_TEXT")")
+  [ "$INFERENCE_PROBE_RC" -ne 0 ] && RED_ROWS+=("$(_row "Inference (LLM)" "$INFERENCE_STATUS_TEXT")") || true  # passing — omit
 fi
 
 SLACK_REPORT="*OpenClaw Monitor*  ·  $SLACK_REPORT_TIME
@@ -1381,20 +1624,6 @@ ${row}"
 \`\`\`"
 fi
 
-# GREEN table (show only when there are failing checks to provide context)
-if [ "${#GREEN_ROWS[@]}" -gt 0 ] && [ "${#RED_ROWS[@]}" -gt 0 -o "${#YELLOW_ROWS[@]}" -gt 0 ]; then
-  SLACK_REPORT="${SLACK_REPORT}
-
-*🟢 Passing*
-\`\`\`"
-  for row in "${GREEN_ROWS[@]}"; do
-    SLACK_REPORT="${SLACK_REPORT}
-${row}"
-  done
-  SLACK_REPORT="${SLACK_REPORT}
-\`\`\`"
-fi
-
 # Actions (only when there are issues)
 if [ "${#ACTION_LINES[@]}" -gt 0 ]; then
   SLACK_REPORT="${SLACK_REPORT}
@@ -1416,7 +1645,8 @@ if [ "$STATUS" = "PROBLEM" ]; then
 • Slack send: $GATEWAY_PROBE_SUMMARY
 • Threads: $THREAD_REPLY_SUMMARY
 • Tokens: $TOKEN_PROBE_SUMMARY
-• Memory: $MEMORY_LOOKUP_SUMMARY"
+• Memory: $MEMORY_LOOKUP_SUMMARY
+• Core MD: $CORE_MD_SUMMARY"
   if [ "${#PHASE1_REMEDIATION_ACTIONS[@]}" -gt 0 ]; then
     SLACK_REPORT="${SLACK_REPORT}
 • Phase 1: ${PHASE1_REMEDIATION_ACTIONS[*]}"
@@ -1431,9 +1661,34 @@ if [ "$STATUS" = "PROBLEM" ]; then
 • Phase 2 output: $PHASE2_OUTPUT_BRIEF"
   fi
   if [ -n "$DOCTOR_SH_OUTPUT" ]; then
+    if [ -n "$DOCTOR_SH_SUMMARY" ]; then
+      SLACK_REPORT="${SLACK_REPORT}
+• doctor.sh summary: $DOCTOR_SH_SUMMARY"
+    fi
+
+    DOCTOR_FAIL_LINES="$(printf '%s\n' "$DOCTOR_SH_OUTPUT" | rg '^\[FAIL\]' | head -5 || true)"
+    DOCTOR_WARN_LINES="$(printf '%s\n' "$DOCTOR_SH_OUTPUT" | rg '^\[WARN\]' | head -5 || true)"
+
+    if [ -n "$DOCTOR_FAIL_LINES" ] || [ -n "$DOCTOR_WARN_LINES" ]; then
+      SLACK_REPORT="${SLACK_REPORT}
+• doctor.sh details:"
+      if [ -n "$DOCTOR_FAIL_LINES" ]; then
+        while IFS= read -r _line; do
+          [ -n "$_line" ] && SLACK_REPORT="${SLACK_REPORT}
+  - ${_line}"
+        done <<< "$DOCTOR_FAIL_LINES"
+      fi
+      if [ -n "$DOCTOR_WARN_LINES" ]; then
+        while IFS= read -r _line; do
+          [ -n "$_line" ] && SLACK_REPORT="${SLACK_REPORT}
+  - ${_line}"
+        done <<< "$DOCTOR_WARN_LINES"
+      fi
+    fi
+
     DOCTOR_SH_OUTPUT_BRIEF="$(printf '%s\n' "$DOCTOR_SH_OUTPUT" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | cut -c1-320)"
     SLACK_REPORT="${SLACK_REPORT}
-• doctor.sh: $DOCTOR_SH_OUTPUT_BRIEF"
+• doctor.sh output (truncated): $DOCTOR_SH_OUTPUT_BRIEF"
   fi
 fi
 
@@ -1454,26 +1709,43 @@ send_report_to_slack() {
 }
 
 PRIMARY_ALERT_DELIVERED=0
+PROBLEM_TARGET="${FAILURE_SLACK_TARGET:-$ALERT_SLACK_TARGET}"
+
 if [ "$STATUS" = "PROBLEM" ]; then
-  if [ -z "$ALERT_SLACK_TARGET" ]; then
-    log "STATUS=PROBLEM but OPENCLAW_MONITOR_SLACK_TARGET is unset; Slack delivery skipped."
+  if [ -z "$PROBLEM_TARGET" ] && [ -z "$ALERT_SLACK_TARGET" ]; then
+    log "STATUS=PROBLEM but OPENCLAW_MONITOR_FAILURE_SLACK_TARGET and OPENCLAW_MONITOR_SLACK_TARGET are unset; Slack delivery skipped."
     exit 0
   fi
-  if send_report_to_slack "$ALERT_SLACK_TARGET" "primary-alert"; then
-    PRIMARY_ALERT_DELIVERED=1
-  else
-    exit 1
+
+  # Failures always go to the dedicated failure channel.
+  if [ -n "$PROBLEM_TARGET" ]; then
+    if send_report_to_slack "$PROBLEM_TARGET" "primary-alert"; then
+      PRIMARY_ALERT_DELIVERED=1
+    else
+      exit 1
+    fi
+  fi
+
+  # Failures also go to the main monitor channel.
+  if [ -n "$ALERT_SLACK_TARGET" ] && [ "$ALERT_SLACK_TARGET" != "$PROBLEM_TARGET" ]; then
+    send_report_to_slack "$ALERT_SLACK_TARGET" "main-channel-copy" || exit 1
   fi
 else
-  log "Phase1/Phase2 monitor reported non-PROBLEM status; Slack delivery suppressed."
+  # Non-failure monitor reports go only to the main monitor channel.
+  if [ -n "$ALERT_SLACK_TARGET" ]; then
+    if send_report_to_slack "$ALERT_SLACK_TARGET" "main-channel"; then
+      PRIMARY_ALERT_DELIVERED=1
+    else
+      exit 1
+    fi
+  else
+    log "Non-PROBLEM status but OPENCLAW_MONITOR_SLACK_TARGET is unset; Slack delivery skipped."
+  fi
 fi
 
-if [ "$STATUS_BROADCAST_ENABLED" = "1" ] && [ -n "$STATUS_BROADCAST_SLACK_TARGET" ]; then
-  if [ "$PRIMARY_ALERT_DELIVERED" -eq 1 ] && [ "$STATUS_BROADCAST_SLACK_TARGET" = "$ALERT_SLACK_TARGET" ]; then
-    log "Skipping broadcast delivery because it matches the primary alert target and was already sent."
-  else
-    send_report_to_slack "$STATUS_BROADCAST_SLACK_TARGET" "status-broadcast" || true
-  fi
+# Legacy status broadcast is intentionally suppressed: delivery is handled above.
+if [ "$STATUS_BROADCAST_ENABLED" = "1" ]; then
+  log "Skipping status-broadcast path; monitor delivery policy uses explicit target routing."
 fi
 
 exit 0

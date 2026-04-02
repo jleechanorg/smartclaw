@@ -1,0 +1,30 @@
+{
+  "pr": 313,
+  "repo": "jleechanorg/smartclaw",
+  "timestamp": "2026-03-21T02:47:15.850439+00:00",
+  "stage1": {
+    "status": "FAIL",
+    "reviewer": "self",
+    "model": "claude-opus-4-6",
+    "model_family": "anthropic",
+    "findings": [
+      "Pytest failed"
+    ],
+    "claims_verified": 7,
+    "claims_failed": 1
+  },
+  "stage2": {
+    "status": "PENDING",
+    "reviewer": null,
+    "model": null,
+    "findings": [],
+    "independence_verified": false,
+    "model_family_differs_from_stage1": false
+  },
+  "coderabbit": {
+    "status": "APPROVED",
+    "critical_findings": 0,
+    "major_findings": 0
+  },
+  "overall": "FAIL"
+}

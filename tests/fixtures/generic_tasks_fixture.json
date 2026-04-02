@@ -1,0 +1,16 @@
+{
+  "tasks": [
+    {
+      "id": "1",
+      "title": "Fix API pagination bug",
+      "description": "Ensure pagination cursor advances correctly.",
+      "labels": ["api", "bug"]
+    },
+    {
+      "id": "2",
+      "title": "Add health endpoint metrics",
+      "description": "Expose queue depth and uptime.",
+      "labels": ["metrics"]
+    }
+  ]
+}

@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Antigravity Control Plane — Data Contracts</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11.13.0/dist/mermaid.min.js" integrity="sha384-tI0sDqjGJcqrQ8e/XKiQGS+ee11v5knTNWx2goxMBxe4DO9U0uKlfxJtYB9ILZ4j" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --bg2: #161b22;
+      --bg3: #21262d;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent2: #3fb950;
+      --accent3: #f78166;
+      --accent4: #d2a8ff;
+      --code-bg: #1f2937;
+      --table-header: #1c2128;
+      --link: #58a6ff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.65;
+    }
+
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 24px 0;
+    }
+
+    .sidebar-title {
+      padding: 0 20px 16px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 8px;
+    }
+
+    .sidebar nav a {
+      display: block;
+      padding: 6px 20px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13px;
+      border-left: 2px solid transparent;
+      transition: all 0.15s;
+    }
+
+    .sidebar nav a:hover,
+    .sidebar nav a.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: rgba(88, 166, 255, 0.07);
+    }
+
+    .sidebar nav a.sub {
+      padding-left: 36px;
+      font-size: 12px;
+    }
+
+    .main {
+      flex: 1;
+      max-width: 900px;
+      padding: 48px 56px;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-bottom: 40px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h2 {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text);
+      margin-top: 52px;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--accent4);
+      margin-top: 28px;
+      margin-bottom: 10px;
+    }
+
+    p {
+      margin-bottom: 14px;
+      color: var(--text);
+    }
+
+    ul, ol {
+      margin: 10px 0 14px 24px;
+      color: var(--text);
+    }
+
+    li {
+      margin-bottom: 6px;
+    }
+
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 18px;
+      overflow-x: auto;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12.5px;
+      line-height: 1.55;
+      margin: 14px 0 20px;
+      color: #cdd9e5;
+    }
+
+    code {
+      background: var(--code-bg);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12.5px;
+      color: #cdd9e5;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+      border-radius: 0;
+      font-size: inherit;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0 24px;
+      font-size: 13.5px;
+    }
+
+    th {
+      background: var(--table-header);
+      color: var(--text-muted);
+      font-weight: 600;
+      text-align: left;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    td {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .badge-green { background: rgba(63, 185, 80, 0.15); color: var(--accent2); border: 1px solid rgba(63, 185, 80, 0.3); }
+    .badge-red   { background: rgba(247, 129, 102, 0.15); color: var(--accent3); border: 1px solid rgba(247, 129, 102, 0.3); }
+    .badge-blue  { background: rgba(88, 166, 255, 0.15); color: var(--accent); border: 1px solid rgba(88, 166, 255, 0.3); }
+
+    .callout {
+      border-left: 3px solid var(--accent);
+      background: rgba(88, 166, 255, 0.06);
+      padding: 12px 16px;
+      border-radius: 0 6px 6px 0;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+
+    .callout.note { border-color: var(--accent4); background: rgba(210, 168, 255, 0.06); }
+
+    .diagram {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      margin: 20px 0;
+    }
+
+    .diagram pre {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 12px;
+      color: #cdd9e5;
+      margin: 0;
+    }
+
+    .tenet-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      margin: 16px 0 28px;
+    }
+
+    .tenet-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 20px;
+    }
+
+    .tenet-card h4 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+
+    .tenet-card p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    section { scroll-margin-top: 24px; }
+
+    .flow-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .flow-num {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: var(--bg);
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .flow-content { flex: 1; padding-top: 2px; }
+    .flow-content strong { color: var(--text); }
+    .flow-content p { margin-bottom: 4px; color: var(--text-muted); font-size: 13.5px; }
+
+    @media (max-width: 900px) {
+      .sidebar { display: none; }
+      .main { padding: 28px 20px; max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-title">Antigravity Control Plane</div>
+    <nav>
+      <a href="#job-schema">Job Schema</a>
+      <a href="#idempotency-key">Idempotency Key</a>
+      <a href="#state-machine">State Machine</a>
+      <a href="#lease-heartbeat-format">Lease / Heartbeat Format</a>
+      <a href="#mcp-mail-message-schemas">MCP Mail Message Schemas</a>
+      <a href="#database-schema">Database Schema</a>
+      <a href="#jsonl-event-log">JSONL Event Log</a>
+      <a href="#worktree-naming-convention">Worktree Naming Convention</a>
+      <a href="#outcome-ledger-schema">Outcome Ledger Schema</a>
+    </nav>
+  </aside>
+  <main class="main">
+    <h1>Antigravity Control Plane — Data Contracts</h1>
+    <div class="subtitle">Design Document &nbsp;·&nbsp; Bead: ORCH-ag1 &nbsp;·&nbsp; Status: Design in progress</div>
+
+    <section id="job-schema">
+      <h2>Job Schema</h2>
+      <pre><code>from __future__ import annotations
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import StrEnum
+from typing import Any
+
+class Priority(StrEnum):
+    CRITICAL = "critical"
+    HIGH = "high"
+    NORMAL = "normal"
+    LOW = "low"
+
+class JobState(StrEnum):
+    QUEUED = "queued"              # waiting to be dispatched
+    DISPATCHED = "dispatched"       # sent to AO worker, awaiting ack
+    RUNNING = "running"            # worker confirmed, actively executing
+    BLOCKED = "blocked"            # worker hit a blocker requiring human input
+    COMPLETED = "completed"        # worker reported success
+    FAILED = "failed"              # worker reported failure (exhausted retries or fatal error)
+    DEADLETTERED = "deadlettered"  # exhausted all attempts
+    CANCELLED = "cancelled"        # control plane cancelled
+
+@dataclass
+class Job:
+    # Identity
+    job_id: str                          # UUID v4
+    idempotency_key: str                 # SHA-256 of (repo, objective, priority, correlation_id)
+
+    # Routing
+    repo: str                            # "owner/repo" e.g. "jleechanorg/smartclaw"
+    worktree_path: str | None             # None = control plane creates fresh worktree
+    correlation_id: str | None           # groups related jobs (e.g. parent job id)
+
+    # Payload
+    objective: str                       # natural language instruction for the worker
+    priority: Priority                    # dispatch priority
+    metadata: dict[str, Any] | None      # opaque to control plane; passed through to worker
+
+    # Tracking
+    state: JobState = JobState.QUEUED
+    requestor: str = ""                  # e.g. "slack:@jleechan" or "cron:nightly"
+    max_attempts: int = 3
+    attempt: int = 1                     # current attempt number (1-based)
+
+    # Timing
+    created_at: datetime = field(default_factory=datetime.utcnow)
+    scheduled_at: datetime | None = None  # when to run (None = immediately)
+    dispatched_at: datetime | None = None
+    started_at: datetime | None = None    # worker reported start
+    completed_at: datetime | None = None
+    last_heartbeat_at: datetime | None = None
+
+    # Worker assignment
+    worker_id: str | None = None         # e.g. "ao:worker:antig-smartclaw-1"
+
+    # Result
+    outcome: str | None = None            # opaque worker result
+    error: str | None = None             # error message if failed
+    blocker: str | None = None           # human-readable blocker if BLOCKED
+    result_url: str | None = None        # e.g. PR URL if job created a PR
+
+    # History
+    history: list[JobStateTransition] = field(default_factory=list)
+
+    # Ledger
+    idempotency_checked_at: datetime | None = None
+
+
+@dataclass
+class JobStateTransition:
+    from_state: JobState
+    to_state: JobState
+    at: datetime = field(default_factory=datetime.utcnow)
+    reason: str | None = None
+    worker_id: str | None = None</code></pre>
+    </section>
+
+    <section id="idempotency-key">
+      <h2>Idempotency Key</h2>
+      <pre><code>import hashlib, json
+
+def compute_idempotency_key(
+    repo: str,
+    objective: str,
+    priority: Priority,
+    correlation_id: str | None,
+) -> str:
+    payload = {
+        "repo": repo,
+        "objective": objective,
+        "priority": priority.value,
+        "correlation_id": correlation_id,
+    }
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode()).hexdigest()[:32]</code></pre>
+      <p><strong>Dedupe rules:</strong></p>
+      <ul>
+        <li>On enqueue: if a job with the same idempotency key exists and is in a <strong>terminal state</strong> (<code>completed</code>, <code>failed</code>, <code>deadlettered</code>, <code>cancelled</code>), allow re-enqueue (new job_id, same idempotency key)</li>
+        <li>On enqueue: if a job with the same idempotency key exists and is in a <strong>non-terminal state</strong>, return the existing <code>job_id</code> with <code>duplicate=True</code></li>
+        <li>Idempotency key is computed before validation — if validation fails, idempotency key is NOT recorded</li>
+      </ul>
+    </section>
+
+    <section id="state-machine">
+      <h2>State Machine</h2>
+      <div class="diagram">
+        <pre>                  ┌──────────────────────────────────────────────┐
+                  │                                              │
+                  ▼                                              │
+┌─────────┐  ┌────────────┐  ┌───────────┐  ┌────────────┐  ┌──────▼─────┐
+│ QUEUED  │─►│ DISPATCHED │─►│  RUNNING  │─►│  COMPLETED │  │ FAILED     │
+└─────────┘  └────────────┘  └───────────┘  └────────────┘  └────────────┘
+     │              │                │
+     │              │                ├──────► BLOCKED ──► QUEUED (retry)
+     │              │                │
+     │              │                └──────► FAILED ──► DEADLETTERED
+     │              │
+     │              └──────────────────────────────► DEADLETTERED
+     │
+     └────────────────────────────────────────────────► CANCELLED
+                                                        QUEUED ──► DEADLETTERED</pre>
+      </div>
+      <p><strong>Valid transitions:</strong></p>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>From</th><th>To</th><th>Trigger</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>queued</code></td><td><code>dispatched</code></td><td>Dispatcher sends job to AO worker</td></tr>
+            <tr><td><code>queued</code></td><td><code>cancelled</code></td><td>Control plane receives cancel request</td></tr>
+            <tr><td><code>queued</code></td><td><code>deadlettered</code></td><td>Recovery loop: max_attempts=0 on enqueue</td></tr>
+            <tr><td><code>dispatched</code></td><td><code>running</code></td><td>Worker acks job receipt</td></tr>
+            <tr><td><code>dispatched</code></td><td><code>queued</code></td><td>Worker NACK or delivery timeout (recovery)</td></tr>
+            <tr><td><code>dispatched</code></td><td><code>deadlettered</code></td><td>Delivery timeout after max_attempts exhausted</td></tr>
+            <tr><td><code>running</code></td><td><code>completed</code></td><td>Worker reports success</td></tr>
+            <tr><td><code>running</code></td><td><code>failed</code></td><td>Worker reports fatal error</td></tr>
+            <tr><td><code>running</code></td><td><code>blocked</code></td><td>Worker reports human-input required</td></tr>
+            <tr><td><code>running</code></td><td><code>deadlettered</code></td><td>Recovery loop: heartbeat timeout + max_attempts</td></tr>
+            <tr><td><code>blocked</code></td><td><code>queued</code></td><td>Human resolves blocker and re-queues</td></tr>
+            <tr><td><code>blocked</code></td><td><code>cancelled</code></td><td>Human cancels</td></tr>
+            <tr><td><code>failed</code></td><td><code>deadlettered</code></td><td>Recovery loop records exhaustion</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p><strong>Terminal states:</strong> <code>completed</code>, <code>deadlettered</code>, <code>cancelled</code> — no automatic transitions out.</p>
+    </section>
+
+    <section id="lease-heartbeat-format">
+      <h2>Lease / Heartbeat Format</h2>
+      <p>Executors (AO workers) send heartbeats to the control plane every <strong>10 minutes</strong> via MCP Mail reply or direct HTTP callback.</p>
+      <pre><code>@dataclass
+class Heartbeat:
+    job_id: str
+    worker_id: str
+    state: JobState.RUNNING | JobState.BLOCKED
+    progress: str | None          # e.g. "step 3/10: creating PR"
+    screenshot_path: str | None    # path to last Antigravity screenshot
+    at: datetime = field(default_factory=datetime.utcnow)</code></pre>
+      <p><strong>Staleness threshold:</strong> A job is stale if <code>last_heartbeat_at</code> is older than <strong>30 minutes</strong> from now.</p>
+      <p><strong>Heartbeat storage:</strong> Latest heartbeat per job stored in <code>job_heartbeats.jsonl</code> (append-only, periodically compacted).</p>
+    </section>
+
+    <section id="mcp-mail-message-schemas">
+      <h2>MCP Mail Message Schemas</h2>
+
+      <h3>Dispatch (Control Plane → AO Worker)</h3>
+      <pre><code>@dataclass
+class DispatchMessage:
+    to: str              # "ao:worker:antig-{repo_slug}"
+    subject: str = "antigravity_job"
+    body: DispatchBody
+
+@dataclass
+class DispatchBody:
+    job_id: str
+    idempotency_key: str
+    repo: str
+    repo_url: str              # "https://github.com/owner/repo"
+    worktree_path: str | None  # None = create fresh; worker decides path
+    worktree_branch: str | None # None = use default naming convention
+    objective: str
+    priority: Priority
+    correlation_id: str | None
+    metadata: dict[str, Any] | None
+    attempt: int
+    max_attempts: int
+    timeout_minutes: int = 120   # hard timeout
+    dispatched_at: datetime
+    antig_skill_path: str       # path to antigravity skill on worker
+    peekaboo_bridge_socket: str # path to PeekabooBridge.sock</code></pre>
+
+      <h3>Result (AO Worker → Control Plane)</h3>
+      <pre><code>@dataclass
+class ResultMessage:
+    job_id: str
+    idempotency_key: str
+    outcome: Literal["completed", "failed", "blocked"]
+    state: JobState             # the terminal or intermediate state
+    result: dict[str, Any] | None   # opaque to control plane
+    error: str | None
+    blocker: str | None          # human-readable blocker description
+    result_url: str | None       # e.g. PR URL
+    screenshot_paths: list[str] | None  # evidence screenshots
+    completed_at: datetime
+    worker_id: str
+    attempt: int
+    execution_log: str | None    # execution transcript (truncated to 100KB)</code></pre>
+
+      <h3>Cancel (Control Plane → AO Worker)</h3>
+      <pre><code>@dataclass
+class CancelMessage:
+    to: str
+    subject: str = "antigravity_cancel"
+    body: CancelBody
+
+@dataclass
+class CancelBody:
+    job_id: str
+    reason: str
+    cancelled_at: datetime</code></pre>
+
+      <h3>Heartbeat (AO Worker → Control Plane)</h3>
+      <pre><code>@dataclass
+class HeartbeatMessage:
+    to: str               # "ao:control-plane"
+    subject: str = "antigravity_heartbeat"
+    body: HeartbeatBody
+
+@dataclass
+class HeartbeatBody:
+    job_id: str
+    worker_id: str
+    state: Literal["running", "blocked"]
+    progress: str | None
+    last_screenshot_path: str | None
+    at: datetime</code></pre>
+    </section>
+
+    <section id="database-schema">
+      <h2>Database Schema (SQLite)</h2>
+      <pre><code>CREATE TABLE jobs (
+    job_id              TEXT PRIMARY KEY,
+    idempotency_key     TEXT NOT NULL,
+    repo                TEXT NOT NULL,
+    worktree_path       TEXT,
+    correlation_id      TEXT,
+    objective           TEXT NOT NULL,
+    priority            TEXT NOT NULL,   -- Priority enum value
+    metadata            TEXT,            -- JSON
+    state               TEXT NOT NULL,   -- JobState enum value
+    requestor           TEXT,
+    max_attempts        INTEGER NOT NULL DEFAULT 3,
+    attempt             INTEGER NOT NULL DEFAULT 1,
+    created_at          TEXT NOT NULL,   -- ISO-8601
+    scheduled_at        TEXT,
+    dispatched_at        TEXT,
+    started_at          TEXT,
+    completed_at        TEXT,
+    last_heartbeat_at   TEXT,
+    worker_id           TEXT,
+    outcome             TEXT,
+    error               TEXT,
+    blocker             TEXT,
+    result_url          TEXT
+);
+
+CREATE UNIQUE INDEX idx_idempotency ON jobs(idempotency_key) WHERE state NOT IN ('completed','failed','deadlettered','cancelled');
+CREATE INDEX idx_state ON jobs(state);
+CREATE INDEX idx_repo_state ON jobs(repo, state);
+CREATE INDEX idx_created ON jobs(created_at);</code></pre>
+    </section>
+
+    <section id="jsonl-event-log">
+      <h2>JSONL Event Log</h2>
+      <p>Each job also emits a structured event log to <code>antig_jobs/{job_id}/events.jsonl</code>:</p>
+      <pre><code>{"ts": "2026-03-24T12:00:00Z", "event": "created", "state": "queued"}
+{"ts": "2026-03-24T12:00:10Z", "event": "dispatched", "state": "dispatched", "worker_id": "ao:worker:antig-smartclaw-1"}
+{"ts": "2026-03-24T12:00:15Z", "event": "started", "state": "running"}
+{"ts": "2026-03-24T12:45:00Z", "event": "completed", "state": "completed", "result_url": "https://github.com/jleechanorg/smartclaw/pull/383"}</code></pre>
+    </section>
+
+    <section id="worktree-naming-convention">
+      <h2>Worktree Naming Convention</h2>
+      <p>When <code>worktree_path</code> is None, the control plane creates a worktree using:</p>
+      <div class="diagram">
+        <pre>/tmp/{REPO_OWNER}-{REPO_NAME}-ag-{SHORT_JOB_ID}</pre>
+      </div>
+      <p>e.g. <code>/tmp/jleechanorg-smartclaw-ag-a4f2b1</code></p>
+      <p>Branch naming: <code>antigravity/job-{job_id}</code> (truncated to 50 chars + sanitized)</p>
+    </section>
+
+    <section id="outcome-ledger-schema">
+      <h2>Outcome Ledger Schema</h2>
+      <pre><code>@dataclass
+class OutcomeRecord:
+    job_id: str
+    repo: str
+    objective: str
+    priority: Priority
+    requestor: str
+    state: JobState
+    attempts: int
+    duration_seconds: int | None
+    result_url: str | None
+    error: str | None
+    blocker: str | None
+    created_at: datetime
+    completed_at: datetime | None
+    worker_id: str | None</code></pre>
+      <p>Stored in <code>antig_outcome_ledger.jsonl</code> (append-only, same pattern as <code>outcome_ledger.jsonl</code> in <code>roadmap/OUTCOME_LEDGER_DESIGN.md</code>).</p>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  const sections = document.querySelectorAll('section[id], h2[id], h3[id]');
+  const links = document.querySelectorAll('.sidebar nav a');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`.sidebar nav a[href="#${entry.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+
+<script>
+  if (typeof mermaid !== 'undefined') {
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      securityLevel: 'strict',
+      flowchart: { curve: 'basis', padding: 20 },
+      sequence: { mirrorActors: false, messageAlign: 'center' }
+    });
+  } else {
+    document.querySelectorAll('.mermaid').forEach(el => {
+      el.textContent = '[Diagram unavailable — mermaid CDN blocked]';
+    });
+  }
+</script>
+</body>
+</html>
