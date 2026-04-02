@@ -6,10 +6,13 @@ For machines that already have OpenClaw running (main gateway on port 18789).
 
 1. [Prerequisites](#1-prerequisites)
 2. [Onboard Staging Profile](#2-onboard-staging-profile)
+   - [Pre-flight check](#pre-flight-check-required-before-onboarding)
+   - [Onboard](#onboard)
+   - [Post-check](#post-check-required-before-proceeding-to-step-3)
 3. [Create Separate Slack App](#3-create-separate-slack-app)
 4. [Patch openclaw.json](#4-patch-openclawingjson)
 5. [Configure Loop Prevention](#5-configure-loop-prevention)
-6. [Install as separate launchd service](#6-install-as-separate-launchd-service)
+6. [Run staging gateway on demand](#6-run-staging-gateway-on-demand)
 7. [Verify both gateways](#7-verify-both-gateways)
 8. [Git track ~/.openclaw-staging/](#8-git-track-openclaw-staging)
 9. [Launchd backup job](#9-launchd-backup-job)
@@ -28,6 +31,27 @@ For machines that already have OpenClaw running (main gateway on port 18789).
 Port must be ≥20 away from main (each gateway spawns derived ports up to base+108).
 Main is on 18789 → staging on 18810.
 
+### Pre-flight check (required before onboarding)
+
+If the onboard command fails, openclaw falls back to the default profile directory
+(`~/.openclaw/`), causing all subsequent steps to silently patch the **main** instance
+instead of staging. Run these checks first:
+
+```bash
+# 1. Confirm main gateway is healthy (you need it running before staging)
+curl -sf http://127.0.0.1:18789/health || { echo "ERROR: main gateway not running — start it first"; exit 1; }
+
+# 2. Confirm staging port is free
+lsof -i :18810 | grep LISTEN && { echo "ERROR: port 18810 already in use — stop whatever is using it"; exit 1; } || echo "port 18810 is free"
+
+# 3. Confirm staging home doesn't already exist (re-running onboard over an existing dir can corrupt config)
+[ -d ~/.openclaw-staging ] && { echo "ERROR: ~/.openclaw-staging already exists — delete it first if you want a fresh onboard"; exit 1; } || echo "staging home is clear"
+```
+
+All three must pass before continuing.
+
+### Onboard
+
 ```bash
 openclaw --profile staging onboard \
   --accept-risk \
@@ -39,6 +63,47 @@ openclaw --profile staging onboard \
   --workspace ~/.openclaw-staging/workspace \
   --flow quickstart
 ```
+
+### Version check (before onboarding)
+
+Confirm the installed openclaw version matches what you expect. A version mismatch between
+the CLI and an existing `openclaw.json` causes a silent startup failure — the gateway
+process starts but never opens its port:
+
+```bash
+openclaw --version   # should match the version that wrote ~/.openclaw-staging/openclaw.json
+# If out of date:
+npm install -g openclaw@latest
+openclaw --version   # confirm updated
+```
+
+Also regenerate the launchd plist after any openclaw update — the old plist may point to a
+stale dist path:
+
+```bash
+openclaw --profile staging gateway install --force
+```
+
+### Post-check (required before proceeding to Step 3)
+
+Verify the command wrote to the staging directory — **not** the main one:
+
+```bash
+[ -f ~/.openclaw-staging/openclaw.json ] \
+  || { echo "ERROR: onboard did not create ~/.openclaw-staging/openclaw.json — do NOT continue"; exit 1; }
+
+# Confirm staging config targets port 18810 (catches silent fallback to main)
+python3 -c "
+import json, os
+path = os.path.expanduser('~/.openclaw-staging/openclaw.json')
+d = json.load(open(path))
+port = d.get('gateway', {}).get('port')
+assert port == 18810, f'WRONG PORT {port} — onboard fell back to main profile. Delete ~/.openclaw-staging and retry.'
+print(f'OK: staging gateway port = {port}')
+"
+```
+
+If the post-check fails, delete `~/.openclaw-staging/` and go back to the pre-flight checks.
 
 This creates `~/.openclaw-staging/` with its own config and workspace.
 
@@ -108,21 +173,19 @@ After creating:
 3. **Basic Information** → **App-Level Tokens** → Generate with `connections:write` scope (name: `staging`) → copy `xapp-...` token
 4. **Invite the bot** to channels: in Slack, type `/invite @openclaw_staging` in each channel it should monitor
 
-Add tokens to `~/.bashrc` (alongside the production tokens):
+**Prefer [§4 Patch `openclaw.json`](#4-patch-openclawingjson):** put staging bot/app tokens in `~/.openclaw-staging/openclaw.json` under `channels.slack` (staging uses the `staging` profile and that directory; production usually runs under launchd from `~/.openclaw/`).
+
+If you also export tokens for **your** shell scripts, remember OpenClaw’s documented env fallbacks are still `SLACK_BOT_TOKEN` and `SLACK_APP_TOKEN` ([configuration reference](https://docs.openclaw.ai/gateway/configuration-reference), [Slack setup](https://www.getopenclaw.ai/en/docs/configuration)) — not `OPENCLAW_STAGING_SLACK_*`. A single shell cannot set two different `SLACK_BOT_TOKEN` values at once, so do not rely on env for two gateways; use per-profile `openclaw.json` for staging vs production.
+
+Optional — only if a script you own expects custom names (OpenClaw does not read these):
 
 ```bash
-# Gateway reads from openclaw.json directly, but env fallback names are:
-# SLACK_BOT_TOKEN / SLACK_APP_TOKEN (only one set can be active per shell)
-# For multi-gateway setups, set tokens in openclaw.json and use custom aliases:
-
-# Staging Slack tokens (app openclaw_staging, keep secure, never commit)
-export OPENCLAW_STAGING_SLACK_BOT_TOKEN="xoxb-..."
-export OPENCLAW_STAGING_SLACK_APP_TOKEN="xapp-..."
+# Example names for your automation only; gateway uses openclaw.json + SLACK_* fallbacks above
+export STAGING_SLACK_BOT_TOKEN="xoxb-..."
+export STAGING_SLACK_APP_TOKEN="xapp-..."
 ```
 
-Also add to `~/.profile` for scripts that source it.
-
-> **Note:** The gateway reads tokens from `openclaw.json`, not env vars. The env vars above are for your own scripts. The canonical env fallback names recognized by OpenClaw are `SLACK_BOT_TOKEN` / `SLACK_APP_TOKEN`, but since you can only have one set per shell, multi-gateway setups should rely on `openclaw.json` for token differentiation.
+Also add to `~/.profile` if those scripts source it.
 
 ---
 
@@ -183,15 +246,13 @@ path = os.path.expanduser('~/.openclaw-staging/openclaw.json')
 with open(path) as f:
     d = json.load(f)
 
-# Staging responds in all channels but only when @mentioned
-# WARNING: This replaces any existing per-channel config.
-# If you have custom per-channel settings, merge them instead of overwriting:
-#   existing = d['channels']['slack'].get('channels', {})
-#   existing['*'] = {'allow': True, 'requireMention': True}
-#   d['channels']['slack']['channels'] = existing
-d['channels']['slack']['channels'] = {
-    '*': {'allow': True, 'requireMention': True}
-}
+# Staging responds in all channels but only when @mentioned.
+# Merge into existing per-channel rules — do not replace the whole map.
+slack = d.setdefault('channels', {}).setdefault('slack', {})
+raw = slack.get('channels')
+ch_map = dict(raw) if isinstance(raw, dict) else {}
+ch_map['*'] = {'allow': True, 'requireMention': True}
+slack['channels'] = ch_map
 
 with open(path, 'w') as f:
     json.dump(d, f, indent=2)
@@ -206,38 +267,51 @@ This prevents loops because:
 
 ---
 
-## 6. Install as separate launchd service
+## 6. Run staging gateway on demand
 
-```bash
-openclaw --profile staging gateway install
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.openclaw.staging.plist
-```
+Keep **one** always-on gateway (production on 18789 via launchd). Run staging only when you need it so you avoid two launchd-managed OpenClaw processes competing for locks and Slack socket routing.
 
-**Why not `gateway run`?** `XPC_SERVICE_NAME=0` is always set in macOS terminals, making openclaw think it's supervised by launchd. Lock conflicts → infinite retry loop. `gateway install` + launchd avoids this.
+When you are done testing, stop staging (Ctrl+C in the terminal or end the process) so only production is connected to Slack.
 
-For one-off testing only:
 ```bash
 OPENCLAW_ALLOW_MULTI_GATEWAY=1 openclaw --profile staging gateway run
 ```
+
+`OPENCLAW_ALLOW_MULTI_GATEWAY=1` is required because two gateways on one machine is otherwise blocked.
+
+**macOS terminal quirk:** `XPC_SERVICE_NAME=0` is often set in interactive shells, which can make OpenClaw assume launchd supervision and hit lock/retry issues. If `gateway run` misbehaves in Terminal.app or iTerm, try the same command from a context where that variable is unset (for example an SSH session to `127.0.0.1`, or a small wrapper script run without a full GUI login environment).
+
+Logs while staging is running:
+
+```bash
+tail -f ~/.openclaw-staging/logs/gateway.log
+```
+
+Do **not** run `openclaw --profile staging gateway install` for this workflow — that registers a second LaunchAgent. This guide intentionally avoids a staging launchd service.
 
 ---
 
 ## 7. Verify both gateways
 
-```bash
-curl http://127.0.0.1:18789/health   # main  → {"ok":true,"status":"live"}
-curl http://127.0.0.1:18810/health   # staging → {"ok":true,"status":"live"}
-
-launchctl list | grep ai.openclaw    # shows PIDs for both
-```
-
-Manage staging:
+Production (should be up whenever your Mac is on, if you installed main via launchd):
 
 ```bash
-launchctl stop gui/$(id -u)/ai.openclaw.staging
-launchctl start gui/$(id -u)/ai.openclaw.staging
-tail -f ~/.openclaw-staging/logs/gateway.log
+curl -s http://127.0.0.1:18789/health   # → {"ok":true,"status":"live"}
+launchctl list | grep ai.openclaw.gateway
 ```
+
+Staging (after launchd bootstraps it via §6):
+
+```bash
+# Allow ~30s for startup (OAuth refresh + Slack socket connect before port opens)
+sleep 30
+curl -s http://127.0.0.1:18810/health   # → {"ok":true,"status":"live"}
+launchctl list | grep ai.openclaw.staging
+```
+
+If the health check fails after 30s, check the logs before retrying — a silent startup
+failure (port never opens, no new log entries) usually means an openclaw version mismatch.
+See the Version check step in §2.
 
 ---
 
@@ -324,7 +398,6 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.openclaw.staging.bac
 |------|---------|
 | `~/.openclaw-staging/` | Staging config root (git repo) |
 | `~/.openclaw-staging/openclaw.json` | Staging config — gitignored, contains tokens |
-| `~/Library/LaunchAgents/ai.openclaw.staging.plist` | Staging launchd service |
-| `~/.openclaw-staging/logs/gateway.log` | Staging gateway logs |
+| `~/.openclaw-staging/logs/gateway.log` | Staging gateway logs (when running §6) |
 | `~/.openclaw/` | Main config (unchanged) |
 | `~/Library/LaunchAgents/ai.openclaw.gateway.plist` | Main launchd service |
