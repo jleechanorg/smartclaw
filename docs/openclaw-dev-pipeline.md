@@ -67,6 +67,7 @@ python3 -m pytest tests/ -v --tb=short
 python3 -c "
 import json
 import os
+# os.path.expanduser is required: Python does not expand ~ in string literals
 path = os.path.expanduser('~/.openclaw-worktrees/feat-my-feature/openclaw.json')
 with open(path) as f:
     c = json.load(f)
@@ -109,7 +110,7 @@ git add . && git commit && git push
 
 ### Staging Docker setup
 
-See `openclaw-docker-staging-setup.md`.
+See [`openclaw-staging-setup.md`](openclaw-staging-setup.md) in this repository (same directory as this doc).
 
 ### Integration tests (full gateway)
 
@@ -192,8 +193,9 @@ Auto-promotion via PR (created in Stage 2). skeptic-cron merges when 7-green.
 
 - **CI / server-side (push-triggered):** a workflow or post-receive hook on `staging` runs the same steps as `~/.openclaw/scripts/staging-promote.sh` when a push lands. That matches the “push to `staging`” wording above.
 - **Local-only (commit-triggered):** a `post-commit` hook runs `~/.openclaw/scripts/staging-promote.sh` for commits in **`~/.openclaw-staging/`**, and restarts the prod gateway for commits in **`~/.openclaw/`** (see shared hook below). That fires on **local commit**, not on `git push`; use it only if you accept that timing, or mirror the script in CI for true push automation.
+- **Fast-forward pulls:** `post-commit` does not run when `git pull --ff-only` moves `HEAD` without creating a local commit. After installing the shared hook below, copy it to `post-merge` (and optionally `post-checkout`) so the same path-based logic runs when the staging/prod worktree updates via pull.
 
-Hooks must be installed in the **shared Git hooks directory**, not a worktree-only `.git` file path. Resolve it with `git rev-parse --git-common-dir` (or set `core.hooksPath` in Git 2.9+). Use **one** `post-commit` script so you do not overwrite the same file twice:
+Hooks must be installed in the **shared Git hooks directory**, not by appending to `~/.openclaw/.git/hooks/...` (in a linked worktree, `.git` is often a *file* pointing at the real metadata). Use `git rev-parse --git-common-dir`, or the concrete path `git -C ~/.openclaw rev-parse --git-path hooks/post-commit`, or set `core.hooksPath` (Git 2.9+). Use **one** hook body so you do not overwrite the same file twice:
 
 ```bash
 GIT_COMMON="$(git -C "$HOME/.openclaw" rev-parse --git-common-dir)"
@@ -213,6 +215,10 @@ case "$root" in
 esac
 EOF
 chmod +x "$HOOKS/post-commit"
+
+# Optional: same dispatcher for fast-forward pulls (no local commit)
+cp "$HOOKS/post-commit" "$HOOKS/post-merge"
+chmod +x "$HOOKS/post-merge"
 ```
 
 ### 2. Staging promote script (`~/.openclaw/scripts/staging-promote.sh`)
@@ -223,15 +229,20 @@ set -euo pipefail
 
 REPO_SLUG="jleechanorg/smartclaw"
 STAGING_DIR="$HOME/.openclaw-staging"
+TOKEN_FILE="$STAGING_DIR/.gateway-token"
+if [[ -f "$TOKEN_FILE" ]]; then
+  export STAGING_GATEWAY_TOKEN="$(cat "$TOKEN_FILE")"
+fi
 
 # Restart Docker gateway
 docker compose -f ~/openclaw-docker-staging/docker-compose.staging.yml \
   restart openclaw-gateway
 
 # Wait for healthy (fail fast if never healthy)
+# Note: curl may fail with connection refused while the gateway starts; `|| true` keeps `set -e` from aborting the retry loop.
 GATEWAY_HEALTHY=false
 for i in $(seq 1 20); do
-  HEALTH=$(curl -s http://127.0.0.1:18810/health)
+  HEALTH=$(curl -sS --max-time 5 --connect-timeout 2 "http://127.0.0.1:18810/health" 2>/dev/null || true)
   if echo "$HEALTH" | grep -q '"ok":true'; then
     echo "Gateway healthy"
     GATEWAY_HEALTHY=true
@@ -304,7 +315,7 @@ git -C ~/.openclaw-staging branch  # may show "(detached at ...)" first
 git -C ~/.openclaw-staging checkout staging
 
 # 4. Install staging Docker gateway
-# See openclaw-docker-staging-setup.md
+# See openclaw-staging-setup.md
 
 # 5. Production worktree — Git allows only one checkout of branch `main` at a time.
 #    If `git worktree add ~/.openclaw main` fails because `main` is checked out elsewhere,
@@ -332,6 +343,8 @@ case "$root" in
 esac
 EOF
 chmod +x "$HOOKS/post-commit"
+cp "$HOOKS/post-commit" "$HOOKS/post-merge"
+chmod +x "$HOOKS/post-merge"
 ```
 
 ### Daily dev workflow
