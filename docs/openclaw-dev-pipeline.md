@@ -302,7 +302,8 @@ Automation: ~/.openclaw/scripts/staging-promote.sh" \
 # 1. Ensure remote branch staging exists (required before adding that worktree)
 git fetch origin
 if ! git show-ref --verify --quiet refs/remotes/origin/staging; then
-  git checkout -b staging
+  # Always branch staging from main — avoid creating staging from whatever HEAD was checked out
+  git checkout -B staging origin/main
   git push -u origin staging
   git checkout -
 fi
