@@ -108,10 +108,10 @@ services:
       GOG_KEYRING_PASSWORD: YOUR_KEYRING_PASSWORD
       TZ: America/Los_Angeles
     volumes:
-      # Mount your existing staging config directory
-      - /Users/jleechan/.openclaw-staging:/home/node/.openclaw
+      # Mount your existing staging config directory (${HOME} is expanded by Docker Compose from your shell)
+      - ${HOME}/.openclaw-staging:/home/node/.openclaw
       # Mount staging workspace
-      - /Users/jleechan/.openclaw-staging/workspace:/home/node/.openclaw/workspace
+      - ${HOME}/.openclaw-staging/workspace:/home/node/.openclaw/workspace
     ports:
       # Host loopback : Container gateway port
       - "127.0.0.1:18810:18789"
@@ -153,8 +153,8 @@ services:
       TZ: America/Los_Angeles
       BROWSER: echo
     volumes:
-      - /Users/jleechan/.openclaw-staging:/home/node/.openclaw
-      - /Users/jleechan/.openclaw-staging/workspace:/home/node/.openclaw/workspace
+      - ${HOME}/.openclaw-staging:/home/node/.openclaw
+      - ${HOME}/.openclaw-staging/workspace:/home/node/.openclaw/workspace
     stdin_open: true
     tty: true
     init: true
@@ -181,13 +181,19 @@ When the gateway binds to `lan` (required for Docker bridge networking), it requ
 ```bash
 python3 -c "
 import json
-path = '/Users/jleechan/.openclaw-staging/openclaw.json'
+import os
+path = os.path.expanduser('~/.openclaw-staging/openclaw.json')
 with open(path) as f:
     c = json.load(f)
 c.setdefault('gateway', {}).setdefault('controlUi', {})['allowedOrigins'] = [
     'http://127.0.0.1:18810',
     'http://localhost:18810'
 ]
+# SECURITY: dangerouslyAllowHostHeaderOriginFallback relaxes origin checks so the
+# Control UI can work when the Host header does not match allowedOrigins (common in
+# local Docker setups). Use only for local/testing troubleshooting. Prefer listing
+# every origin you need in allowedOrigins. Remove this key or set it to false before
+# any non-local or production deployment.
 c['gateway']['controlUi']['dangerouslyAllowHostHeaderOriginFallback'] = True
 with open(path, 'w') as f:
     json.dump(c, f, indent=2)
@@ -205,7 +211,8 @@ docker compose -f docker-compose.staging.yml up -d
 ```
 
 Expected output:
-```
+
+```text
 Network openclaw-docker-staging_default Creating
  Container openclaw-docker-staging-openclaw-gateway-1 Creating
  ...
@@ -261,11 +268,9 @@ docker compose -f docker-compose.staging.yml run --rm openclaw-cli config get ga
 ## 9. Updating
 
 ```bash
-# Pull the latest image
-docker pull ghcr.io/openclaw/openclaw:latest
-
-# Restart to pick up the new image
-docker compose -f docker-compose.staging.yml restart openclaw-gateway
+# Pull the latest image, then recreate containers so they use it (restart alone keeps the old image)
+docker compose -f docker-compose.staging.yml pull openclaw-gateway openclaw-cli
+docker compose -f docker-compose.staging.yml up -d
 ```
 
 For version-pinned updates, update the `image:` line in `docker-compose.staging.yml` first.
