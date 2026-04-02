@@ -26,7 +26,7 @@ Run OpenClaw staging inside Docker, side-by-side with the main native gateway.
 ## 1. Prerequisites
 
 - Docker Desktop (or Docker Engine) running
-- GHCR pull access (Docker Hub login or GitHub packages auth)
+- Docker authenticated to **GHCR** (`ghcr.io`), not Docker Hub — see [§3](#3-docker-login-to-ghcr)
 - Existing `~/.openclaw-staging/` with valid `openclaw.json` and `workspace/`
 - `OPENCLAW_GATEWAY_TOKEN` from `~/.openclaw-staging/openclaw.json` → `gateway.auth.token`
 - `GOG_KEYRING_PASSWORD` from `~/.openclaw-staging/openclaw.json` → `env.GOG_KEYRING_PASSWORD`
@@ -41,10 +41,10 @@ If the native staging launchd service is running, stop it first:
 # Find the staging PID
 launchctl list | grep staging
 
-# Stop via launchd (preferred)
-launchctl bootout gui/$(id -u)/ai.openclaw.staging
+# Stop via launchd (preferred — leaves the job loaded so §10 can use launchctl start)
+launchctl stop gui/$(id -u)/ai.openclaw.staging
 
-# Or kill directly if bootout fails
+# Or kill directly if stop fails
 launchctl list | grep ai.openclaw.staging
 # Note the PID, then:
 kill <PID>
@@ -57,14 +57,14 @@ curl -s --max-time 3 http://127.0.0.1:18810/health || echo "Staging gateway conf
 
 ## 3. Docker Login to GHCR
 
-The OpenClaw image lives at `ghcr.io/openclaw/openclaw`. If your Docker engine isn't already authenticated:
+The OpenClaw image lives at `ghcr.io/openclaw/openclaw` (GitHub Container Registry, not Docker Hub). If your Docker engine isn't already authenticated to GHCR:
 
 ```bash
 TOKEN=$(gh auth token)
 echo "$TOKEN" | docker login ghcr.io -u $(gh api /user --jq .login) --password-stdin
 ```
 
-> Note: `gh auth token` requires the `read:user` scope. Your gh-cli token already has this.
+> **Scopes:** Pulling from GHCR requires a token with **`read:packages`**. Private images may also need **`repo`**. If `docker pull` fails with 403, refresh: `gh auth refresh -s read:packages` (and add `-s repo` if needed). Do not rely on `read:user` alone for registry access.
 
 ---
 
@@ -108,10 +108,9 @@ services:
       GOG_KEYRING_PASSWORD: YOUR_KEYRING_PASSWORD
       TZ: America/Los_Angeles
     volumes:
-      # Mount your existing staging config directory (${HOME} is expanded by Docker Compose from your shell)
+      # Staging config + workspace (${HOME} expanded by Docker Compose). One mount is enough:
+      # workspace/ on the host is already visible at /home/node/.openclaw/workspace.
       - ${HOME}/.openclaw-staging:/home/node/.openclaw
-      # Mount staging workspace
-      - ${HOME}/.openclaw-staging/workspace:/home/node/.openclaw/workspace
     ports:
       # Host loopback : Container gateway port
       - "127.0.0.1:18810:18789"
@@ -154,7 +153,6 @@ services:
       BROWSER: echo
     volumes:
       - ${HOME}/.openclaw-staging:/home/node/.openclaw
-      - ${HOME}/.openclaw-staging/workspace:/home/node/.openclaw/workspace
     stdin_open: true
     tty: true
     init: true
@@ -176,7 +174,7 @@ services:
 
 ## 5b. Required Config Patch for non-loopback bind
 
-When the gateway binds to `lan` (required for Docker bridge networking), it requires explicit Control UI origins. Add this to `~/.openclaw-staging/openclaw.json`:
+When the gateway binds to `lan` (required for Docker bridge networking), the Control UI needs explicit `allowedOrigins`. **Start with this patch only** (no fallback flag):
 
 ```bash
 python3 -c "
@@ -189,15 +187,27 @@ c.setdefault('gateway', {}).setdefault('controlUi', {})['allowedOrigins'] = [
     'http://127.0.0.1:18810',
     'http://localhost:18810'
 ]
-# SECURITY: dangerouslyAllowHostHeaderOriginFallback relaxes origin checks so the
-# Control UI can work when the Host header does not match allowedOrigins (common in
-# local Docker setups). Use only for local/testing troubleshooting. Prefer listing
-# every origin you need in allowedOrigins. Remove this key or set it to false before
-# any non-local or production deployment.
-c['gateway']['controlUi']['dangerouslyAllowHostHeaderOriginFallback'] = True
 with open(path, 'w') as f:
     json.dump(c, f, indent=2)
 print('Updated controlUi.allowedOrigins')
+"
+```
+
+### Optional: host-header origin fallback (local troubleshooting only)
+
+If the Control UI still fails to load after `allowedOrigins` is set—**and only for local Docker debugging**—you can temporarily set `dangerouslyAllowHostHeaderOriginFallback`. This **weakens origin validation** (host header can satisfy the UI). Do **not** use outside local testing; **remove the key or set it to `false`** before any shared or production environment. Prefer fixing `allowedOrigins` instead.
+
+```bash
+python3 -c "
+import json
+import os
+path = os.path.expanduser('~/.openclaw-staging/openclaw.json')
+with open(path) as f:
+    c = json.load(f)
+c.setdefault('gateway', {}).setdefault('controlUi', {})['dangerouslyAllowHostHeaderOriginFallback'] = True
+with open(path, 'w') as f:
+    json.dump(c, f, indent=2)
+print('Set dangerouslyAllowHostHeaderOriginFallback (revert when done)')
 "
 ```
 
@@ -270,7 +280,7 @@ docker compose -f docker-compose.staging.yml run --rm openclaw-cli config get ga
 ```bash
 # Pull the latest image, then recreate containers so they use it (restart alone keeps the old image)
 docker compose -f docker-compose.staging.yml pull openclaw-gateway openclaw-cli
-docker compose -f docker-compose.staging.yml up -d
+docker compose -f docker-compose.staging.yml up -d --force-recreate
 ```
 
 For version-pinned updates, update the `image:` line in `docker-compose.staging.yml` first.
@@ -286,8 +296,12 @@ docker compose -f docker-compose.staging.yml down
 # Remove the image (optional)
 docker rmi ghcr.io/openclaw/openclaw:latest
 
-# Restart the native staging gateway
+# Restart the native staging gateway (§2 used launchctl stop, so start works here)
 launchctl start gui/$(id -u)/ai.openclaw.staging
+
+# If you previously removed the job with launchctl bootout instead of stop, load it again first, e.g.:
+# launchctl bootstrap gui/$(id -u) "$HOME/Library/LaunchAgents/ai.openclaw.staging.plist"
+# launchctl kickstart -k gui/$(id -u)/ai.openclaw.staging
 ```
 
 ---
