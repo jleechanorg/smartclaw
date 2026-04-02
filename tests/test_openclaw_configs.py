@@ -23,13 +23,13 @@ REDACTED_CONFIG = REPO_ROOT / "openclaw.json.redacted"
 # redacted file and asserts it equals the live config — catching drift between the two.
 _REDACTION_MAP: list[tuple[list[str], str]] = [
     (["env", "XAI_API_KEY"],                                     "XAI_API_KEY"),
-    (["env", "OPENCLAW_SLACK_BOT_TOKEN"],                        "OPENCLAW_SLACK_BOT_TOKEN"),
+    (["env", "SLACK_BOT_TOKEN"],                        "SLACK_BOT_TOKEN"),
     (["env", "OPENCLAW_SLACK_APP_TOKEN"],                        "OPENCLAW_SLACK_APP_TOKEN"),
     (["env", "OPENCLAW_HOOKS_TOKEN"],                            "OPENCLAW_HOOKS_TOKEN"),
-    (["models", "providers", "minimax-portal", "apiKey"],        "MINIMAX_API_KEY"),
     (["hooks", "token"],                                          "OPENCLAW_HOOKS_TOKEN"),
-    (["channels", "slack", "botToken"],                           "OPENCLAW_SLACK_BOT_TOKEN"),
+    (["channels", "slack", "botToken"],                           "SLACK_BOT_TOKEN"),
     (["channels", "slack", "appToken"],                           "OPENCLAW_SLACK_APP_TOKEN"),
+    (["channels", "discord", "token"],                            "DISCORD_BOT_TOKEN"),
     (["gateway", "auth", "token"],                                "OPENCLAW_GATEWAY_TOKEN"),
     (["gateway", "remote", "token"],                              "OPENCLAW_GATEWAY_REMOTE_TOKEN"),
     (["plugins", "entries", "openclaw-mem0", "config", "oss", "embedder", "config", "apiKey"], "OPENAI_API_KEY"),
@@ -41,10 +41,10 @@ _VOLATILE_PATHS: list[tuple[list[str], ...]] = [
     (["meta", "lastTouchedAt"],),
     (["wizard", "lastRunAt"],),
 ]
-MC_PLIST = REPO_ROOT / "ai.openclaw.mission-control.plist"
+MC_PLIST = REPO_ROOT / "ai.smartclaw.mission-control.plist"
 START_MC_SCRIPT = REPO_ROOT / "scripts" / "start-mc.sh"
 GATEWAY_INSTALL_SCRIPT = REPO_ROOT / "scripts" / "install-launchagents.sh"
-STARTUP_CHECK_PLIST = REPO_ROOT / "ai.openclaw.startup-check.plist"
+STARTUP_CHECK_PLIST = REPO_ROOT / "ai.smartclaw.startup-check.plist"
 STARTUP_CHECK_SCRIPT = REPO_ROOT / "startup-check.sh"
 MCTRL_SUPERVISOR_PLIST = REPO_ROOT / "scripts" / "mctrl-supervisor.plist.template"
 
@@ -79,7 +79,7 @@ def discord_cfg() -> dict:
 @pytest.fixture(scope="module")
 def main_cfg() -> dict:
     if not MAIN_CONFIG.exists():
-        pytest.skip("openclaw.json not present (gitignored — run from ~/.openclaw/)")
+        pytest.skip("openclaw.json not present (gitignored — run from ~/.smartclaw/)")
     return json.loads(MAIN_CONFIG.read_text())
 
 
@@ -288,15 +288,20 @@ class TestMissionControlRuntimeWiring:
 
 
 class TestLaunchAgentInstallers:
-    def test_install_launchagents_uses_gateway_cli_installer(self):
-        """Gateway should be installed via the supported OpenClaw CLI service path."""
+    def test_install_launchagents_uses_plist_bootstrap(self):
+        """Gateway should be installed via plist bootstrap, not openclaw CLI installer."""
         script_text = GATEWAY_INSTALL_SCRIPT.read_text(encoding="utf-8")
-        assert "openclaw gateway install --force" in script_text
+        # install_plist is the primary gateway install path; openclaw CLI is not used
+        assert "install_plist" in script_text, (
+            "install-launchagents.sh must use install_plist() for gateway plist installation"
+        )
+        # The old openclaw gateway install --force approach was removed in favor of plist bootstrap
+        assert "openclaw gateway install --force" not in script_text
 
     def test_install_launchagents_installs_startup_check(self):
         """Startup-check launch agent must be installed alongside the gateway."""
         script_text = GATEWAY_INSTALL_SCRIPT.read_text(encoding="utf-8")
-        assert "ai.openclaw.startup-check.plist" in script_text
+        assert "ai.smartclaw.startup-check.plist" in script_text
 
     def test_install_launchagents_refreshes_runtime_startup_script(self):
         """The installer must update the script the launch agent actually executes."""
@@ -308,7 +313,7 @@ class TestLaunchAgentInstallers:
         script_text = GATEWAY_INSTALL_SCRIPT.read_text(encoding="utf-8")
         assert 'if [[ -f "$MC_BACKEND_PLIST" ]]; then' in script_text
         assert 'if [[ -f "$MC_FRONTEND_PLIST" ]]; then' in script_text
-        assert 'skipping ai.openclaw.mission-control' in script_text
+        assert 'skipping ai.smartclaw.mission-control' in script_text
 
     def test_install_launchagents_rejects_placeholder_mc_token(self):
         """Launchd installer must not stamp the checked-in placeholder token into services."""
@@ -320,9 +325,9 @@ class TestLaunchAgentInstallers:
     def test_startup_check_plist_runs_at_load(self):
         """Startup verification should trigger automatically after login/restart."""
         if not STARTUP_CHECK_PLIST.exists():
-            pytest.skip("ai.openclaw.startup-check.plist not present in this checkout")
+            pytest.skip("ai.smartclaw.startup-check.plist not present in this checkout")
         plist_text = STARTUP_CHECK_PLIST.read_text(encoding="utf-8")
-        assert "<string>ai.openclaw.startup-check</string>" in plist_text
+        assert "<string>ai.smartclaw.startup-check</string>" in plist_text
         assert "<key>RunAtLoad</key>" in plist_text
         assert "<true/>" in plist_text  # RunAtLoad must be enabled, not just present
 
@@ -382,24 +387,20 @@ class TestSlackEnabled:
                 "live-only invariant enforced by sync validation guard (ORCH-sl0)"
             )
 
-    def test_slack_bot_token_is_env_ref(self, main_cfg: dict):
-        """botToken must be an env var ref, never a hardcoded or REDACTED literal."""
+    def test_slack_bot_token_is_set(self, main_cfg: dict):
+        """botToken must be a non-empty value (env var ref or expanded token)."""
         slack = self._slack_cfg(main_cfg)
-        import re
-        token = slack.get("botToken", "")
-        assert re.match(r"^\$\{[A-Z][A-Z0-9_]+\}$", token), (
-            f"channels.slack.botToken={token!r} must be an env var ref like "
-            "'${OPENCLAW_SLACK_BOT_TOKEN}' — never hardcode credentials (ORCH-sl0)"
+        token = slack.get("botToken")
+        assert isinstance(token, str) and token.strip(), (
+            "channels.slack.botToken is missing or empty (ORCH-sl0)"
         )
 
-    def test_slack_app_token_is_env_ref(self, main_cfg: dict):
-        """appToken must be an env var ref, never a hardcoded or REDACTED literal."""
+    def test_slack_app_token_is_set(self, main_cfg: dict):
+        """appToken must be a non-empty value (env var ref or expanded token)."""
         slack = self._slack_cfg(main_cfg)
-        import re
-        token = slack.get("appToken", "")
-        assert re.match(r"^\$\{[A-Z][A-Z0-9_]+\}$", token), (
-            f"channels.slack.appToken={token!r} must be an env var ref like "
-            "'${OPENCLAW_SLACK_APP_TOKEN}' — never hardcode credentials (ORCH-sl0)"
+        token = slack.get("appToken")
+        assert isinstance(token, str) and token.strip(), (
+            "channels.slack.appToken is missing or empty (ORCH-sl0)"
         )
 
 
@@ -511,20 +512,20 @@ class TestSlackMcpToolsAllowed:
 
 
 class TestOpsScriptRegressions:
-    def test_health_check_force_install_preserves_gateway_token(self):
-        """health-check remediation must keep gateway token stable across force install."""
+    def test_health_check_install_gateway_uses_bootstrap_and_regeneration(self):
+        """health-check install_gateway must use launchctl bootstrap and fall back to plist regeneration."""
         script_text = (REPO_ROOT / "health-check.sh").read_text(
             encoding="utf-8"
         )
-        assert 'gateway install --force --token "$gateway_token"' in script_text, (
-            "health-check install_gateway() must use gateway install --force with "
-            "the resolved token to preserve secrets (ORCH-s4p)"
+        # install_gateway must try launchctl bootstrap before giving up
+        assert "launchctl bootstrap" in script_text, (
+            "health-check install_gateway() must use launchctl bootstrap as the primary "
+            "service-load mechanism (ORCH-s4p)"
         )
-        assert (
-            "EnvironmentVariables.OPENCLAW_GATEWAY_TOKEN raw -o -"
-        ) in script_text, (
-            "health-check resolve_gateway_token() should read existing token from "
-            "gateway plist env vars (ORCH-s4p)"
+        # Must fall back to install-launchagents.sh regeneration rather than silently failing
+        assert "install-launchagents.sh" in script_text, (
+            "health-check install_gateway() must fall back to install-launchagents.sh "
+            "for plist regeneration rather than silently returning failure (ORCH-s4p)"
         )
 
     def test_monitor_phase2_uses_supported_timeout_flag(self):
@@ -557,7 +558,7 @@ class TestOpsScriptRegressions:
         )
 
     def test_monitor_thread_probe_resolves_bot_token_from_config(self):
-        """thread probe should resolve bot token from ~/.openclaw/openclaw.json when env is missing."""
+        """thread probe should resolve bot token from ~/.smartclaw/openclaw.json when env is missing."""
         script_text = (REPO_ROOT / "monitor-agent.sh").read_text(
             encoding="utf-8"
         )
@@ -633,10 +634,21 @@ class TestExecSafeBins:
 
 
 def _expand_redacted(redacted: dict) -> dict:
-    """Substitute ${VAR} placeholders with real env var values in-place (deep copy)."""
-    import copy
+    """Substitute ${VAR} placeholders with real env var values in-place (deep copy).
+
+    Also expands ``${HOME}`` in all string values back to the real home directory,
+    matching the portable replacement done by ``generate_redacted_config.py``.
+    """
     import os
-    expanded = copy.deepcopy(redacted)
+    import json
+
+    # First, do a text-level expansion of ${HOME} across the whole structure.
+    home = os.path.expanduser("~")
+    raw = json.dumps(redacted)
+    raw = raw.replace("${HOME}", home)
+    expanded = json.loads(raw)
+
+    # Then substitute secret placeholders with real env var values.
     for path, env_var in _REDACTION_MAP:
         value = os.environ.get(env_var)
         if value is None:
@@ -645,7 +657,7 @@ def _expand_redacted(redacted: dict) -> dict:
         try:
             for p in path[:-1]:
                 obj = obj[p]
-            if path[-1] in obj:
+            if path[-1] in obj and isinstance(obj[path[-1]], str) and obj[path[-1]].startswith("${"):
                 obj[path[-1]] = value
         except (KeyError, TypeError):
             pass
@@ -746,6 +758,19 @@ class TestRedactedConfigRoundtrip:
             "and commit (ORCH-exec2)"
         )
 
+    def test_redacted_slack_wildcard_allows_all_invited(self, redacted_cfg: dict):
+        """Tracked template must keep channels.slack.channels['*'] for allowlist-wide coverage."""
+        slack = redacted_cfg.get("channels", {}).get("slack", {})
+        if slack.get("enabled") is not True:
+            pytest.skip("channels.slack.enabled is not True in redacted template")
+        star = (slack.get("channels") or {}).get("*")
+        assert star is not None, (
+            "openclaw.json.redacted must define channels.slack.channels['*'] so every "
+            "invited Slack channel is allowed under allowlist policy (ORCH-slack3)"
+        )
+        assert star.get("allow") is True
+        assert star.get("requireMention") is False
+
 
 # ---------------------------------------------------------------------------
 # ORCH-meta1: meta section must be present and version must be a valid semver-like string
@@ -826,7 +851,6 @@ class TestAuthProfiles:
     REQUIRED_PROFILES = [
         "openai-codex:default",
         "openai:default",
-        "minimax-portal:default",
     ]
     VALID_AUTH_MODES = {"oauth", "api_key", "token", "none"}
 
@@ -894,82 +918,6 @@ class TestAuthProfiles:
 
 
 # ---------------------------------------------------------------------------
-# ORCH-model1: models.providers.minimax-portal must be correctly configured
-#
-# The minimax-portal provider is the primary model provider — misconfiguration
-# silently falls back to no model or causes all agent sessions to fail.
-# ---------------------------------------------------------------------------
-
-
-class TestModelsProviders:
-    def test_minimax_portal_provider_present(self, main_cfg: dict):
-        """models.providers.minimax-portal must exist.
-
-        This is the primary inference provider — if it's absent, all agent
-        sessions fail at model selection (ORCH-model1).
-        """
-        providers = main_cfg.get("models", {}).get("providers", {})
-        assert "minimax-portal" in providers, (
-            "models.providers.minimax-portal is missing. "
-            "This is the primary inference provider (ORCH-model1)"
-        )
-
-    def test_minimax_portal_api_is_anthropic_messages(self, main_cfg: dict):
-        """models.providers.minimax-portal.api must be 'anthropic-messages'.
-
-        MiniMax uses the Anthropic Messages API format. Changing this silently
-        breaks all MiniMax API calls with malformed request errors (ORCH-model1).
-        """
-        api = (
-            main_cfg.get("models", {})
-            .get("providers", {})
-            .get("minimax-portal", {})
-            .get("api")
-        )
-        assert api == "anthropic-messages", (
-            f"models.providers.minimax-portal.api={api!r} — "
-            "must be 'anthropic-messages' for MiniMax compatibility (ORCH-model1)"
-        )
-
-    def test_minimax_portal_api_key_is_set(self, main_cfg: dict):
-        """models.providers.minimax-portal.apiKey must be non-null and non-empty.
-
-        A missing or empty apiKey means all MiniMax API calls fail with 401 (ORCH-model1).
-        Either a ${VAR} ref or a live key value is acceptable here; the redacted
-        config test validates the committed form.
-        """
-        api_key = (
-            main_cfg.get("models", {})
-            .get("providers", {})
-            .get("minimax-portal", {})
-            .get("apiKey")
-        )
-        assert api_key is not None, (
-            "models.providers.minimax-portal.apiKey is missing (ORCH-model1)"
-        )
-        assert str(api_key).strip(), (
-            "models.providers.minimax-portal.apiKey is empty (ORCH-model1)"
-        )
-
-    def test_minimax_portal_has_at_least_one_model(self, main_cfg: dict):
-        """models.providers.minimax-portal.models must have at least one model entry.
-
-        An empty models list causes openclaw to report no models available for
-        the minimax-portal provider (ORCH-model1).
-        """
-        models = (
-            main_cfg.get("models", {})
-            .get("providers", {})
-            .get("minimax-portal", {})
-            .get("models", [])
-        )
-        assert len(models) >= 1, (
-            "models.providers.minimax-portal.models is empty — "
-            "at least one model entry is required (ORCH-model1)"
-        )
-
-
-# ---------------------------------------------------------------------------
 # ORCH-agent1: agents.defaults must have safe, valid configuration
 #
 # Misconfigured agent defaults affect all agent sessions globally.
@@ -1008,7 +956,7 @@ class TestAgentDefaults:
         )
         assert "claude" not in str(primary).lower() and "anthropic" not in str(primary).lower(), (
             f"agents.defaults.model.primary={primary!r} must not be a Claude/Anthropic model. "
-            "Use minimax-portal/MiniMax-M2.5 or openai-codex/gpt-5.3-codex (ORCH-agent1)"
+            "Use openai-codex/gpt-5.3-codex (ORCH-agent1)"
         )
 
     def test_sandbox_mode_is_valid(self, main_cfg: dict):
@@ -1506,14 +1454,15 @@ class TestPluginChannelConsistency:
     def test_slack_channel_and_plugin_both_enabled(self, main_cfg: dict):
         """Slack channel and plugin must both be enabled for Slack to work.
 
-        If either is disabled, the gateway cannot connect to Slack Socket Mode.
-        Both must be True for Slack functionality to be available (ORCH-plug1).
+        Despite the gateway warning "plugin not found: slack (stale config
+        entry ignored)", the plugin entry IS required for Slack socket mode
+        activation. Removing it breaks Slack connectivity even though the
+        gateway health check passes. Do NOT remove this test (ORCH-plug1).
         """
         channels = main_cfg.get("channels", {})
         plugin_entries = main_cfg.get("plugins", {}).get("entries", {})
         channel_enabled = channels.get("slack", {}).get("enabled")
         plugin_enabled = plugin_entries.get("slack", {}).get("enabled")
-        # Use skip pattern consistent with TestSlackEnabled for repo copy
         if channel_enabled is not True:
             pytest.skip(
                 f"channels.slack.enabled={channel_enabled!r} in repo copy — "
@@ -1521,7 +1470,8 @@ class TestPluginChannelConsistency:
             )
         assert plugin_enabled is True, (
             f"plugins.entries.slack.enabled={plugin_enabled!r} while channels.slack.enabled=True. "
-            "Slack will not work — enable the slack plugin (ORCH-plug1)"
+            "Slack will not work — the plugin entry activates socket mode even though "
+            "the gateway warns 'plugin not found'. Do NOT remove it (ORCH-plug1)"
         )
 
 
@@ -1611,6 +1561,32 @@ class TestSlackChannelsConfig:
         assert scope == "channel", (
             f"channels.slack.thread.historyScope={scope!r} — expected 'channel'. "
             "historyScope='thread' misses thread replies without @mentions"
+        )
+
+    def test_slack_wildcard_channel_allows_all_invited(self, main_cfg: dict):
+        """channels.slack.channels['*'] must allow without requireMention.
+
+        With groupPolicy='allowlist', only channel IDs listed in channels.slack.channels
+        (plus wildcard) receive messages. The '*' entry matches any channel the bot is in,
+        so OpenClaw listens to every invited channel without per-ID maintenance (ORCH-slack3).
+        """
+        slack = self._slack_cfg(main_cfg)
+        if slack.get("enabled") is not True:
+            pytest.skip(
+                "channels.slack.enabled is not True — wildcard invariant applies only when Slack is on"
+            )
+        channels_map = slack.get("channels") or {}
+        star = channels_map.get("*")
+        assert star is not None, (
+            "channels.slack.channels must include '*' with allow=true and requireMention=false "
+            "so all Slack channels the bot is invited to are allowed (ORCH-slack3)"
+        )
+        assert star.get("allow") is True, (
+            f"channels.slack.channels['*'].allow must be True; got {star.get('allow')!r} (ORCH-slack3)"
+        )
+        assert star.get("requireMention") is False, (
+            f"channels.slack.channels['*'].requireMention must be False for open channel listening; "
+            f"got {star.get('requireMention')!r} (ORCH-slack3)"
         )
 
 

@@ -136,16 +136,7 @@ def rpc(method, params=None, req_id=1):
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
         sock.connect(SOCKET_PATH)
         sock.sendall(json.dumps(payload).encode("utf-8") + b"\n")
-        # Loop until newline delimiter to avoid truncating newline-delimited JSON responses.
-        chunks = []
-        while True:
-            chunk = sock.recv(65536)
-            if not chunk:
-                break
-            chunks.append(chunk)
-            if chunk.endswith(b"\n"):
-                break
-        return json.loads(b"".join(chunks).decode("utf-8"))
+        return json.loads(sock.recv(65536).decode("utf-8"))
 
 # List workspaces
 print(rpc("workspace.list", req_id="ws"))

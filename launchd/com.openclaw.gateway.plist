@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.smartclaw.gateway</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>@NODE_PATH@</string>
+        <string>@OPENCLAW_BIN@</string>
+        <string>gateway</string>
+        <string>--port</string>
+        <string>18789</string>
+        <string>--allow-unconfigured</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>@NODE_BIN_DIR@:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>HOME</key>
+        <string>@HOME@</string>
+        <key>OPENCLAW_GATEWAY_PORT</key>
+        <string>18789</string>
+        <key>OPENCLAW_LAUNCHD_LABEL</key>
+        <string>com.smartclaw.gateway</string>
+        <key>OPENCLAW_SERVICE_KIND</key>
+        <string>gateway</string>
+        <key>OPENCLAW_SERVICE_MARKER</key>
+        <string>openclaw</string>
+        <key>OPENCLAW_RAW_STREAM</key>
+        <string>1</string>
+        <key>OPENCLAW_RAW_STREAM_PATH</key>
+        <string>/tmp/openclaw/raw-stream.jsonl</string>
+        <key>GOOGLE_CLOUD_PROJECT</key>
+        <string>infinite-zephyr-487405-d0</string>
+        <key>MISSION_CONTROL_BASE_URL</key>
+        <string>http://localhost:9010</string>
+        <key>MISSION_CONTROL_BOARD_ID</key>
+        <string>aa68f729-d5e0-4d44-8c99-51bcebc0b8bc</string>
+    </dict>
+
+    <key>WorkingDirectory</key>
+    <string>@HOME@/.smartclaw</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>@HOME@/.smartclaw/logs/gateway.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>@HOME@/.smartclaw/logs/gateway.err.log</string>
+
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+</dict>
+</plist>

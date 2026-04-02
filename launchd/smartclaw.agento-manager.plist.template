@@ -44,10 +44,10 @@ Or: ./scripts/install-ao-manager.sh</string>
     <true/>
 
     <key>StandardOutPath</key>
-    <string>/tmp/ao-manager.log</string>
+    <string>@HOME@/.smartclaw/logs/agento-manager.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/tmp/ao-manager.err.log</string>
+    <string>@HOME@/.smartclaw/logs/agento-manager.err.log</string>
 
     <key>WorkingDirectory</key>
     <string>@HOME@/.smartclaw</string>

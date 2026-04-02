@@ -1,0 +1,45 @@
+{
+  "reviewer_timestamp": "2026-03-30T13:42:18Z",
+  "bundle_path": null,
+  "overall_verdict": "FAIL",
+  "reason": "No evidence bundle exists for PR #444 at any canonical location (docs/evidence/, evidence/, /tmp/worldarchitect.ai/smartclaw/fix/dropped-thread-followup-errors/, or docs/pr-validation/)",
+  "phases": {
+    "structure": {
+      "verdict": "FAIL",
+      "checks": {
+        "required_files": "FAIL - evidence bundle does not exist",
+        "sha256_integrity": "FAIL - no bundle to verify",
+        "symlink_validity": "FAIL - no bundle to verify",
+        "metadata_completeness": "FAIL - no metadata.json present"
+      }
+    },
+    "integrity": {
+      "verdict": "FAIL",
+      "checks": {
+        "claim_map_self_ref": "FAIL - no Claim -> Artifact Map exists",
+        "raw_artifact_exists": "FAIL - no artifacts/ directory present",
+        "collection_log": "FAIL - no collection_log.txt present",
+        "inferential_language": "FAIL - no evidence.md from which to audit claims"
+      }
+    },
+    "measurement": {
+      "verdict": "FAIL",
+      "checks": {
+        "statistical_adequacy": "FAIL - no measurements recorded",
+        "methodology_complete": "FAIL - no methodology.md present",
+        "before_after_symmetry": "FAIL - no before/after comparison bundle",
+        "cross_category_check": "FAIL - no bundle to check"
+      }
+    }
+  },
+  "violations": [
+    {
+      "type": "missing_evidence_bundle",
+      "description": "PR #444 has no evidence bundle at any canonical location. An evidence bundle (evidence.md + metadata.json + methodology.md + artifacts/) is required per project evidence standards."
+    }
+  ],
+  "recommendations": [
+    "Create a structured evidence bundle under docs/evidence/PR-444/ containing: evidence.md (Claim -> Artifact Map), metadata.json (bundle_version, run_id, iteration, provenance), methodology.md (test procedure), and artifacts/ (raw bash -x output, plutil output, collection_log.txt).",
+    "Given this is a script/plist bug fix (no streaming/performance claims), statistical N>=30 rules do not apply. Document manual verification captures as raw artifacts."
+  ]
+}

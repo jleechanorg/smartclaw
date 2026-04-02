@@ -1,0 +1,183 @@
+diff --git a/.beads/issues.jsonl b/.beads/issues.jsonl
+index 290b58f27..14c5b7bdc 100644
+--- a/.beads/issues.jsonl
++++ b/.beads/issues.jsonl
+@@ -1,9 +1,13 @@
+ {"id":"orch-1fh","title":"Retire ao-pr-poller.sh — replace with AO poller-github-pr plugin","description":"ao-pr-poller.sh (540 lines) duplicates AO poller-github-pr plugin. Unique value to preserve: respawn caps (max 10 per PR per 12h). Add respawn cap config to AO fork, then deprecate the shell script.","status":"open","priority":2,"issue_type":"task","created_at":"2026-03-20T23:50:00.577953Z","created_by":"jleechan","updated_at":"2026-03-20T23:50:00.577953Z","source_repo":".","compaction_level":0,"original_size":0,"labels":["dedup"]}
+ {"id":"orch-6ae","title":"Configure agent-orchestrator OpenClaw notifier plugin","description":"Set up the notifier-openclaw plugin so AO escalation events post to OpenClaw. Add to agent-orchestrator.yaml: defaults.notifiers: [desktop, openclaw]; notifiers.smartclaw with plugin, url (http://127.0.0.1:18789/hooks/agent), token (OPENCLAW_HOOKS_TOKEN). Ensure OpenClaw has hooks.enabled, allowRequestSessionKey, allowedSessionKeyPrefixes: [\"hook:\"]. See MEMORY.md Agent-Orchestrator OpenClaw Integration section.","status":"open","priority":2,"issue_type":"task","created_at":"2026-03-20T22:44:36.691889Z","created_by":"jleechan","updated_at":"2026-03-20T22:44:36.691889Z","source_repo":".","compaction_level":0,"original_size":0}
++{"id":"orch-9yi","title":"chore: investigate dead modules in PR #309 — all have live callers, blocked on orch-jod","description":"Initially thought outcome_recorder, pattern_synthesizer, webhook_ingress had no callers. AST scan revealed: webhook_ingress←webhook_daemon.py; outcome_recorder+pattern_synthesizer←parallel_retry.py. Cannot delete without caller migration (orch-jod). PR #313 scoped to poller fixes only.","status":"open","priority":2,"issue_type":"chore","created_at":"2026-03-21T01:46:19.943268Z","created_by":"jleechan","updated_at":"2026-03-21T02:29:14.941297Z","source_repo":".","compaction_level":0,"original_size":0}
+ {"id":"orch-afs","title":"Retire dispatch_task.py PR spawn paths — only escalation_handler/auto_review_trigger remain valid","description":"dispatch_task.py has 959 lines but its docstring marks PR spawn paths as DEPRECATED, replaced by ao spawn CLI + poller-github-pr plugin. Remove the deprecated PR spawn code, leaving only the unique paths (escalation_handler, auto_review_trigger). Reduces surface area and confusion.","status":"closed","priority":2,"issue_type":"task","created_at":"2026-03-20T23:52:34.948289Z","created_by":"jleechan","updated_at":"2026-03-21T00:22:31.330441Z","closed_at":"2026-03-21T00:22:31.330137Z","close_reason":"Covered by feat/orch-rzq — dispatch_task.py already fully retired to ImportError stub in that branch","source_repo":".","compaction_level":0,"original_size":0}
+ {"id":"orch-fcj","title":"MCP agent-mail register_agent Pydantic validation error blocks agent startup","description":"agent-orchestrator.yaml agentRules instruct agents to call mcp__mcp-agent-mail__register_agent with agent_name parameter, but the MCP server rejects it: 'Unexpected keyword argument agent_name'. This causes agents to error on startup and waste time or die. Fix: either update the MCP server schema or remove register_agent from agentRules.","status":"open","priority":1,"issue_type":"bug","created_at":"2026-03-20T08:01:16.179458Z","created_by":"jleechan","updated_at":"2026-03-20T08:01:16.179458Z","source_repo":".","compaction_level":0,"original_size":0}
++{"id":"orch-gws","title":"fix(poller): ao-* zombie tmux sessions accumulate — not covered by cleanup_zombie_sessions","description":"cleanup_zombie_sessions only matches jc-* pattern. 55+ dead ao-* sessions from agent-orchestrator rate-limit failures are never reaped, wasting resources.","status":"open","priority":2,"issue_type":"bug","created_at":"2026-03-21T01:46:19.752196Z","created_by":"jleechan","updated_at":"2026-03-21T01:46:19.752196Z","source_repo":".","compaction_level":0,"original_size":0}
+ {"id":"orch-h5w","title":"ao spawn --claim-pr reports success even when PR checkout fails","description":"ao spawn --claim-pr creates a session and outputs 'Session created and claimed PR' even when gh pr checkout fails (exit 128 from branch already checked out). The poller greps for this success message and logs SUCCESS, but the agent ends up on a session/jc-* branch with no PR context. Agents die without doing any work. Fix: poller must verify the checkout actually succeeded (e.g. check branch name matches PR branch).","status":"open","priority":1,"issue_type":"bug","created_at":"2026-03-20T08:01:16.106359Z","created_by":"jleechan","updated_at":"2026-03-20T08:01:16.106359Z","source_repo":".","compaction_level":0,"original_size":0}
++{"id":"orch-i61","title":"test(poller): add integration test for cleanup_zombie_worktree with /tmp-style paths","description":"ao-pr-poller-resume-tests.sh has no test for cleanup path with worktrees at non-~/.worktrees paths. Need a test that creates a worktree at /tmp/... and verifies cleanup actually removes it.","status":"open","priority":2,"issue_type":"task","created_at":"2026-03-21T01:46:19.854251Z","created_by":"jleechan","updated_at":"2026-03-21T01:46:19.854251Z","source_repo":".","compaction_level":0,"original_size":0}
+ {"id":"orch-i6h","title":"Add respawn caps config to AO poller-github-pr plugin","description":"Port respawn cap logic from smartclaw ao-pr-poller.sh into AO fork. Add config: maxSpawnsPerPR (default 10), spawnWindowHours (default 12). Implement in poller-github-pr plugin, isolated from core. Tracks spawn count in session metadata.","status":"open","priority":2,"issue_type":"feature","created_at":"2026-03-20T23:50:28.768690Z","created_by":"jleechan","updated_at":"2026-03-20T23:50:28.768690Z","source_repo":".","compaction_level":0,"original_size":0,"labels":["ao-fork"]}
++{"id":"orch-jod","title":"chore: migrate live callers of merge_gate/evidence_bundle/reconciliation to AO-native then delete","description":"merge_gate.py is called by ao-pr-poller.sh, ao-backfill.sh, reviewer_agent.py. evidence_bundle.py referenced in poller. reconciliation.py called by supervisor.py. All callers need migration to AO-native equivalents before these modules can be deleted.","status":"open","priority":3,"issue_type":"chore","created_at":"2026-03-21T01:46:20.032759Z","created_by":"jleechan","updated_at":"2026-03-21T01:46:20.032759Z","source_repo":".","compaction_level":0,"original_size":0}
+ {"id":"orch-jqy","title":"Update stale 6-point green table in repo CLAUDE.md","description":"The 6-point table in CLAUDE.md says 'CR on this repo posts COMMENTED, not APPROVED' but .coderabbit.yaml has approve: true. This stale documentation directly caused an agent to treat COMMENTED as green, gaming the gate instead of fixing CR's actual concerns. Documentation is infrastructure (HARNESS_ENGINEERING.md principle #1) — stale docs cause agent errors. Fix: update condition 3 to require APPROVED state, matching the global CLAUDE.md and .coderabbit.yaml config.","status":"open","priority":1,"issue_type":"bug","created_at":"2026-03-19T07:42:58.487189Z","created_by":"jleechan","updated_at":"2026-03-19T07:42:58.487189Z","source_repo":".","compaction_level":0,"original_size":0}
+ {"id":"orch-ju1","title":"Add session TTL / offline reaping to AO lifecycle-manager","description":"Port age-based session cleanup from smartclaw ao-session-reaper.sh. Add config: sessionTTL.mergedPR (default 2h), sessionTTL.noPR (default 4h). Implement as companion module session-ttl-reaper.ts (isolated from core lifecycle-manager). Runs as periodic check within lifecycle loop.","status":"open","priority":2,"issue_type":"feature","created_at":"2026-03-20T23:50:42.177824Z","created_by":"jleechan","updated_at":"2026-03-20T23:50:42.177824Z","source_repo":".","compaction_level":0,"original_size":0,"labels":["ao-fork"]}
+ {"id":"orch-mwu","title":"Pre-commit hook: warn when committing to ~/.smartclaw while worktree exists","description":"Add a pre-commit hook that detects when an agent is committing directly to ~/.smartclaw (live repo) while a worktree checkout exists for the same branch. This prevents the common error of editing the live repo instead of the isolated worktree. Hook should: (1) check if any git worktrees exist for the repo, (2) if committing on main or a branch that has an active worktree, warn and abort, (3) allow override with --no-verify for intentional live edits. Harness improvement from PR-278 session.","status":"open","priority":2,"issue_type":"feature","created_at":"2026-03-19T07:42:50.614492Z","created_by":"jleechan","updated_at":"2026-03-19T07:42:50.614492Z","source_repo":".","compaction_level":0,"original_size":0}
+@@ -17,4 +21,5 @@
+ {"id":"orch-s70","title":"Agents should auto-run /er (evidence review) on their PRs before declaring done","description":"Agento agents currently don't run /er — the evidence review step is manual. Agents should automatically run /er after pushing fixes and getting CR+Bugbot reviews, so the evidence condition in merge_gate.py can pass without human intervention. This is the last manual step blocking full autonomy.","status":"open","priority":1,"issue_type":"task","created_at":"2026-03-20T07:20:15.635728Z","created_by":"jleechan","updated_at":"2026-03-20T07:20:15.635728Z","source_repo":".","compaction_level":0,"original_size":0}
+ {"id":"orch-sq2","title":"Claw dispatch should spawn parallel ao sessions, not queue through gateway","description":"Currently /claw dispatches tasks via the openclaw gateway HTTP endpoint, which processes them sequentially through a single embedded agent. When dispatching work on 5 PRs, they run one at a time (10 min each = 50 min total). Should instead use ao spawn to create parallel tmux sessions, one per PR. The ao spawn path already supports parallelism but agents currently die on startup due to orch-h5w (false-positive claim) and orch-fcj (MCP mail validation error). Once those are fixed, /claw should dispatch via ao spawn rather than the gateway.","status":"open","priority":1,"issue_type":"feature","created_at":"2026-03-20T08:06:14.346118Z","created_by":"jleechan","updated_at":"2026-03-20T08:06:14.346118Z","source_repo":".","compaction_level":0,"original_size":0}
+ {"id":"orch-tqr","title":"Retire stage2_reviewer.py — superseded by AO evidence-bundle.ts + /er skill","description":"stage2_reviewer.py dispatches independent evidence review to a second model (Codex→Claude→Gemini). This is now handled by the /er skill and AO's evidence-bundle.ts. Roadmap noted removing this along with evidence_bundle.py. Verify /er covers all cases then delete.","status":"open","priority":2,"issue_type":"task","created_at":"2026-03-20T23:52:34.861511Z","created_by":"jleechan","updated_at":"2026-03-20T23:52:34.861511Z","source_repo":".","compaction_level":0,"original_size":0}
++{"id":"orch-tzc","title":"fix(poller): cleanup_zombie_worktree silently fails on non-~/.worktrees paths — wrong grep key and path variable","description":"cleanup_zombie_worktree iterates .git/worktrees metadata dirs and greps for '^path $wt_path' but git porcelain outputs 'worktree /path'. Grep never matches so removal block never runs. Also passes metadata dir path to git worktree remove instead of actual checkout path. Net: stray /private/tmp/ worktrees persist every cycle, ao spawn fails with 'already checked out'.","status":"open","priority":1,"issue_type":"bug","created_at":"2026-03-21T01:46:08.462865Z","created_by":"jleechan","updated_at":"2026-03-21T01:46:08.462865Z","source_repo":".","compaction_level":0,"original_size":0}
+ {"id":"orch-zat","title":"Non-Claude agents should discover and use slash commands from ~/.claude/ and .claude/","description":"Slash commands in ~/.claude/commands/ and .claude/commands/ are only usable by Claude Code agents. Codex, Gemini, and other non-Claude agents working on PRs should discover these commands (by reading the .md files) and execute the equivalent logic. This enables /er, /cr, /status, etc. to work regardless of which agent is assigned.","status":"open","priority":2,"issue_type":"task","created_at":"2026-03-20T07:20:18.136949Z","created_by":"jleechan","updated_at":"2026-03-20T07:20:18.136949Z","source_repo":".","compaction_level":0,"original_size":0}
+diff --git a/scripts/ao-pr-poller-resume-tests.sh b/scripts/ao-pr-poller-resume-tests.sh
+index 85e412ef5..602e84c6b 100644
+--- a/scripts/ao-pr-poller-resume-tests.sh
++++ b/scripts/ao-pr-poller-resume-tests.sh
+@@ -160,12 +160,70 @@ test_check_session_idle() {
+     fi
+ }
+ 
++#######################################
++# Test: cleanup_zombie_worktree removes worktrees at /tmp-style paths
++# Regression test for bug where ^path grep never matched porcelain output,
++# leaving /private/tmp/smartclaw-* worktrees stranded every cycle.
++#######################################
++test_cleanup_zombie_worktree_tmp_path() {
++    log_test "=== Test: cleanup_zombie_worktree removes /tmp-style worktrees ==="
++
++    if ! type cleanup_zombie_worktree >/dev/null 2>&1; then
++        fail "cleanup_zombie_worktree not found"
++        return
++    fi
++
++    local repo_path
++    repo_path=$(mktemp -d); repo_path=$(cd "$repo_path" && pwd -P)
++    local wt_path
++    wt_path=$(mktemp -d); wt_path=$(cd "$wt_path" && pwd -P)
++    local test_branch="fix/test-cleanup-$(date +%s)"
++
++    # Init a bare repo and a worktree at a /tmp path (simulates AO's old behavior)
++    git -C "$repo_path" init -q -b main
++    git -C "$repo_path" -c user.name="Test" -c user.email="test@test.com" commit --allow-empty -m "init" -q
++    git -C "$repo_path" branch "$test_branch"
++    git -C "$repo_path" worktree add "$wt_path" "$test_branch" -q 2>/dev/null
++
++    if ! git -C "$repo_path" worktree list --porcelain | grep -q "worktree $wt_path"; then
++        fail "setup: worktree not registered" "path: $wt_path"
++        rm -rf "$repo_path" "$wt_path"
++        return
++    fi
++
++    # Override repo_clone_path to return our test repo
++    repo_clone_path() { echo "$repo_path"; }
++    repo_to_ao_project() { echo ""; }
++
++    cleanup_zombie_worktree "$test_branch" "test/repo"
++
++    # Verify the worktree was actually removed
++    if git -C "$repo_path" worktree list --porcelain 2>/dev/null | grep -q "worktree $wt_path"; then
++        fail "cleanup_zombie_worktree left /tmp worktree registered in git" "wt: $wt_path"
++    else
++        pass "cleanup_zombie_worktree removed /tmp-style worktree from git"
++    fi
++
++    if [[ -d "$wt_path" ]]; then
++        fail "cleanup_zombie_worktree left /tmp worktree directory on disk" "dir: $wt_path"
++    else
++        pass "cleanup_zombie_worktree removed /tmp-style worktree directory"
++    fi
++
++    rm -rf "$repo_path" "$wt_path" 2>/dev/null || true
++    # Restore overrides
++    unset -f repo_clone_path repo_to_ao_project 2>/dev/null || true
++}
++
+ # Run all tests
+ main() {
+     log_test "========================================="
+     log_test "Running ao-pr-poller resume logic TDD tests"
+     log_test "========================================="
+-    
++
++    # NOTE: tests below are TDD stubs — functions they test are not yet implemented
++    # in ao-pr-poller.sh (find_session_for_branch, resume_session, check_session_idle).
++    # They are expected to fail until those features are added; do not count as regressions.
+     test_branch_checked_out_removed
+     test_find_session_for_branch
+     test_is_agent_running_in_session
+@@ -173,11 +231,14 @@ main() {
+     test_resume_session
+     test_resume_logic_in_main_loop
+     test_check_session_idle
+-    
++
++    # Active test — exercises real cleanup_zombie_worktree path fixed in orch-tzc
++    test_cleanup_zombie_worktree_tmp_path
++
+     log_test "========================================="
+     log_test "Results: $TESTS_PASSED passed, $TESTS_FAILED failed (total: $TESTS_RUN)"
+     log_test "========================================="
+-    
++
+     [[ $TESTS_FAILED -eq 0 ]]
+ }
+ 
+diff --git a/scripts/ao-pr-poller.sh b/scripts/ao-pr-poller.sh
+index 4493867ea..55eddd0c1 100755
+--- a/scripts/ao-pr-poller.sh
++++ b/scripts/ao-pr-poller.sh
+@@ -248,17 +248,22 @@ cleanup_zombie_worktree() {
+         tmux kill-session -t "$tmux_session" 2>/dev/null || true
+     done
+     
+-    # Remove git worktree
+-    if [[ -n "$clone_path" && -d "$clone_path/.git/worktrees" ]]; then
+-        local wt_path
+-        for wt_path in "$clone_path/.git/worktrees"/*; do
+-            [[ -d "$wt_path" ]] || continue
+-            if git -C "$clone_path" worktree list --porcelain 2>/dev/null | grep -q "^path $wt_path" && \
+-               git -C "$clone_path" worktree list --porcelain 2>/dev/null | grep -A1 "^path $wt_path" | grep -q "refs/heads/$branch"; then
+-                log "Removing zombie worktree: $wt_path"
+-                git -C "$clone_path" worktree remove "$wt_path" --force 2>/dev/null || true
+-            fi
+-        done
++    # Remove git worktree — find actual checkout path via porcelain output, not .git/worktrees metadata
++    # Bug fixed: porcelain uses "worktree /path" not "path /path"; also need the checkout path not metadata dir
++    # Safety: skip the first block (main worktree = clone_path) to prevent accidental repo deletion
++    # Safety: never rm -rf; only use git worktree remove --force which refuses to delete the main worktree
++    if [[ -n "$clone_path" && -d "$clone_path" ]]; then
++        local actual_wt_path
++        # Parse porcelain: skip the first block (main worktree), then find matching branch
++        actual_wt_path=$(git -C "$clone_path" worktree list --porcelain 2>/dev/null \
++            | awk -v branch="refs/heads/$branch" -v main="$clone_path" '
++                /^worktree / { wt = substr($0, 10); is_main = (wt == main) }
++                !is_main && $0 == "branch " branch { print wt }
++            ')
++        if [[ -n "$actual_wt_path" ]]; then
++            log "Removing zombie worktree: $actual_wt_path"
++            git -C "$clone_path" worktree remove "$actual_wt_path" --force 2>/dev/null || true
++        fi
+     fi
+     
+     # Remove AO worktree directories matching this branch
+@@ -289,16 +294,25 @@ cleanup_zombie_sessions() {
+     log "Scanning for zombie tmux sessions..."
+     local cleaned=0
+ 
++    # jc-* sessions → smartclaw repo
+     for session in $(tmux list-sessions -F '#{session_name}' 2>/dev/null | grep -E "^[0-9a-f]+-jc-" || true); do
+         if ! is_agent_alive_in_session "$session"; then
+-            # Extract branch: strip the machine prefix (everything before first jc-)
+             local branch="${session#*-}"
+-            log "Found zombie session: $session (branch: $branch)"
++            log "Found zombie jc- session: $session (branch: $branch)"
+             cleanup_zombie_worktree "$branch" "jleechanorg/smartclaw"
+             cleaned=$((cleaned + 1))
+         fi
+     done
+ 
++    # ao-* sessions → agent-orchestrator repo (rate-limit failures leave these stranded)
++    for session in $(tmux list-sessions -F '#{session_name}' 2>/dev/null | grep -E "^[0-9a-f]+-ao-[0-9]+" || true); do
++        if ! is_agent_alive_in_session "$session"; then
++            log "Found zombie ao- session: $session — killing (no worktree cleanup needed)"
++            tmux kill-session -t "$session" 2>/dev/null || true
++            cleaned=$((cleaned + 1))
++        fi
++    done
++
+     [[ $cleaned -gt 0 ]] && log "Cleaned up $cleaned zombie sessions"
+ }
+ 

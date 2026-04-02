@@ -120,7 +120,7 @@ class TestCronScheduleMigration:
         script = (
             "#!/usr/bin/env bash\nset -euo pipefail\n"
             'CRON_CMD="' + str(runner) + '"\n'
-            'CRON_MARKER="# OpenClaw 4h backup for ~/.openclaw"\n'
+            'CRON_MARKER="# OpenClaw 4h backup for ~/.smartclaw"\n'
             'CRON_TMP="' + str(cron_file) + '"\n'
             '\nif ! grep -Fq "$CRON_MARKER" "$CRON_TMP"; then\n'
             '  echo "$CRON_MARKER" >> "$CRON_TMP"\n'
@@ -138,7 +138,7 @@ class TestCronScheduleMigration:
     def test_old_schedule_same_path_gets_updated(self, runner_path, watchdog_path, tmp_path):
         """When crontab has 0 */4 with correct path, schedule must be updated to 40 */4."""
         old_crontab = (
-            f"# OpenClaw 4h backup for ~/.openclaw\n"
+            f"# OpenClaw 4h backup for ~/.smartclaw\n"
             f"0 */4 * * * {runner_path}\n"
         )
         result = self._run_cron_migration(old_crontab, runner_path, watchdog_path, tmp_path)
@@ -152,7 +152,7 @@ class TestCronScheduleMigration:
     def test_correct_schedule_not_duplicated(self, runner_path, watchdog_path, tmp_path):
         """When crontab already has 40 */4, no duplicate line is added."""
         correct_crontab = (
-            f"# OpenClaw 4h backup for ~/.openclaw\n"
+            f"# OpenClaw 4h backup for ~/.smartclaw\n"
             f"40 */4 * * * {runner_path}\n"
         )
         result = self._run_cron_migration(correct_crontab, runner_path, watchdog_path, tmp_path)

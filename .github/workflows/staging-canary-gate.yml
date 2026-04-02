@@ -1,0 +1,229 @@
+name: Staging Canary Gate
+
+# Runs config+schema canary checks on every PR.
+# Blocks merge on failure — prevents broken openclaw configs reaching prod.
+#
+# What runs in CI (portable checks):
+#   Check 1  Gateway health      → SKIP in CI (needs local gateway)
+#   Check 2  Config schema        → RUN in CI  (static JSON analysis)
+#   Check 3  Native module ABI     → SKIP in CI (needs local Node + extensions)
+#   Check 4  Slack token validity  → SKIP in CI (needs live gateway)
+#   Check 5  SDK protocol version  → RUN in CI  (parse package.json deps)
+#   Check 6  Heartbeat latency    → SKIP in CI (needs local gateway)
+#
+# Manual gate (must pass before merging):
+#   bash scripts/staging-canary.sh --port 18790
+#   ↑ Run locally against staging gateway before every merge.
+#
+# See: scripts/staging-canary.sh, roadmap/ORCHESTRATION_DESIGN.md
+# Canonical spec: Slack #C0AJ3SD5C79 (3-stage pipeline design thread)
+on:
+  pull_request:
+    types: [opened, synchronize, edited, reopened, ready_for_review]
+
+concurrency:
+  group: staging-canary-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  staging-canary:
+    name: Staging Canary Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            package.json
+            package-lock.json
+          sparse-checkout-cone-mode: false
+
+      # Detect which config files changed in this PR using git diff.
+      # openclaw.json is gitignored in smartclaw so sparse-checkout can't
+      # fetch it — git diff --name-only against base branch finds it regardless.
+      - name: Find changed config files in PR
+        id: find_config
+        run: |
+          echo "Detecting changed config files in this PR..."
+          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...${{ github.sha }} 2>/dev/null || echo "")
+
+          CONFIG_FILE=""
+          # Look for openclaw.json anywhere in the diff
+          for f in $CHANGED; do
+            case "$f" in
+              openclaw.json)        CONFIG_FILE="$f"; break ;;
+              */openclaw.json)      CONFIG_FILE="$f"; break ;;
+              */package.json)       PKG_FILE="$f" ;;
+              package.json)         PKG_FILE="$f" ;;
+            esac
+          done
+
+          echo "config_file=${CONFIG_FILE:-}" >> "$GITHUB_OUTPUT"
+          echo "pkg_file=${PKG_FILE:-}" >> "$GITHUB_OUTPUT"
+          if [ -n "$CONFIG_FILE" ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "Found config: $CONFIG_FILE"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "No openclaw.json changed in this PR — canary skipped"
+          fi
+
+      - name: Run staging canary config checks
+        if: steps.find_config.outputs.found == 'true'
+        id: canary
+        env:
+          CONFIG_FILE: ${{ steps.find_config.outputs.config_file }}
+          PKG_FILE: ${{ steps.find_config.outputs.pkg_file }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          cat > run-canary-checks.mjs << "ENDSCRIPT"
+          import { readFileSync, writeFileSync } from 'fs';
+
+          const configPath = process.env.CONFIG_FILE;
+          const pkgPath = process.env.PKG_FILE || 'package.json';
+          let configText;
+          try {
+            configText = readFileSync(configPath, 'utf8');
+          } catch (e) {
+            console.error('Could not read config file:', e.message);
+            process.exit(1);
+          }
+
+          // ── Canary checks (mirrors staging-canary.sh checks 2, 5) ──
+          const checks = [];
+          const PASS = (name, detail) => {
+            checks.push({ result: 'PASS', name, detail });
+            console.log(`  PASS  ${name} — ${detail}`);
+          };
+          const FAIL = (name, detail) => {
+            checks.push({ result: 'FAIL', name, detail });
+            console.error(`  FAIL  ${name} — ${detail}`);
+          };
+
+          // ── Check 2: Config schema validation ──
+          console.log('\n[2/6] Config schema validation...');
+          let config;
+          try {
+            config = JSON.parse(configText);
+          } catch (e) {
+            FAIL('Config schema validation', `Invalid JSON: ${e.message}`);
+            writeOutput();
+            process.exit(1);
+          }
+
+          const issues = [];
+
+          // Known crash-causing key: cmuxBotToken (incident 2026-03-28)
+          const cmuxStr = JSON.stringify(config);
+          if (/cmuxBotToken/i.test(cmuxStr)) {
+            issues.push('cmuxBotToken present in config (known crash key — incident 2026-03-28)');
+          }
+
+          // checkCompatibility at wrong nesting level
+          if (config.gateway && typeof config.gateway.checkCompatibility !== 'undefined') {
+            issues.push('checkCompatibility at gateway level (crashes gateway when present there)');
+          }
+          if (config.agents && config.agents.defaults && typeof config.agents.defaults.checkCompatibility !== 'undefined') {
+            issues.push('checkCompatibility at agents.defaults level (crashes gateway when present there)');
+          }
+
+          // Missing critical keys
+          const missingKeys = [];
+          if (!config.agents?.defaults?.heartbeat) missingKeys.push('agents.defaults.heartbeat');
+          if (!config.gateway?.auth) missingKeys.push('gateway.auth');
+          if (!config.channels?.slack?.botToken) missingKeys.push('channels.slack.botToken');
+
+          if (issues.length === 0 && missingKeys.length === 0) {
+            PASS('Config schema validation', 'JSON valid, no crash-keys, all critical keys present');
+          } else {
+            if (issues.length > 0) {
+              FAIL('Config schema validation', `Crash-causing issues: ${issues.join('; ')}`);
+            }
+            if (missingKeys.length > 0) {
+              FAIL('Config schema validation', `Missing critical keys: ${missingKeys.join(', ')}`);
+            }
+          }
+
+          // ── Check 5: SDK protocol version (via package.json if available) ──
+          console.log('\n[5/6] SDK protocol version check...');
+          let pkg;
+          try {
+            const pkgText = readFileSync(pkgPath, 'utf8');
+            pkg = JSON.parse(pkgText);
+          } catch {
+            console.log('  SKIP  SDK protocol version — package.json not changed in this PR (not an openclaw gateway PR)');
+          }
+
+          if (pkg && pkg.dependencies) {
+            const sdkDep = Object.keys(pkg.dependencies).find(k => k.includes('@agentclientprotocol/sdk'));
+            if (sdkDep) {
+              const version = pkg.dependencies[sdkDep];
+              const major = parseInt(version.split('.')[0].replace(/[^0-9]/g, '')) || 0;
+              const minor = parseInt(version.split('.')[1]) || 0;
+              if (major !== 0) {
+                FAIL('SDK protocol version', `SDK ${version} — major ${major} != 0 (incompatible)`);
+              } else if (minor > 16) {
+                FAIL('SDK protocol version', `SDK ${version} — minor ${minor} > 16 (breaks ws-stream per incident 2026-03-28)`);
+              } else {
+                PASS('SDK protocol version', `SDK ${version} (protocol 0.${minor}, compatible)`);
+              }
+            }
+          }
+
+          // ── Summary ──
+          console.log('\n=== Canary Results ===');
+          const passCount = checks.filter(c => c.result === 'PASS').length;
+          const failCount = checks.filter(c => c.result === 'FAIL').length;
+          console.log(`${passCount} PASS / ${failCount} FAIL`);
+
+          function writeOutput() {
+            const passCount = checks.filter(c => c.result === 'PASS').length;
+            const failCount = checks.filter(c => c.result === 'FAIL').length;
+            const verdict = failCount === 0 ? 'PASS' : 'FAIL';
+            const body = [
+              `## Staging Canary Gate`,
+              ``,
+              `**Verdict: ${verdict}** — ${passCount} checks passed, ${failCount} failed`,
+              ``,
+              `| Check | Result | Detail |`,
+              `| ----- | ------ | ------ |`,
+              ...checks.map(c => `| ${c.name} | ${c.result} | ${c.detail} |`),
+              ``,
+              `_Staging canary ran on commit \`$GITHUB_SHA\` via staging-canary-gate workflow_`,
+              ``,
+              `> **Manual gate required**: Gateway-specific checks (health, Slack connectivity, native module ABI, heartbeat latency) require \`scripts/staging-canary.sh --port 18790\` run locally against the staging gateway before merging.`,
+            ].join('\n');
+            writeFileSync('pr_comment.txt', body);
+            writeFileSync('verdict.txt', verdict);
+            writeFileSync('checks.json', JSON.stringify({ passCount, failCount, verdict, checks }));
+          }
+
+          writeOutput();
+          if (failCount > 0) process.exit(1);
+          ENDSCRIPT
+          echo "Canary script written"
+          node run-canary-checks.mjs
+
+      - name: Post canary results as PR comment
+        # always() so the comment posts even when the canary script exits non-zero (FAIL).
+        # Without always(), devs get zero feedback when blocked — the PR comment never appears.
+        if: steps.find_config.outputs.found == 'true' && always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUM: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -f pr_comment.txt ]; then
+            gh pr comment $PR_NUM \
+              --body-file pr_comment.txt \
+              || echo "WARN: gh pr comment failed"
+          fi
+
+      - name: Report skipped checks
+        if: steps.find_config.outputs.found != 'true'
+        run: |
+          echo "No openclaw.json found in PR diff — staging canary gate skipped"
+          echo "This is expected for docs-only or non-config PRs"

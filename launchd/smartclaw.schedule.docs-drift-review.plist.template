@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>ai.smartclaw.schedule.docs-drift-review</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/bin/bash</string>
+      <string>@HOME@/.smartclaw/scripts/docs-drift-review.sh</string>
+    </array>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+      <key>Hour</key>
+      <integer>8</integer>
+      <key>Minute</key>
+      <integer>15</integer>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>@HOME@/.smartclaw/logs/scheduled-jobs/docs-drift-review.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>@HOME@/.smartclaw/logs/scheduled-jobs/docs-drift-review.err.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>TZ</key>
+      <string>America/Los_Angeles</string>
+      <key>PATH</key>
+      <string>@OPENCLAW_EXTRA_PATH@@HOME@/.bun/bin:@HOME@/.local/bin:@HOME@/bin:@HOME@/Library/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+      <key>HOME</key>
+      <string>@HOME@</string>
+    </dict>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+  </dict>
+</plist>

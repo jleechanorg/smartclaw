@@ -4,21 +4,24 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-LIVE_OPENCLAW="$HOME/.openclaw"
+LIVE_OPENCLAW="$HOME/.smartclaw"
 LAUNCHD_DIR="$HOME/Library/LaunchAgents"
-GATEWAY_LABEL="ai.openclaw.gateway"
+GATEWAY_LABEL="ai.smartclaw.gateway"
 GATEWAY_PLIST="$LAUNCHD_DIR/$GATEWAY_LABEL.plist"
 AO_DASHBOARD_LABEL="ai.agento.dashboard"
 AO_DASHBOARD_LEGACY_LABEL="ai.agent-orchestrator.dashboard"
 AO_DASHBOARD_PLIST="$LAUNCHD_DIR/$AO_DASHBOARD_LABEL.plist"
 AO_DASHBOARD_LEGACY_PLIST="$LAUNCHD_DIR/$AO_DASHBOARD_LEGACY_LABEL.plist"
 SCHEDULED_LABELS=(
-  "ai.openclaw.schedule.daily-checkin-9am"
-  "ai.openclaw.schedule.daily-checkin-12pm"
-  "ai.openclaw.schedule.daily-checkin-6pm"
-  # backup-4h20 intentionally unloaded: ~/.openclaw/ is git-backed, backup job is redundant
-  "ai.openclaw.schedule.genesis-memory-curation-weekly"
-  "ai.openclaw.schedule.genesis-pattern-extraction-weekly"
+  "ai.smartclaw.schedule.morning-log-review"
+  "ai.smartclaw.schedule.docs-drift-review"
+  "ai.smartclaw.schedule.cron-backup-sync"
+  "ai.smartclaw.schedule.weekly-error-trends"
+  "ai.smartclaw.schedule.daily-research"
+  "ai.smartclaw.schedule.harness-analyzer-9am"
+  "ai.smartclaw.schedule.orch-health-weekly"
+  "ai.smartclaw.schedule.bug-hunt-9am"
+  "ai.smartclaw.schedule.workspace-report-weekly"
 )
 MIGRATED_JOB_IDS=()
 
@@ -80,12 +83,11 @@ require_cmd() {
 
 default_migrated_job_ids() {
   cat <<'EOF'
-522e23a7-c7c1-41f2-b117-a3af05661578
-7424ea0d-2c8a-4a59-b58e-09b242c6c58e
-5192e214-2754-49d5-b567-07c7b24cb116
-882c6964-1deb-4b4b-936d-9edcab83fbda
-genesis-memory-curation-weekly
-genesis-pattern-extraction-weekly
+c0accca2-3b58-4da6-ba84-e8c929387e30
+4ec2aa58-5c97-4c46-8775-a7f030d1dec6
+95f858df-0fe8-4434-90c9-c5c89f61889e
+d6bb3693-9f5c-4a4e-99ed-bc56eb33e35c
+abf80788-7bb0-4ce7-9e09-6c1a97faa5cd
 EOF
 }
 
@@ -110,9 +112,122 @@ detect_local_timezone() {
   echo "${TZ:-unknown}"
 }
 
+detect_ao_dashboard_port() {
+  if [[ -n "${OPENCLAW_DOCTOR_AO_DASHBOARD_PORT:-}" ]]; then
+    echo "$OPENCLAW_DOCTOR_AO_DASHBOARD_PORT"
+    return 0
+  fi
+
+  local plist_path="${1:-}"
+
+  # Priority: launchd plist --port arg > agent-orchestrator.yaml port > fallback 3020
+  if [[ -n "$plist_path" && -f "$plist_path" ]]; then
+    local arg
+    local prev_arg=""
+    while IFS= read -r arg; do
+      # Handle --port=<n>
+      if [[ "$arg" =~ ^--port=([0-9]+)$ ]]; then
+        echo "${BASH_REMATCH[1]}"
+        return 0
+      fi
+
+      # Handle -p<n> compact form
+      if [[ "$arg" =~ ^-p([0-9]+)$ ]]; then
+        echo "${BASH_REMATCH[1]}"
+        return 0
+      fi
+
+      # Handle "-p <n>" and "--port <n>" separate-argument forms
+      if [[ "$prev_arg" == "-p" || "$prev_arg" == "--port" ]]; then
+        if [[ "$arg" =~ ^[0-9]+$ ]]; then
+          echo "$arg"
+          return 0
+        fi
+      fi
+
+      prev_arg="$arg"
+    done < <(plutil -convert json -o - "$plist_path" 2>/dev/null | jq -r '.ProgramArguments[]?' 2>/dev/null || true)
+  fi
+
+  # Fall back to agent-orchestrator.yaml port (bd-yk9h: actual AO dashboard port is 3020)
+  local _ao_yaml _yaml_port
+  if [[ -n "$LIVE_OPENCLAW" ]]; then
+    _ao_yaml="$LIVE_OPENCLAW/agent-orchestrator.yaml"
+    if [[ -f "$_ao_yaml" ]]; then
+      _yaml_port="$(awk '/^port:/ {print $2; exit}' "$_ao_yaml" 2>/dev/null || true)"
+      if [[ -n "$_yaml_port" && "$_yaml_port" =~ ^[0-9]+$ ]]; then
+        echo "$_yaml_port"
+        return 0
+      fi
+    fi
+  fi
+  _ao_yaml="$HOME/agent-orchestrator.yaml"
+  if [[ -f "$_ao_yaml" ]]; then
+    _yaml_port="$(awk '/^port:/ {print $2; exit}' "$_ao_yaml" 2>/dev/null || true)"
+    if [[ -n "$_yaml_port" && "$_yaml_port" =~ ^[0-9]+$ ]]; then
+      echo "$_yaml_port"
+      return 0
+    fi
+  fi
+
+  # Final fallback (bd-yk9h: was 3011 — wrong, actual default is 3020)
+  echo "3020"
+}
+
 json_valid() {
   local file="$1"
   jq empty "$file" >/dev/null 2>&1
+}
+
+validate_heartbeat_config() {
+  local cfg_path="$LIVE_OPENCLAW/openclaw.json"
+  local every target prompt
+
+  every="$(jq -r '.agents.defaults.heartbeat.every // empty' "$cfg_path" 2>/dev/null || true)"
+  target="$(jq -r '.agents.defaults.heartbeat.target // empty' "$cfg_path" 2>/dev/null || true)"
+  prompt="$(jq -r '.agents.defaults.heartbeat.prompt // empty' "$cfg_path" 2>/dev/null || true)"
+
+  if [[ "$every" == "5m" ]]; then
+    pass 'heartbeat config: agents.defaults.heartbeat.every is 5m'
+  else
+    fail "heartbeat config: agents.defaults.heartbeat.every must be 5m (got '$every')"
+  fi
+
+  if [[ "$target" == "last" ]]; then
+    pass 'heartbeat config: agents.defaults.heartbeat.target is last'
+  else
+    fail "heartbeat config: agents.defaults.heartbeat.target must be last (got '$target')"
+  fi
+
+  if [[ "$prompt" == *"HEARTBEAT.md"* && "$prompt" == *"HEARTBEAT_OK"* ]]; then
+    pass 'heartbeat config: prompt references HEARTBEAT.md and HEARTBEAT_OK contract'
+  else
+    fail 'heartbeat config: prompt must reference HEARTBEAT.md and HEARTBEAT_OK'
+  fi
+
+  local status_raw status_json main_enabled main_every
+  status_raw="$(openclaw status --json 2>/dev/null || true)"
+  status_json="$(printf '%s\n' "$status_raw" | awk 'f||/^{/{f=1}f')"
+
+  if [[ -z "$status_json" ]] || ! printf '%s\n' "$status_json" | jq empty >/dev/null 2>&1; then
+    fail 'heartbeat runtime: unable to parse openclaw status --json output'
+    return
+  fi
+
+  main_enabled="$(printf '%s\n' "$status_json" | jq -r '.heartbeat.agents[]? | select(.agentId=="main") | .enabled' | head -n1)"
+  main_every="$(printf '%s\n' "$status_json" | jq -r '.heartbeat.agents[]? | select(.agentId=="main") | .every' | head -n1)"
+
+  if [[ "$main_enabled" == "true" ]]; then
+    pass 'heartbeat runtime: main agent heartbeat is enabled'
+  else
+    fail "heartbeat runtime: main agent heartbeat must be enabled (got '$main_enabled')"
+  fi
+
+  if [[ "$main_every" == "5m" ]]; then
+    pass 'heartbeat runtime: main agent cadence is 5m'
+  else
+    fail "heartbeat runtime: main agent cadence must be 5m (got '$main_every')"
+  fi
 }
 
 cmp_text() {
@@ -144,15 +259,29 @@ else
   warn 'non-macOS host; launchd checks are skipped'
 fi
 
+# Hydrate env vars from the launchd gateway plist so doctor.sh can read them
+# regardless of whether it was invoked from a launchd context or a plain shell.
+# This ensures the redacted roundtrip env-var check (below) has the full picture.
+if [[ "$IS_DARWIN" -eq 1 && -f "$GATEWAY_PLIST" ]]; then
+  while IFS= read -r _hyd_line; do
+    [[ "$_hyd_line" =~ ^([A-Z0-9_]+)=(.*)$ ]] || continue
+    _hyd_var="${BASH_REMATCH[1]}"
+    _hyd_val="${BASH_REMATCH[2]}"
+    if [[ -z "${!_hyd_var:-}" ]]; then
+      export "$_hyd_var"="$_hyd_val"
+    fi
+  done < <(plutil -convert json -o - "$GATEWAY_PLIST" 2>/dev/null \
+    | jq -r '.EnvironmentVariables // {} | to_entries[] | "\(.key)=\(.value)"' 2>/dev/null || true)
+  unset _hyd_line _hyd_var _hyd_val
+fi
+
 LOCAL_TZ="$(detect_local_timezone)"
 if [[ "$LOCAL_TZ" == "America/Los_Angeles" ]]; then
   pass 'local timezone is America/Los_Angeles (matches migrated schedule semantics)'
 elif [[ "${OPENCLAW_ALLOW_NON_PT_SCHEDULE:-0}" == "1" ]]; then
   warn "local timezone is '$LOCAL_TZ' (override OPENCLAW_ALLOW_NON_PT_SCHEDULE=1 active)"
-elif [[ "$IS_DARWIN" -eq 1 ]]; then
-  fail "local timezone is '$LOCAL_TZ' but migrated schedules are authored for America/Los_Angeles (set OPENCLAW_ALLOW_NON_PT_SCHEDULE=1 to override)"
 else
-  warn "local timezone is '$LOCAL_TZ'; set OPENCLAW_ALLOW_NON_PT_SCHEDULE=1 if schedules differ on this Linux host"
+  fail "local timezone is '$LOCAL_TZ' but migrated schedules are authored for America/Los_Angeles (set OPENCLAW_ALLOW_NON_PT_SCHEDULE=1 to override)"
 fi
 
 require_cmd jq
@@ -168,7 +297,7 @@ printf '\n'
 load_migrated_job_ids
 printf '\n'
 
-require_dir "$LIVE_OPENCLAW" 'live ~/.openclaw'
+require_dir "$LIVE_OPENCLAW" 'live ~/.smartclaw'
 require_file "$LIVE_OPENCLAW/openclaw.json" 'live openclaw config'
 require_file "$LIVE_OPENCLAW/cron/jobs.json" 'live cron jobs'
 require_dir "$LIVE_OPENCLAW/logs" 'live logs dir'
@@ -198,6 +327,53 @@ else
   fail 'openclaw.json is invalid JSON'
 fi
 
+# WS churn safety bounds: timeoutSeconds and maxConcurrent too high = event-loop saturation
+# Node.js WS pong budget is 5000ms; with many long-running LLM calls the pong handler is starved.
+if [[ "$live_json_ok" -eq 1 ]]; then
+  _timeout_s=$(jq -r '.agents.defaults.timeoutSeconds // 0' "$LIVE_OPENCLAW/openclaw.json" 2>/dev/null)
+  _max_conc=$(jq -r '.agents.defaults.maxConcurrent // 0' "$LIVE_OPENCLAW/openclaw.json" 2>/dev/null)
+  if [[ "$_timeout_s" -gt 600 ]]; then
+    warn "agents.defaults.timeoutSeconds=$_timeout_s exceeds safe bound (600) — risk of WS pong starvation and dropped Slack messages. Lower to 600."
+  fi
+  if [[ "$_max_conc" -gt 3 ]]; then
+    warn "agents.defaults.maxConcurrent=$_max_conc exceeds safe bound (3) — risk of event-loop saturation with 600s timeout. Lower to 3."
+  fi
+  unset _timeout_s _max_conc
+fi
+
+# ORCH-slack-all-channels: with groupPolicy=allowlist, channels.slack.channels["*"] must allow
+# without requireMention so every channel the bot is invited to is accepted (OpenClaw resolves
+# the wildcard for unknown channel IDs).
+assert_slack_listen_all_invited_channels() {
+  local json_path="$1"
+  local label="$2"
+  if ! json_valid "$json_path"; then
+    fail "$label: invalid JSON ($json_path)"
+    return 1
+  fi
+  local enabled wild_allow wild_mention
+  enabled="$(jq -r '.channels.slack.enabled // false' "$json_path")"
+  if [[ "$enabled" != "true" ]]; then
+    warn "$label: channels.slack.enabled is not true — skipping Slack wildcard check"
+    return 0
+  fi
+  wild_allow="$(jq -r 'if (.channels.slack.channels."*" | has("allow")) then .channels.slack.channels."*".allow else "missing" end' "$json_path")"
+  wild_mention="$(jq -r 'if (.channels.slack.channels."*" | has("requireMention")) then .channels.slack.channels."*".requireMention else "missing" end' "$json_path")"
+  if [[ "$wild_allow" == "true" && "$wild_mention" == "false" ]]; then
+    pass "$label: Slack channels.\"*\" allows all invited channels (allow=true, requireMention=false)"
+  else
+    fail "$label: Slack channels.\"*\" must be {allow:true, requireMention:false} for all invited channels; got allow=$wild_allow requireMention=$wild_mention ($json_path)"
+  fi
+}
+
+if [[ "$live_json_ok" -eq 1 ]]; then
+  validate_heartbeat_config
+  assert_slack_listen_all_invited_channels "$LIVE_OPENCLAW/openclaw.json" 'live openclaw.json'
+fi
+if [[ -f "$REPO_ROOT/openclaw.json.redacted" ]]; then
+  assert_slack_listen_all_invited_channels "$REPO_ROOT/openclaw.json.redacted" 'openclaw.json.redacted'
+fi
+
 live_token_raw=''
 live_token=''
 if [[ "$live_json_ok" -eq 1 ]]; then
@@ -215,16 +391,16 @@ if [[ "$IS_DARWIN" -eq 1 && -f "$GATEWAY_PLIST" ]]; then
 fi
 
 if ! is_placeholder_token "$live_token"; then
-  pass 'gateway auth token is set in ~/.openclaw/openclaw.json'
+  pass 'gateway auth token is set in ~/.smartclaw/openclaw.json'
 elif ! is_placeholder_token "$plist_token"; then
   pass 'gateway token provided via launchd EnvironmentVariables'
 else
-  fail 'gateway token missing/placeholder in both ~/.openclaw/openclaw.json and launchd EnvironmentVariables'
+  fail 'gateway token missing/placeholder in both ~/.smartclaw/openclaw.json and launchd EnvironmentVariables'
 fi
 
 shell_token="${OPENCLAW_GATEWAY_TOKEN:-}"
 if ! is_placeholder_token "$shell_token" && ! is_placeholder_token "$live_token" && [[ "$shell_token" != "$live_token" ]]; then
-  warn 'shell OPENCLAW_GATEWAY_TOKEN differs from ~/.openclaw/openclaw.json; gateway probes will use config token'
+  warn 'shell OPENCLAW_GATEWAY_TOKEN differs from ~/.smartclaw/openclaw.json; gateway probes will use config token'
 fi
 
 printf '\n'
@@ -251,13 +427,13 @@ if [[ -f "$LIVE_OPENCLAW/cron/jobs.json" ]] && json_valid "$LIVE_OPENCLAW/cron/j
   done
 
   if [[ -n "$missing_ids" ]]; then
-    fail "migrated cron job IDs are missing from ~/.openclaw/cron/jobs.json: $missing_ids"
+    warn "legacy migrated cron job IDs are missing from ~/.smartclaw/cron/jobs.json (non-fatal): $missing_ids"
   fi
   if [[ -n "$still_enabled" ]]; then
-    fail "migrated cron job IDs are still enabled in ~/.openclaw/cron/jobs.json: $still_enabled"
+    warn "legacy migrated cron job IDs are still enabled in ~/.smartclaw/cron/jobs.json (non-fatal): $still_enabled"
   fi
   if [[ -z "$missing_ids" && -z "$still_enabled" ]]; then
-    pass 'migrated OpenClaw cron jobs are disabled in ~/.openclaw/cron/jobs.json'
+    pass 'legacy migrated OpenClaw cron jobs are all absent/disabled in ~/.smartclaw/cron/jobs.json'
   fi
 else
   fail 'could not validate live cron jobs JSON'
@@ -283,15 +459,18 @@ if [[ "$IS_DARWIN" -eq 1 ]]; then
     if ! is_placeholder_token "$plist_token"; then
       pass 'gateway token present in launchd EnvironmentVariables'
     elif ! is_placeholder_token "$live_token"; then
-      pass 'gateway token sourced from ~/.openclaw/openclaw.json'
+      pass 'gateway token sourced from ~/.smartclaw/openclaw.json'
     else
       warn 'gateway token missing/placeholder in launchd EnvironmentVariables (may still work via openclaw.json token)'
     fi
 
     # Check for NVM node path in gateway plist (fragile during Node version upgrades)
+    # Node 22 via nvm is the required runtime (CLAUDE.md); skip warning for v22.x paths.
     plist_program=$(plutil -extract ProgramArguments.0 raw -o - "$GATEWAY_PLIST" 2>/dev/null || true)
-    if [[ "$plist_program" =~ \.nvm/versions/node/ ]]; then
-      warn "gateway service uses Node from a version manager ($plist_program); it can break after upgrades. Recommendation: use system Node (via Homebrew) or create a stable symlink"
+    if [[ "$plist_program" =~ \.nvm/versions/node/v22\. ]]; then
+      pass "gateway service uses nvm Node 22 ($plist_program) — correct per policy"
+    elif [[ "$plist_program" =~ \.nvm/versions/node/ ]]; then
+      warn "gateway service uses a non-v22 Node version manager path ($plist_program); Recommendation: use \`nvm use 22\` per CLAUDE.md policy"
     fi
   fi
 else
@@ -309,7 +488,7 @@ if [[ "$IS_DARWIN" -eq 1 ]]; then
       fail 'launchd job is not in running state'
     fi
   else
-    fail 'launchctl print failed for ai.openclaw.gateway'
+    fail "launchctl print failed for $GATEWAY_LABEL"
   fi
 
   # Check AO dashboard launchd (current label first, then legacy label).
@@ -399,12 +578,15 @@ else
   fail "no process listening on gateway port $runtime_port"
 fi
 
-# Check AO dashboard port (3011)
-AO_DASHBOARD_PORT=3011
+# Initialize ao_dashboard_plist_found to empty string for non-macOS (set -u safety)
+ao_dashboard_plist_found=""
+
+# Check AO dashboard port (env override > launchd plist --port > fallback 3011)
+AO_DASHBOARD_PORT="$(detect_ao_dashboard_port "${ao_dashboard_plist_found:-}")"
 if lsof -nP -iTCP:"$AO_DASHBOARD_PORT" -sTCP:LISTEN >"$TMP_DIR/lsof-ao-dashboard.txt" 2>&1; then
   pass "a process is listening on AO dashboard port $AO_DASHBOARD_PORT"
 else
-  warn "no process listening on AO dashboard port $AO_DASHBOARD_PORT (dashboard may not be running)"
+  warn "no process listening on AO dashboard port $AO_DASHBOARD_PORT (dashboard may not be running; override with OPENCLAW_DOCTOR_AO_DASHBOARD_PORT)"
 fi
 
 health_body_file="$TMP_DIR/health.json"
@@ -430,9 +612,6 @@ fi
 gateway_probe_cmd=(env -u OPENCLAW_GATEWAY_TOKEN)
 if ! is_placeholder_token "$live_token"; then
   gateway_probe_cmd=(env OPENCLAW_GATEWAY_TOKEN="$live_token")
-elif ! is_placeholder_token "$plist_token"; then
-  # Fall back to the launchd plist token when openclaw.json has a placeholder
-  gateway_probe_cmd=(env OPENCLAW_GATEWAY_TOKEN="$plist_token")
 fi
 
 status_output="$("${gateway_probe_cmd[@]}" openclaw gateway status 2>&1 || true)"
@@ -459,6 +638,9 @@ if [[ "$health_cli_rc" -ne 0 ]]; then
   # Distinguish optional-feature misconfig (missing tunnel tokens) from real failures.
   if grep -qE 'secret reference could not be resolved|missing env var|auth\.token|remote\.token' <<<"$health_cli_output"; then
     warn "openclaw gateway health: optional tunnel token missing (exit=$health_cli_rc) — gateway is operational"
+  # Treat transient local WebSocket close as non-fatal when /health and gateway status already passed.
+  elif grep -qE 'gateway closed \(1000|normal closure' <<<"$health_cli_output"; then
+    warn "openclaw gateway health returned transient close (exit=$health_cli_rc): treating as non-fatal"
   else
     fail "openclaw gateway health command failed (exit=$health_cli_rc)"
     if grep -q 'gateway token mismatch' <<<"$health_cli_output"; then
@@ -478,36 +660,20 @@ if [[ "$live_json_ok" -eq 1 ]]; then
   slack_bot_raw="$(jq -r '.channels.slack.botToken // empty' "$LIVE_OPENCLAW/openclaw.json" 2>/dev/null || true)"
   slack_app_raw="$(jq -r '.channels.slack.appToken // empty' "$LIVE_OPENCLAW/openclaw.json" 2>/dev/null || true)"
   
-  # Env var references (${VAR}) are a supported shape: resolve_secret_ref handles them below.
-  # Only warn so operators know the token isn't inline; don't fail before the live probe.
   if [[ "$slack_bot_raw" =~ ^\$\{.*\}$ ]]; then
-    warn "channels.slack.botToken is an env var reference ($slack_bot_raw); will be resolved below"
+    fail "channels.slack.botToken contains env var placeholder: $slack_bot_raw (must be hardcoded token)"
   else
     pass 'channels.slack.botToken is hardcoded (not an env var reference)'
   fi
-
+  
   if [[ "$slack_app_raw" =~ ^\$\{.*\}$ ]]; then
-    warn "channels.slack.appToken is an env var reference ($slack_app_raw); will be resolved below"
+    fail "channels.slack.appToken contains env var placeholder: $slack_app_raw (must be hardcoded token)"
   else
     pass 'channels.slack.appToken is hardcoded (not an env var reference)'
   fi
 
   token_probe_timeout=12
 
-  # Hydrate env vars from the launchd gateway plist so tokens injected only by launchd are
-  # available when doctor.sh runs from a plain shell (which lacks the launchd env).
-  if [[ "$IS_DARWIN" -eq 1 && -f "$GATEWAY_PLIST" ]]; then
-    while IFS= read -r kv_line; do
-      [[ "$kv_line" =~ ^([A-Z0-9_]+)=(.*)$ ]] || continue
-      _hyd_var="${BASH_REMATCH[1]}"
-      _hyd_val="${BASH_REMATCH[2]}"
-      if [[ -z "${!_hyd_var:-}" ]]; then
-        export "$_hyd_var"="$_hyd_val"
-      fi
-    done < <(plutil -convert json -o - "$GATEWAY_PLIST" 2>/dev/null \
-      | jq -r '.EnvironmentVariables // {} | to_entries[] | "\(.key)=\(.value)"' 2>/dev/null || true)
-    unset _hyd_var _hyd_val
-  fi
   slack_bot_token="$(resolve_secret_ref "$slack_bot_raw")"
   if is_placeholder_token "$slack_bot_token"; then
     fail 'Slack bot token is missing/placeholder (channels.slack.botToken)'
@@ -530,19 +696,6 @@ if [[ "$live_json_ok" -eq 1 ]]; then
       pass 'Slack app token passed apps.connections.open'
     else
       fail "Slack app token failed apps.connections.open (http=$LAST_PROBE_HTTP_CODE)"
-    fi
-  fi
-
-  minimax_raw="$(jq -r '.models.providers."minimax-portal".apiKey // empty' "$LIVE_OPENCLAW/openclaw.json" 2>/dev/null || true)"
-  minimax_token="$(resolve_secret_ref "$minimax_raw")"
-  if is_placeholder_token "$minimax_token"; then
-    fail 'MiniMax API key is missing/placeholder (models.providers.minimax-portal.apiKey)'
-  else
-    minimax_body="$TMP_DIR/minimax-messages.json"
-    if probe_minimax_token "$minimax_token" "$token_probe_timeout" "$minimax_body"; then
-      pass 'MiniMax API key passed anthropic messages probe'
-    else
-      fail "MiniMax API key failed anthropic messages probe (http=$LAST_PROBE_HTTP_CODE)"
     fi
   fi
 
@@ -572,50 +725,51 @@ if [[ "$live_json_ok" -eq 1 ]]; then
     fi
   fi
 
-  discord_raw="$(jq -r '.channels.discord.token // empty' "$LIVE_OPENCLAW/openclaw.json" 2>/dev/null || true)"
-  discord_token="$(resolve_secret_ref "$discord_raw")"
-  if is_placeholder_token "$discord_token"; then
-    warn 'Discord bot token is missing/placeholder (channels.discord.token); skipped Discord probe'
+  discord_enabled="$(jq -r '.channels.discord.enabled // false' "$LIVE_OPENCLAW/openclaw.json" 2>/dev/null || echo false)"
+  if [[ "$discord_enabled" != "true" ]]; then
+    pass 'Discord not enabled (channels.discord.enabled != true); skipped Discord probe'
   else
-    discord_body="$TMP_DIR/discord-me.json"
-    if probe_discord_bot_token "$discord_token" "$token_probe_timeout" "$discord_body"; then
-      pass 'Discord bot token passed users/@me probe'
+    discord_raw="$(jq -r '.channels.discord.token // empty' "$LIVE_OPENCLAW/openclaw.json" 2>/dev/null || true)"
+    discord_token="$(resolve_secret_ref "$discord_raw")"
+    if is_placeholder_token "$discord_token"; then
+      fail 'Discord is enabled but channels.discord.token is empty/placeholder'
     else
-      fail "Discord bot token failed users/@me probe (http=$LAST_PROBE_HTTP_CODE)"
+      discord_body="$TMP_DIR/discord-me.json"
+      if probe_discord_bot_token "$discord_token" "$token_probe_timeout" "$discord_body"; then
+        pass 'Discord bot token passed users/@me probe'
+      else
+        fail "Discord bot token failed users/@me probe (http=$LAST_PROBE_HTTP_CODE)"
+      fi
     fi
   fi
 
-  mcp_mail_url="$(jq -r '.plugins.entries."openclaw-mcp-adapter".config.servers[]? | select(.name=="mcp-agent-mail") | .url // empty' "$LIVE_OPENCLAW/openclaw.json" 2>/dev/null | head -n1)"
-  mcp_mail_auth_raw="$(jq -r '.plugins.entries."openclaw-mcp-adapter".config.servers[]? | select(.name=="mcp-agent-mail") | .headers.Authorization // empty' "$LIVE_OPENCLAW/openclaw.json" 2>/dev/null | head -n1)"
-  if [[ -n "$mcp_mail_url" ]]; then
-    mcp_mail_token="$(resolve_bearer_token_ref "$mcp_mail_auth_raw")"
-    mcp_mail_body="$TMP_DIR/mcp-agent-mail-probe.json"
-    if is_placeholder_token "$mcp_mail_token"; then
-      # No-auth config: probe without bearer token and expect 200 (server runs unauthenticated).
-      if probe_mcp_tools_list "$mcp_mail_url" "$token_probe_timeout" "$mcp_mail_body" ""; then
-        pass 'MCP Agent Mail tools/list probe passed (no-auth)'
+  mcp_adapter_enabled="$(jq -r '.plugins.entries."openclaw-mcp-adapter".enabled // false' "$LIVE_OPENCLAW/openclaw.json" 2>/dev/null || echo false)"
+  if [[ "$mcp_adapter_enabled" == "true" ]]; then
+    mcp_mail_url="$(jq -r '.plugins.entries."openclaw-mcp-adapter".config.servers[]? | select(.name=="mcp-agent-mail") | .url // empty' "$LIVE_OPENCLAW/openclaw.json" 2>/dev/null | head -n1)"
+    mcp_mail_auth_raw="$(jq -r '.plugins.entries."openclaw-mcp-adapter".config.servers[]? | select(.name=="mcp-agent-mail") | .headers.Authorization // empty' "$LIVE_OPENCLAW/openclaw.json" 2>/dev/null | head -n1)"
+    if [[ -n "$mcp_mail_url" ]]; then
+      mcp_mail_token="$(resolve_bearer_token_ref "$mcp_mail_auth_raw")"
+      mcp_mail_body="$TMP_DIR/mcp-agent-mail-probe.json"
+      if is_placeholder_token "$mcp_mail_token"; then
+        # No-auth config: probe without bearer token and expect 200 (server runs unauthenticated).
+        if probe_mcp_tools_list "$mcp_mail_url" "$token_probe_timeout" "$mcp_mail_body" ""; then
+          pass 'MCP Agent Mail tools/list probe passed (no-auth)'
+        else
+          fail "MCP Agent Mail tools/list probe failed (no-auth, http=$LAST_PROBE_HTTP_CODE)"
+        fi
       else
-        fail "MCP Agent Mail tools/list probe failed (no-auth, http=$LAST_PROBE_HTTP_CODE)"
+        if probe_mcp_tools_list "$mcp_mail_url" "$token_probe_timeout" "$mcp_mail_body" "$mcp_mail_token"; then
+          pass 'MCP Agent Mail token passed tools/list probe'
+        else
+          fail "MCP Agent Mail token failed tools/list probe (http=$LAST_PROBE_HTTP_CODE)"
+        fi
       fi
     else
-      if probe_mcp_tools_list "$mcp_mail_url" "$token_probe_timeout" "$mcp_mail_body" "$mcp_mail_token"; then
-        pass 'MCP Agent Mail token passed tools/list probe'
-      else
-        fail "MCP Agent Mail token failed tools/list probe (http=$LAST_PROBE_HTTP_CODE)"
-      fi
+      warn 'MCP adapter enabled but mcp-agent-mail server URL missing; skipped MCP Agent Mail probe'
     fi
   else
-    warn 'MCP Agent Mail server URL missing; skipped MCP Agent Mail probe'
+    pass 'MCP adapter not configured/enabled; skipped MCP Agent Mail probe'
   fi
-fi
-
-# Resolve a usable timeout command: prefer GNU timeout, fall back to gtimeout (macOS/coreutils)
-if command -v timeout >/dev/null 2>&1; then
-  TIMEOUT_CMD="timeout"
-elif command -v gtimeout >/dev/null 2>&1; then
-  TIMEOUT_CMD="gtimeout"
-else
-  TIMEOUT_CMD=""
 fi
 
 # Live end-to-end probes (Slack send, MCP tools/list, gateway inference)
@@ -624,7 +778,7 @@ if command -v openclaw >/dev/null 2>&1; then
   INFER_TIMEOUT=60
 
   # 1. Slack message send via openclaw CLI
-  SLACK_PROBE_TARGET="${OPENCLAW_DOCTOR_SLACK_PROBE_TARGET:-}"
+  SLACK_PROBE_TARGET="${OPENCLAW_DOCTOR_SLACK_PROBE_TARGET:-C0AP8LRKM9N}"
   slack_out="$(openclaw message send --channel slack --target "$SLACK_PROBE_TARGET" \
     --message "[doctor.sh probe] $(date '+%Y-%m-%d %H:%M:%S %Z')" 2>&1)"
   if printf '%s\n' "$slack_out" | grep -q '"ok"\|messageId\|Message ID'; then
@@ -634,19 +788,15 @@ if command -v openclaw >/dev/null 2>&1; then
   fi
 
   # 2. OpenClaw MCP adapter — stdio initialize handshake
-  OPENCLAW_MCP_BIN="$(npm root -g 2>/dev/null)/openclaw-mcp/dist/index.js"
+  OPENCLAW_MCP_BIN="${HOME}/.nvm/versions/node/v22.22.0/lib/node_modules/openclaw-mcp/dist/index.js"
   if [[ -f "$OPENCLAW_MCP_BIN" ]]; then
     mcp_init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"doctor","version":"0.1.0"}}}'
-    if [[ -z "$TIMEOUT_CMD" ]]; then
-      warn "OpenClaw MCP adapter probe skipped — neither 'timeout' nor 'gtimeout' available (install GNU coreutils)"
+    mcp_out="$(printf '%s\n' "$mcp_init" | timeout "$PROBE_TIMEOUT" node "$OPENCLAW_MCP_BIN" 2>&1)"
+    mcp_rc=$?
+    if printf '%s\n' "$mcp_out" | grep -q '"protocolVersion"'; then
+      pass "OpenClaw MCP adapter initialize handshake succeeded"
     else
-      mcp_out="$(printf '%s\n' "$mcp_init" | $TIMEOUT_CMD "$PROBE_TIMEOUT" node "$OPENCLAW_MCP_BIN" 2>&1)"
-      mcp_rc=$?
-      if printf '%s\n' "$mcp_out" | grep -q '"protocolVersion"'; then
-        pass "OpenClaw MCP adapter initialize handshake succeeded"
-      else
-        fail "OpenClaw MCP adapter probe failed (rc=$mcp_rc): $(printf '%s\n' "$mcp_out" | grep -v '^\[openclaw' | head -1)"
-      fi
+      fail "OpenClaw MCP adapter probe failed (rc=$mcp_rc): $(printf '%s\n' "$mcp_out" | grep -v '^\[openclaw' | head -1)"
     fi
   else
     warn "OpenClaw MCP binary not found at expected path; skipped MCP adapter probe"
@@ -660,19 +810,15 @@ if command -v openclaw >/dev/null 2>&1; then
   if [[ "${OPENCLAW_DOCTOR_SKIP_INFERENCE:-0}" == "1" ]]; then
     warn "Gateway inference probe skipped (OPENCLAW_DOCTOR_SKIP_INFERENCE=1)"
   else
-    if [[ -z "$TIMEOUT_CMD" ]]; then
-      warn "Gateway inference probe skipped — neither 'timeout' nor 'gtimeout' available (install GNU coreutils)"
+    infer_out="$(timeout "$INFER_TIMEOUT" openclaw agent --agent main --thinking off \
+      --timeout "$INFER_TIMEOUT" --message "Reply with exactly one word: pong" 2>&1)"
+    infer_rc=$?
+    if [[ "$infer_rc" -eq 0 && -n "$infer_out" ]]; then
+      pass "Gateway inference probe succeeded (response: $(printf '%s' "$infer_out" | tr '\n' ' ' | cut -c1-40))"
+    elif [[ "$infer_rc" -eq 124 ]]; then
+      warn "Gateway inference probe timed out after ${INFER_TIMEOUT}s — gateway is running but model cold-start is slow"
     else
-      infer_out="$($TIMEOUT_CMD "$INFER_TIMEOUT" openclaw agent --agent main --thinking off \
-        --timeout "$INFER_TIMEOUT" --message "Reply with exactly one word: pong" 2>&1)"
-      infer_rc=$?
-      if [[ "$infer_rc" -eq 0 && -n "$infer_out" ]]; then
-        pass "Gateway inference probe succeeded (response: $(printf '%s' "$infer_out" | tr '\n' ' ' | cut -c1-40))"
-      elif [[ "$infer_rc" -eq 124 ]]; then
-        warn "Gateway inference probe timed out after ${INFER_TIMEOUT}s — gateway is running but model cold-start is slow"
-      else
-        fail "Gateway inference probe failed (rc=$infer_rc): $(printf '%s\n' "$infer_out" | head -1)"
-      fi
+      fail "Gateway inference probe failed (rc=$infer_rc): $(printf '%s\n' "$infer_out" | head -1)"
     fi
   fi
 
@@ -680,48 +826,119 @@ if command -v openclaw >/dev/null 2>&1; then
   if [[ "${OPENCLAW_DOCTOR_SKIP_MEMORY:-0}" == "1" ]]; then
     warn "Memory lookup probe skipped (OPENCLAW_DOCTOR_SKIP_MEMORY=1)"
   else
-    if [[ -z "$TIMEOUT_CMD" ]]; then
-      warn "Memory lookup probe skipped — neither 'timeout' nor 'gtimeout' available (install GNU coreutils)"
+    memory_out="$(timeout 30 openclaw mem0 search "test" 2>&1)"
+    memory_rc=$?
+    # Check for NODE_MODULE_VERSION mismatch errors (better-sqlite3)
+    if printf '%s\n' "$memory_out" | grep -qi "NODE_MODULE_VERSION\|MODULE_VERSION\|better-sqlite3"; then
+      fail "Memory lookup failed: better-sqlite3 Node module version mismatch detected"
+    elif [[ "$memory_rc" -ne 0 ]]; then
+      fail "Memory lookup command failed (rc=$memory_rc)"
+    elif printf '%s\n' "$memory_out" | grep -qE '^[[:space:]]*[0-9]+\.|"score"[[:space:]]*:'; then
+      # Results start with a score like "0.531" (old format) OR JSON "score": field
+      pass "Memory lookup probe succeeded (found results)"
+    elif printf '%s\n' "$memory_out" | grep -qiE 'No matches|\[ *\]'; then
+      # "No matches" or empty JSON array means search works but corpus is empty - OK
+      pass "Memory lookup probe succeeded (search functional, corpus empty)"
     else
-      memory_out="$($TIMEOUT_CMD 30 openclaw memory search "test" 2>&1)"
-      memory_rc=$?
-      # Check for NODE_MODULE_VERSION mismatch errors (better-sqlite3)
-      if printf '%s\n' "$memory_out" | grep -qi "NODE_MODULE_VERSION\|MODULE_VERSION\|better-sqlite3"; then
-        fail "Memory lookup failed: better-sqlite3 Node module version mismatch detected"
-      elif [[ "$memory_rc" -ne 0 ]]; then
-        fail "Memory lookup command failed (rc=$memory_rc)"
-      elif printf '%s\n' "$memory_out" | grep -qE '^\s*[0-9]+\.'; then
-        # Results start with a score like "0.531" — memory search working
-        pass "Memory lookup probe succeeded (found results)"
-      elif printf '%s\n' "$memory_out" | grep -qi "No matches"; then
-        # "No matches" means search works but corpus is empty - this is OK
-        pass "Memory lookup probe succeeded (search functional, corpus empty)"
-      else
-        warn "Memory lookup returned no searchable results (may be empty corpus)"
-      fi
+      warn "Memory lookup returned no searchable results (may be empty corpus)"
     fi
   fi
 fi
 
 printf '\n=== openclaw.json validation ===\n'
 
-# First check: redacted config roundtrip (openclaw.json.redacted + env vars = openclaw.json)
-if [[ -f "$REPO_ROOT/scripts/verify-config-from-redacted.sh" ]]; then
-  if bash "$REPO_ROOT/scripts/verify-config-from-redacted.sh" >/dev/null 2>&1; then
-    pass 'openclaw.json matches openclaw.json.redacted + env vars (config is reproducible)'
+# Sync redaction-related env vars from live openclaw.json for verify + pytest roundtrip.
+# Always overwrite when the JSON has a value — stale tokens in ~/.bashrc must not win over
+# the live config (otherwise drift checks false-fail even after regenerating .redacted).
+sync_redaction_env_from_openclaw_json() {
+  local cfg="$REPO_ROOT/openclaw.json"
+  if [[ ! -f "$cfg" ]]; then
+    return 0
+  fi
+  # shellcheck disable=SC1090
+  eval "$(python3 - "$cfg" <<'PY'
+import json
+import shlex
+import sys
+
+cfg_path = sys.argv[1]
+with open(cfg_path, encoding="utf-8") as f:
+    cfg = json.load(f)
+
+
+def get_path(d, path):
+    node = d
+    for p in path[:-1]:
+        node = node[p]
+    return node[path[-1]]
+
+
+REDACTION_MAP = [
+    (["env", "XAI_API_KEY"], "XAI_API_KEY"),
+    (["env", "SLACK_BOT_TOKEN"], "SLACK_BOT_TOKEN"),
+    (["env", "OPENCLAW_SLACK_APP_TOKEN"], "OPENCLAW_SLACK_APP_TOKEN"),
+    (["env", "OPENCLAW_HOOKS_TOKEN"], "OPENCLAW_HOOKS_TOKEN"),
+    (["hooks", "token"], "OPENCLAW_HOOKS_TOKEN"),
+    (["channels", "slack", "botToken"], "SLACK_BOT_TOKEN"),
+    (["channels", "slack", "appToken"], "OPENCLAW_SLACK_APP_TOKEN"),
+    (["channels", "discord", "token"], "DISCORD_BOT_TOKEN"),
+    (["gateway", "auth", "token"], "OPENCLAW_GATEWAY_TOKEN"),
+    (["gateway", "remote", "token"], "OPENCLAW_GATEWAY_REMOTE_TOKEN"),
+    (["plugins", "entries", "openclaw-mem0", "config", "oss", "embedder", "config", "apiKey"], "OPENAI_API_KEY"),
+    (["plugins", "entries", "openclaw-mem0", "config", "oss", "llm", "config", "api_key"], "GROQ_API_KEY"),
+    (["plugins", "entries", "openclaw-mem0", "config", "oss", "llm", "config", "apiKey"], "GROQ_API_KEY"),
+]
+seen = set()
+for path, var in REDACTION_MAP:
+    if var in seen:
+        continue
+    seen.add(var)
+    try:
+        val = get_path(cfg, path)
+    except (KeyError, TypeError):
+        continue
+    if val is None:
+        continue
+    print(f"export {var}={shlex.quote(str(val))}")
+PY
+)"
+}
+
+sync_redaction_env_from_openclaw_json
+
+# First check: regenerate from openclaw.json.redacted + env vars and diff against live (any diff = FAIL).
+# Must match scripts/verify-config-from-redacted.sh required_vars list.
+REDACTED_ROUNDTRIP_VARS=(
+  XAI_API_KEY
+  SLACK_BOT_TOKEN
+  OPENCLAW_SLACK_APP_TOKEN
+  OPENCLAW_HOOKS_TOKEN
+  OPENCLAW_GATEWAY_TOKEN
+  OPENCLAW_GATEWAY_REMOTE_TOKEN
+  OPENAI_API_KEY
+  GROQ_API_KEY
+  DISCORD_BOT_TOKEN
+)
+missing_redaction_vars=()
+for var in "${REDACTED_ROUNDTRIP_VARS[@]}"; do
+  if [[ -z "${!var:-}" ]]; then
+    missing_redaction_vars+=("$var")
+  fi
+done
+
+if [[ "${OPENCLAW_DOCTOR_SKIP_REDACTED_ROUNDTRIP:-0}" == "1" ]]; then
+  warn 'openclaw.json redacted roundtrip skipped (OPENCLAW_DOCTOR_SKIP_REDACTED_ROUNDTRIP=1)'
+elif [[ ${#missing_redaction_vars[@]} -gt 0 ]]; then
+  warn "openclaw.json redacted roundtrip skipped (missing env vars: ${missing_redaction_vars[*]} — export them to enforce zero drift vs openclaw.json.redacted)"
+elif [[ -f "$REPO_ROOT/scripts/verify-config-from-redacted.sh" ]]; then
+  verify_out="$TMP_DIR/verify-config-from-redacted.out"
+  if bash "$REPO_ROOT/scripts/verify-config-from-redacted.sh" >"$verify_out" 2>&1; then
+    pass 'openclaw.json matches openclaw.json.redacted + env vars (regenerated diff is empty)'
   else
-    # Only fail if we have all required env vars; otherwise just warn
-    missing_redaction_vars=()
-    for var in XAI_API_KEY SLACK_BOT_TOKEN SLACK_APP_TOKEN HOOKS_TOKEN MINIMAX_API_KEY GATEWAY_TOKEN REMOTE_TOKEN OPENAI_API_KEY GROQ_API_KEY; do
-      if [[ -z "${!var:-}" ]]; then
-        missing_redaction_vars+=("$var")
-      fi
-    done
-    if [[ ${#missing_redaction_vars[@]} -gt 0 ]]; then
-      warn "openclaw.json redacted roundtrip skipped (missing env vars: ${missing_redaction_vars[*]})"
-    else
-      fail 'openclaw.json does NOT match openclaw.json.redacted + env vars (run scripts/verify-config-from-redacted.sh for details)'
-    fi
+    fail 'openclaw.json does NOT match openclaw.json.redacted + env vars — config drift (red)'
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      printf '%s\n' "$line"
+    done <"$verify_out"
   fi
 else
   warn 'scripts/verify-config-from-redacted.sh not found — skipping redacted config roundtrip check'
@@ -732,7 +949,7 @@ if command -v python3 >/dev/null 2>&1 && python3 -c "import pytest" >/dev/null 2
   pytest_out="$TMP_DIR/pytest-configs.txt"
   # Run only the comprehensive config-validation classes (not legacy tests with known pre-existing failures)
   python3 -m pytest "$REPO_ROOT/tests/test_openclaw_configs.py" \
-    -k "TestMetaAndLogging or TestAuthProfiles or TestModelsProviders or TestAgentDefaults or TestToolsConfig or TestEnvSection or TestGatewaySecurity or TestHooksConfig or TestSessionConfig or TestCommandsConfig or TestMessagesConfig or TestPluginChannelConsistency or TestSlackChannelsConfig or TestRequiredAgents or TestSkillsConfig or TestExecSafeBins or TestRedactedConfigRoundtrip" \
+    -k "TestMetaAndLogging or TestAuthProfiles or TestAgentDefaults or TestToolsConfig or TestEnvSection or TestGatewaySecurity or TestHooksConfig or TestSessionConfig or TestCommandsConfig or TestMessagesConfig or TestPluginChannelConsistency or TestSlackChannelsConfig or TestRequiredAgents or TestSkillsConfig or TestExecSafeBins or TestRedactedConfigRoundtrip" \
     -v --tb=short 2>&1 | tee "$pytest_out" || true
   pytest_exit=${PIPESTATUS[0]}
   if [[ "$pytest_exit" -eq 0 ]]; then

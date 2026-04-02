@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence: PR #417 mem0-purge smoke tests</title>
+  <style>
+
+  :root {
+    --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --border: #30363d;
+    --text: #e6edf3; --text-muted: #8b949e; --accent: #58a6ff;
+    --accent2: #3fb950; --accent3: #f78166; --accent4: #d2a8ff;
+    --code-bg: #1f2937; --table-header: #1c2128; --link: #58a6ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.65; padding: 48px 56px; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+  h2 { font-size: 20px; font-weight: 600; margin-top: 36px; margin-bottom: 12px; color: var(--text); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  h3 { font-size: 16px; font-weight: 600; color: var(--accent4); margin-top: 24px; margin-bottom: 8px; }
+  p { margin-bottom: 12px; }
+  ul, ol { margin: 10px 0 14px 24px; }
+  li { margin-bottom: 6px; }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; overflow-x: auto; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 12.5px; line-height: 1.55; margin: 14px 0 20px; color: #cdd9e5; }
+  code { background: var(--code-bg); border-radius: 4px; padding: 2px 6px; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 12.5px; color: #cdd9e5; }
+  pre code { background: none; padding: 0; border-radius: 0; font-size: inherit; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: 13.5px; }
+  th { background: var(--table-header); color: var(--text-muted); font-weight: 600; text-align: left; padding: 8px 12px; border: 1px solid var(--border); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+  td { padding: 8px 12px; border: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+  .subtitle { color: var(--text-muted); font-size: 13px; margin-bottom: 40px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .badge-green { background: rgba(63, 185, 80, 0.15); color: var(--accent2); border: 1px solid rgba(63, 185, 80, 0.3); }
+  .badge-red { background: rgba(247, 129, 102, 0.15); color: var(--accent3); border: 1px solid rgba(247, 129, 102, 0.3); }
+  .badge-blue { background: rgba(88, 166, 255, 0.15); color: var(--accent); border: 1px solid rgba(88, 166, 255, 0.3); }
+
+  </style>
+</head>
+<body>
+  <h1>Evidence: PR #417 mem0-purge smoke tests</h1>
+  <div class="subtitle">Evidence Bundle · PR #417/420 · iteration_001 · 2026-03-28</div>
+  <h1>Evidence: PR #417 mem0-purge smoke tests</h1>
+<h2>Claim → Artifact Map</h2>
+<table><thead>
+<tr><th>Claim</th><th>File</th><th>Key Field(s)</th></tr>
+</thead><tbody>
+</tbody></table>
+<table><thead>
+<tr><th>Shellcheck clean</th><th>artifacts/smoke_test_output.txt</th><th>test_shellcheck_clean PASSED</th></tr>
+</thead><tbody>
+<tr><td>Dry-run default exits 0</td><td>artifacts/smoke_test_output.txt</td><td>test_help_flag_exits_zero PASSED</td></tr>
+<tr><td>--verify-only exits 0 (Qdrant skip)</td><td>artifacts/smoke_test_output.txt</td><td>test_verify_only_exits_zero SKIPPED</td></tr>
+<tr><td>Unknown options rejected</td><td>artifacts/smoke_test_output.txt</td><td>test_dry_run_unknown_option_fails PASSED</td></tr>
+<tr><td>Missing IDs file fails</td><td>artifacts/smoke_test_output.txt</td><td>test_missing_ids_file_fails PASSED</td></tr>
+<tr><td>Empty IDs file fails</td><td>artifacts/smoke_test_output.txt</td><td>test_empty_ids_file_fails PASSED</td></tr>
+<tr><td>Invalid UUIDs skipped</td><td>artifacts/smoke_test_output.txt</td><td>test_invalid_uuid_skipped PASSED</td></tr>
+<tr><td>Valid UUIDs accepted</td><td>artifacts/smoke_test_output.txt</td><td>test_valid_uuid_accepted_no_error PASSED</td></tr>
+<tr><td>Inline invalid IDs rejected</td><td>artifacts/smoke_test_output.txt</td><td>test_inline_ids_invalid_rejected PASSED</td></tr>
+<tr><td>--confirm without IDs fails</td><td>artifacts/smoke_test_output.txt</td><td>test_confirm_without_ids_file_fails PASSED</td></tr>
+<tr><td>--confirm requires guards</td><td>artifacts/smoke_test_output.txt</td><td>test_confirm_alone_requires_at_least_one_guard PASSED</td></tr>
+<tr><td>Duplicate IDs rejected</td><td>artifacts/smoke_test_output.txt</td><td>test_duplicate_ids_rejected PASSED</td></tr>
+<tr><td>Dry-run prints preview</td><td>artifacts/smoke_test_output.txt</td><td>test_dry_run_default_prints_preview PASSED</td></tr>
+<tr><td>Hash deterministic</td><td>artifacts/smoke_test_output.txt</td><td>test_hash_is_deterministic PASSED</td></tr>
+<tr><td>Hash changes on different IDs</td><td>artifacts/smoke_test_output.txt</td><td>test_hash_changes_on_different_ids PASSED</td></tr>
+<tr><td>Count mismatch fails</td><td>artifacts/smoke_test_output.txt</td><td>test_confirm_count_mismatch_fails PASSED</td></tr>
+<tr><td>Hash mismatch fails</td><td>artifacts/smoke_test_output.txt</td><td>test_confirm_hash_mismatch_fails PASSED</td></tr>
+<tr><td>Live mode blocked</td><td>artifacts/smoke_test_output.txt</td><td>test_confirm_flag_blocks_dry_run PASSED</td></tr>
+<tr><td>Benjamin hash verification</td><td>artifacts/smoke_test_output.txt</td><td>test_known_benjamin_hash_verification PASSED</td></tr>
+</tbody></table>
+<h2>Test results: 18 passed, 1 skipped</h2>
+<pre><code class="language-">tests/test_mem0_purge_smoke.py::TestMem0PurgeShellcheck::test_shellcheck_clean PASSED
+tests/test_mem0_purge_smoke.py::TestMem0PurgeDryRunParsing::test_help_flag_exits_zero PASSED
+tests/test_mem0_purge_smoke.py::TestMem0PurgeDryRunParsing::test_verify_only_exits_zero SKIPPED
+tests/test_mem0_purge_smoke.py::TestMem0PurgeDryRunParsing::test_dry_run_unknown_option_fails PASSED
+tests/test_mem0_purge_smoke.py::TestMem0PurgeDryRunParsing::test_missing_ids_file_fails PASSED
+tests/test_mem0_purge_smoke.py::TestMem0PurgeDryRunParsing::test_empty_ids_file_fails PASSED
+tests/test_mem0_purge_smoke.py::TestMem0PurgeDryRunParsing::test_invalid_uuid_skipped PASSED
+tests/test_mem0_purge_smoke.py::TestMem0PurgeDryRunParsing::test_valid_uuid_accepted_no_error PASSED
+tests/test_mem0_purge_smoke.py::TestMem0PurgeDryRunParsing::test_inline_ids_invalid_rejected PASSED
+tests/test_mem0_purge_smoke.py::TestMem0PurgeDryRunParsing::test_confirm_without_ids_file_fails PASSED
+tests/test_mem0_purge_smoke.py::TestMem0PurgeDryRunParsing::test_confirm_alone_requires_at_least_one_guard PASSED
+tests/test_mem0_purge_smoke.py::TestMem0PurgeDryRunParsing::test_duplicate_ids_rejected PASSED
+tests/test_mem0_purge_smoke.py::TestMem0PurgeDryRunParsing::test_dry_run_default_prints_preview PASSED
+tests/test_mem0_purge_smoke.py::TestMem0PurgeDryRunParsing::test_confirm_flag_blocks_dry_run PASSED
+tests/test_mem0_purge_smoke.py::TestMem0PurgeDryRunParsing::test_confirm_hash_mismatch_fails PASSED
+tests/test_mem0_purge_smoke.py::TestMem0PurgeDryRunParsing::test_confirm_count_mismatch_fails PASSED
+tests/test_mem0_purge_smoke.py::TestMem0PurgeDryRunParsing::test_hash_is_deterministic PASSED
+tests/test_mem0_purge_smoke.py::TestMem0PurgeDryRunParsing::test_hash_changes_on_different_ids PASSED
+tests/test_mem0_purge_smoke.py::TestMem0PurgeDryRunParsing::test_known_benjamin_hash_verification PASSED
+
+======================== 18 passed, 1 skipped in 18.78s ========================</code></pre>
+<h2>Test categories</h2>
+<p>- <strong>Shellcheck</strong>: 1 test (clean SC1090 suppressions only)</p>
+<p>- <strong>Dry-run parsing</strong>: 17 tests (guards, UUID validation, duplicate rejection, hash determinism, confirmation guards, preview output)</p>
+<p>- <strong>Integration smoke</strong>: 1 test (<code>test_verify_only_exits_zero</code> — SKIPPED: Qdrant not reachable)</p>
+<h2>Safety guard coverage</h2>
+<table><thead>
+<tr><th>Guard</th><th>Covered by test</th></tr>
+</thead><tbody>
+</tbody></table>
+<table><thead>
+<tr><th>Dry-run default (no deletes)</th><th>`test_dry_run_default_prints_preview`</th></tr>
+</thead><tbody>
+<tr><td>--confirm requires guards</td><td>`test_confirm_alone_requires_at_least_one_guard`</td></tr>
+<tr><td>Hash mismatch fails</td><td>`test_confirm_hash_mismatch_fails`</td></tr>
+<tr><td>Count mismatch fails</td><td>`test_confirm_count_mismatch_fails`</td></tr>
+<tr><td>Duplicate IDs rejected</td><td>`test_duplicate_ids_rejected`</td></tr>
+<tr><td>UUID validation</td><td>`test_invalid_uuid_skipped`, `test_valid_uuid_accepted_no_error`</td></tr>
+<tr><td>Deterministic hash</td><td>`test_hash_is_deterministic`, `test_known_benjamin_hash_verification`</td></tr>
+<tr><td>Live mode confirmation</td><td>`test_confirm_flag_blocks_dry_run`</td></tr>
+<tr><td>shellcheck clean</td><td>`test_shellcheck_clean`</td></tr>
+</tbody></table>
+  <script>
+  if (typeof mermaid !== 'undefined') {
+    mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+  }
+  </script>
+</body>
+</html>

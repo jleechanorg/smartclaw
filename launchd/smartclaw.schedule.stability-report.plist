@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.smartclaw.schedule.stability-report</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>${HOME}/.smartclaw/scripts/stability-report.launchd.sh</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StartInterval</key>
+    <integer>43200</integer>  <!-- 12 hours in seconds -->
+
+    <key>StandardOutPath</key>
+    <string>${HOME}/.smartclaw/logs/stability-report.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>${HOME}/.smartclaw/logs/stability-report.error.log</string>
+
+    <key>WorkingDirectory</key>
+    <string>${HOME}/.smartclaw</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <key>ThrottleInterval</key>
+    <integer>43200</integer>
+</dict>
+</plist>

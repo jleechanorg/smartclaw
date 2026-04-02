@@ -1,0 +1,41 @@
+=== Phase 1e Dispatch Delivery Verification Test ===
+Date: 2026-03-27
+Purpose: Verify Phase 1e correctly reads /claw tracking files and detects orphaned dispatches
+
+--- /claw tracking file format (confirmed from real system) ---
+ISSUE_ID=<id>
+SESSION_NAME=<session>
+PROJECT_ID=<project>
+SPAWNED_AT=<timestamp>
+STATUS=spawned
+
+--- Test: Phase 1e correctly reads tracking files ---
+$ bash /tmp/phase1e_test.sh
+
+=== Phase 1e: Dispatch Delivery Verification ===
+--- /tmp/openclaw/.claw-track-orch-sga ---
+ISSUE_ID=orch-sga
+SESSION_NAME=jc-925
+PROJECT_ID=smartclaw
+SPAWNED_AT=2026-03-26T21:15:00Z
+TASK_FILE=/tmp/openclaw/claw-task-eloop-system-audit.md
+STATUS=spawned
+[ORPHAN] Session jc-925 is dead — orphaned dispatch for issue orch-sga
+
+Tracking files found: 1
+Orphaned dispatches: 1
+[SYSTEM GAP] 1 orphaned dispatches detected
+
+--- Verification ---
+PASS: Phase 1e correctly identifies orphaned dispatches using /claw tracking files
+NOTE: The orphaned dispatch (jc-925) is a real orphan — this tmux session is no longer active
+
+--- Current tracking files in /tmp/openclaw/ ---
+$(ls -la /tmp/openclaw/.claw-track-* /tmp/openclaw/.claw-spawn-* 2>/dev/null || echo "(none)")
+
+--- Active tmux sessions ---
+$(tmux list-sessions 2>/dev/null | grep -E '^(ao|jc|wa|cc|ra|wc)-' || echo "(none)")
+
+--- Known limitation ---
+Phase 1e requires /claw to create .claw-track-* files before deleting .claw-spawn-* files.
+Confirmed: /claw (claw.md) does write .claw-track-* files on dispatch (SESSION_NAME, PROJECT_ID, SPAWNED_AT).

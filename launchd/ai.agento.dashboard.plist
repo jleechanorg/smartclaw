@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.agento.dashboard</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>${HOME}/.nvm/versions/node/v22.22.0/bin/npx</string>
+        <string>next</string>
+        <string>start</string>
+        <string>-p</string>
+        <string>3020</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>${HOME}/.nvm/versions/node/v22.22.0/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${HOME}/bin:/opt/homebrew/bin</string>
+        <key>HOME</key>
+        <string>/Users/jleechan</string>
+        <key>AO_CONFIG_PATH</key>
+        <string>${HOME}/agent-orchestrator.yaml</string>
+        <key>PORT</key>
+        <string>3020</string>
+    </dict>
+    <key>WorkingDirectory</key>
+    <string>${HOME}/project_agento/agent-orchestrator/packages/web</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/ao-dashboard.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/ao-dashboard.err.log</string>
+</dict>
+</plist>

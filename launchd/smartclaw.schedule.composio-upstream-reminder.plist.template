@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.smartclaw.schedule.composio-upstream-reminder</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>@HOME@/.smartclaw/scripts/composio-upstream-reminder.sh</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>@HOME@/.smartclaw</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>TZ</key>
+        <string>America/Los_Angeles</string>
+        <key>PATH</key>
+        <string>@HOME@/.bun/bin:@HOME@/.local/bin:@HOME@/bin:@HOME@/Library/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>HOME</key>
+        <string>@HOME@</string>
+    </dict>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>1</integer>
+        <key>Hour</key>
+        <integer>9</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>@HOME@/.smartclaw/logs/scheduled-jobs/composio-upstream-reminder.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>@HOME@/.smartclaw/logs/scheduled-jobs/composio-upstream-reminder.err.log</string>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>ThrottleInterval</key>
+    <integer>300</integer>
+</dict>
+</plist>

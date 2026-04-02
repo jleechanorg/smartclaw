@@ -69,10 +69,10 @@ The agent uses the project's `agentRules` which prioritize:
 Run AO commands from:
 
 ```bash
-cd ~/projects_reference/agent-orchestrator
+cd ~/.smartclaw
 ```
 
-`ao` reads `agent-orchestrator.yaml` from the current repo. Running from unrelated directories (for example `~/project_jleechanclaw/mctrl`) can fail with:
+`ao` reads `agent-orchestrator.yaml` from the current directory. In this setup, the canonical config is `~/.smartclaw/agent-orchestrator.yaml` (includes project `smartclaw`). Running from unrelated directories can fail with:
 `No agent-orchestrator.yaml found. Run ao init to create one.`
 
 ## Available projects (from agent-orchestrator.yaml)
@@ -85,9 +85,9 @@ cd ~/projects_reference/agent-orchestrator
 - `worldai-pr5955` — WorldArchitect PR #5955 (jleechanorg/worldarchitect.ai, branch: feat/claw-native-openclaw-dispatch)
 - `worldai-claw-pr57` — worldai_claw PR #57
 - `worldai-claw-agento` — worldai_claw agento clone
-- `jleechanclaw-main` — jleechanorg/jleechanclaw main (also used for PR work)
+- `smartclaw-main` — jleechanorg/smartclaw main (also used for PR work)
 
-**If PR has no matching project:** Run `cat ~/projects_reference/agent-orchestrator/agent-orchestrator.yaml` to see current list, add a new entry following the existing pattern, then spawn. Base repo path for new worldarchitect.ai PRs: clone fresh to `~/.worktrees/worldai-pr<N>-repo`.
+**If PR has no matching project:** Run `cat ~/.smartclaw/agent-orchestrator.yaml` to see current list, add a new entry following the existing pattern, then spawn. Base repo path for new worldarchitect.ai PRs: clone fresh to `~/.worktrees/worldai-pr<N>-repo`.
 
 ## Commands
 
@@ -96,12 +96,12 @@ cd ~/projects_reference/agent-orchestrator
 Each spawn creates a **fresh git worktree** automatically (default behavior from agent-orchestrator.yaml). The worktree is created in `~/.worktrees/<project>-<session>/`.
 
 ```bash
-cd ~/projects_reference/agent-orchestrator && ~/bin/ao spawn worldai-pr5879 <issue-id>
+cd ~/.smartclaw && ~/bin/ao spawn worldai-pr5879 <issue-id>
 ```
 
 For a freeform task (no issue number), omit the issue argument:
 ```bash
-cd ~/projects_reference/agent-orchestrator && ~/bin/ao spawn worldai-pr5879
+cd ~/.smartclaw && ~/bin/ao spawn worldai-pr5879
 ```
 
 ### Spawn for existing PR work (REQUIRED for PR comment/CI remediation)
@@ -110,31 +110,31 @@ When the intent is "fix PR comments/CI on PR #N", never pass `N` as the position
 Always claim the PR explicitly:
 
 ```bash
-cd ~/projects_reference/agent-orchestrator && ~/bin/ao spawn worldai-pr5879 --claim-pr <pr-number>
+cd ~/.smartclaw && ~/bin/ao spawn worldai-pr5879 --claim-pr <pr-number>
 ```
 
 Optional (assign to current GitHub user during claim):
 
 ```bash
-cd ~/projects_reference/agent-orchestrator && ~/bin/ao spawn worldai-pr5879 --claim-pr <pr-number> --assign-on-github
+cd ~/.smartclaw && ~/bin/ao spawn worldai-pr5879 --claim-pr <pr-number> --assign-on-github
 ```
 
 ### Check status of all sessions
 
 ```bash
-cd ~/projects_reference/agent-orchestrator && ~/bin/ao status
+cd ~/.smartclaw && ~/bin/ao status
 ```
 
 ### Send a message to a running session
 
 ```bash
-cd ~/projects_reference/agent-orchestrator && ~/bin/ao send <session-id> "<message>"
+cd ~/.smartclaw && ~/bin/ao send <session-id> "<message>"
 ```
 
 ### List sessions
 
 ```bash
-cd ~/projects_reference/agent-orchestrator && ~/bin/ao session ls
+cd ~/.smartclaw && ~/bin/ao session ls
 ```
 
 ## ⚠️ EXECUTION RULE — TOOL FIRST, TEXT NEVER
@@ -143,7 +143,7 @@ cd ~/projects_reference/agent-orchestrator && ~/bin/ao session ls
 
 - Wrong: "I'll route this to Agento now..." (text response — BANNED)
 - Wrong: "Acknowledged — routing through AO..." (text response — BANNED)
-- Right: immediately call exec(`cd ~/projects_reference/agent-orchestrator && ao spawn <project> --claim-pr <pr>`) with NO preceding text
+- Right: immediately call exec(`cd ~/.smartclaw && ao spawn <project> --claim-pr <pr>`) with NO preceding text
 
 If you catch yourself about to say "I'll..." or "Routing..." — STOP. Call the exec tool instead.
 
@@ -179,7 +179,7 @@ Both steps are mandatory. Do not create an agento PR without spawning a session.
 2. Determine the `ao` command (see Commands section above).
 3. **IMMEDIATELY call exec tool** — no text before the call:
    ```
-   exec: cd ~/projects_reference/agent-orchestrator && ao spawn <project-id> --claim-pr <pr>
+   exec: cd ~/.smartclaw && ao spawn <project-id> --claim-pr <pr>
    ```
 4. After the exec call returns, reply with a one-line confirmation: "Spawned `<session-id>` for PR #N."
 5. Do NOT wait for the spawn to complete — it runs async in tmux.
@@ -190,7 +190,7 @@ When the request is PR remediation (`fix comments`, `fix CI`, `make PR good`), r
 
 1. Start or reuse the AO session for the target PR.
    - If no PR-bound session exists, create one with `ao spawn <project> --claim-pr <pr-number>`.
-2. Run `ao review-check <project>` from `~/projects_reference/agent-orchestrator` to let AO detect review blockers and trigger follow-up messages.
+2. Run `ao review-check <project>` from `~/.smartclaw` to let AO detect review blockers and trigger follow-up messages.
 3. Send the full remediation objective with `ao send <session> "<message>"`:
    - Resolve all unresolved review comments/threads.
    - Fix failing required CI checks.
@@ -204,7 +204,9 @@ Default rule: if PR was created via OpenClaw -> agento handoff, stay in AO lane 
 ## Notes
 
 - AO dashboard: `http://localhost:3011` - managed by launchd (ai.agento.dashboard)
-- Config: `~/projects_reference/agent-orchestrator/agent-orchestrator.yaml`
+- Config: `~/.smartclaw/agent-orchestrator.yaml`
 - Sessions live in `~/.agent-orchestrator/` and `~/.worktrees/`
 - Notifications: AO posts to #ai-slack-test via the agento-notifier webhook handler
 - AO-native remediation is already in AO itself (`review-check` + lifecycle `reactions` for `ci-failed`, `changes-requested`, `bugbot-comments`). Do not build a parallel custom remediation engine in this repo.
+
+**Rate-Limit Handling:** When GitHub is rate-limited, `github-intake.sh` will NOT fall back to unclaimed spawns. Instead, it skips the PR and logs: `RATE LIMIT: --claim-pr failed for PR #N, NOT spawning (will retry next cycle)`. AO lifecycle workers handle spawn/cleanup natively.

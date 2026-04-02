@@ -1,0 +1,13 @@
+{
+  "command": "PYTHONPATH=src python -m pytest tests/test_mem0_purge_smoke.py -v --tb=short",
+  "cwd": "${HOME}/.worktrees/smartclaw/jc-996",
+  "platform": "darwin",
+  "python_version": "3.14",
+  "result": {
+    "passed": 18,
+    "skipped": 1,
+    "failed": 0,
+    "total": 19,
+    "duration_s": 22.88
+  }
+}

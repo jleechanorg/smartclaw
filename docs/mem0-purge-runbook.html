@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>mem0-purge Runbook</title>
+  <style>
+
+  :root {
+    --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --border: #30363d;
+    --text: #e6edf3; --text-muted: #8b949e; --accent: #58a6ff;
+    --accent2: #3fb950; --accent3: #f78166; --accent4: #d2a8ff;
+    --code-bg: #1f2937; --table-header: #1c2128; --link: #58a6ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.65; padding: 48px 56px; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+  h2 { font-size: 20px; font-weight: 600; margin-top: 36px; margin-bottom: 12px; color: var(--text); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  h3 { font-size: 16px; font-weight: 600; color: var(--accent4); margin-top: 24px; margin-bottom: 8px; }
+  p { margin-bottom: 12px; }
+  ul, ol { margin: 10px 0 14px 24px; }
+  li { margin-bottom: 6px; }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; overflow-x: auto; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 12.5px; line-height: 1.55; margin: 14px 0 20px; color: #cdd9e5; white-space: pre-wrap; word-break: break-all; }
+  code { background: var(--code-bg); border-radius: 4px; padding: 2px 6px; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 12.5px; color: #cdd9e5; }
+  pre code { background: none; padding: 0; border-radius: 0; font-size: inherit; white-space: pre-wrap; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: 13.5px; }
+  th { background: var(--table-header); color: var(--text-muted); font-weight: 600; text-align: left; padding: 8px 12px; border: 1px solid var(--border); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+  td { padding: 8px 12px; border: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+  .subtitle { color: var(--text-muted); font-size: 13px; margin-bottom: 40px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 28px 0; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .badge-green { background: rgba(63, 185, 80, 0.15); color: var(--accent2); border: 1px solid rgba(63, 185, 80, 0.3); }
+  .badge-red { background: rgba(247, 129, 102, 0.15); color: var(--accent3); border: 1px solid rgba(247, 129, 102, 0.3); }
+  .badge-blue { background: rgba(88, 166, 255, 0.15); color: var(--accent); border: 1px solid rgba(88, 166, 255, 0.3); }
+
+  </style>
+</head>
+<body>
+  <h1>mem0-purge Runbook</h1>
+  <div class="subtitle">Operator Runbook · smartclaw · Updated: 2026-03-28</div>
+  <h1>mem0-purge Runbook</h1>
+
+<h2>Purpose</h2>
+
+<p>Delete specific memory IDs from the openclaw mem0/Qdrant store. This script is the <strong>only approved mechanism</strong> for one-off memory deletions in this system. All deletions are ID-allowlist-only; no glob, no pattern, no bulk delete-all.</p>
+
+<hr>
+
+<h2>Affected System</h2>
+
+<table>
+<tr><td>Component</td><td>Detail</td></tr>
+</tbody></table>
+<table>
+<tr><td>Vector store</td><td>Qdrant at `http://127.0.0.1:6333`, collection `openclaw_mem0`</td></tr>
+<tr><td>Memory layer</td><td>mem0 (`mem0ai` Python package)</td></tr>
+<tr><td>User namespace</td><td>`jleechan`</td></tr>
+<tr><td>Config</td><td>`~/.smartclaw/.claude/hooks/mem0_config.py`</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>Safety Model</h2>
+
+<table>
+<tr><td>Guard</td><td>Description</td></tr>
+</tbody></table>
+<table>
+<tr><td>**Dry-run default**</td><td>Running without `--confirm` only prints preview; no deletions occur</td></tr>
+<tr><td>**ID allowlist only**</td><td>Every ID to delete must appear in `--ids-file` or `--ids-inline`</td></tr>
+<tr><td>**Count confirmation**</td><td>`--confirm-count N` must match the number of IDs being deleted</td></tr>
+<tr><td>**Hash confirmation**</td><td>`--confirm-hash <sha256>` must match the SHA256 of sorted IDs</td></tr>
+<tr><td>**5-second abort window**</td><td>Live mode sleeps 5s before executing; Ctrl+C aborts</td></tr>
+<tr><td>**Post-run verification**</td><td>After deletion, script queries Qdrant directly to confirm IDs are gone</td></tr>
+</tbody></table>
+
+<hr>
+
+<h2>Pre-flight Checklist</h2>
+
+<p>- [ ] Qdrant is running: <code>curl -sf http://127.0.0.1:6333/healthz</code></p>
+<p>- [ ] mem0 Python package is importable: <code>python3 -c "from mem0 import Memory"</code></p>
+<p>- [ ] <code>mem0_config.py</code> is present at <code>~/.smartclaw/.claude/hooks/mem0_config.py</code></p>
+<p>- [ ] IDs to delete have been independently confirmed (e.g., via <code>m.get(id_)</code> or <code>m.search()</code>)</p>
+<p>- [ ] A pre-run memory count snapshot has been recorded</p>
+
+<hr>
+
+<h2>Dry-Run (Required Before Any Live Run)</h2>
+
+<pre><code class="language-bash"># Option A: IDs from file
+./scripts/mem0-purge.sh --ids-file ./benjamin-ids.txt
+
+# Option B: Inline IDs
+./scripts/mem0-purge.sh \
+  --ids-inline "14ddf0c0-a8e4-49e3-941c-849c071c713c,196d0128-a0d7-4492-a7d0-154e0be33ab7,..."
+
+# Verify-only mode (no IDs needed — just check store health).
+# Requires the hooks dir at ~/.smartclaw/.claude/hooks for Qdrant config.
+./scripts/mem0-purge.sh --verify-only</code></pre>
+
+<p>Dry-run output:</p>
+<pre><code class="language-">- Lists every candidate ID
+- Prints the memory TEXT for each ID (verify these are the right targets)
+- Computes and prints a confirmation hash
+- Shows the exact live-run command to copy</code></pre>
+
+<p><strong>Inspect the output carefully.</strong> If any ID looks wrong, do not proceed.</p>
+
+<hr>
+
+<h2>Live Run</h2>
+
+<h3>Step 1 — Record pre-run point count</h3>
+
+<pre><code class="language-bash">curl -sf http://127.0.0.1:6333/collections/openclaw_mem0 \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['points_count'])"</code></pre>
+
+<h3>Step 2 — Create IDs file</h3>
+
+<pre><code class="language-bash">cat &gt; /tmp/benjamin-ids.txt &lt;&lt; 'EOF'
+# Benjamin false memory IDs — confirmed via m.get()
+# 8 IDs, all confirmed present in Qdrant as of 2026-03-27
+14ddf0c0-a8e4-49e3-941c-849c071c713c
+196d0128-a0d7-4492-a7d0-154e0be33ab7
+17a00b39-7563-4428-bf2a-e83f9670180e
+3684c632-97dc-443e-b425-e89717c7d299
+7ee22498-0598-4bcc-b9e6-1cb815c29868
+dade246e-aa4d-4c93-9c58-4a98ddb31984
+d06b88e0-2d3b-4499-b159-a65dafa791ab
+d5f1143e-5e3d-4219-b998-9a2c0f5f9275
+EOF</code></pre>
+
+<h3>Step 3 — Execute live deletion</h3>
+
+<pre><code class="language-bash">./scripts/mem0-purge.sh \
+  --ids-file /tmp/benjamin-ids.txt \
+  --confirm \
+  --confirm-count 8 \
+  --confirm-hash 03e4c283a85a1df739c3d7b2d61d642bd6d543d87b5f204f58db56f0562a1f57</code></pre>
+
+<p>The confirmation hash <code>03e4c283...</code> is the SHA256 of the 8 sorted IDs (sorted alphabetically by UUID). If you regenerated the IDs file and the hash changed, re-run dry-run to get the new hash.</p>
+
+<h3>Step 4 — Verify post-run</h3>
+
+<p>The script auto-runs verification. Manually confirm:</p>
+
+<pre><code class="language-bash"># Each ID should return 404 — use -s (not -f) so 404 body is visible
+curl -s http://127.0.0.1:6333/collections/openclaw_mem0/points/14ddf0c0-a8e4-49e3-941c-849c071c713c
+curl -s http://127.0.0.1:6333/collections/openclaw_mem0/points/dade246e-aa4d-4c93-9c58-4a98ddb31984
+# ... (all 8 should return 404 or {"status":"not_found"})
+# Note: omit -f so 404 responses print the body instead of silently failing
+
+# Point count delta should equal 8
+curl -sf http://127.0.0.1:6333/collections/openclaw_mem0 \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['points_count'])"</code></pre>
+
+<h3>Step 5 — Post-deletion search verification</h3>
+
+<p>After deletion, search for the deleted content to confirm it's gone:</p>
+
+<pre><code class="language-bash"># These should return no Benjamin-related hits above score 0.6
+python3 -c "
+import os, sys; sys.path.insert(0, os.path.expanduser('~/.smartclaw/.claude/hooks'))
+from mem0_config import MEM0_CONFIG, USER_ID
+from mem0 import Memory
+m = Memory.from_config(MEM0_CONFIG)
+for query in ['Benjamin fictional person', 'benjamin cron job', 'aldric thornwood']:
+    result = m.search(query, user_id=USER_ID, limit=5)
+    print(f'Query: {query}')
+    for r in result.get('results', []):
+        if r.get('score', 0) &gt; 0.65:
+            print(f'  [{r[\"score\"]:.3f}] {r[\"id\"]}: {r[\"memory\"][:100]}')
+    print()
+"</code></pre>
+
+<hr>
+
+<h2>Rollback / Mitigation</h2>
+
+<p>mem0 does not have a native undo. If a wrong ID is deleted:</p>
+
+<p>1. <strong>Re-ingest</strong>: If the memory text was captured (it is shown in dry-run output), re-add it:</p>
+<pre><code class="language-bash">   openclaw mem0 add "&lt;memory text here&gt;"</code></pre>
+<p>2. <strong>Accept the loss</strong>: For ephemeral/temporary memories (timestamps, session summaries), deletion is acceptable.</p>
+<p>3. <strong>Restore from session logs</strong>: Session JSONL files in <code>~/.smartclaw/agents/*/sessions/</code> may contain the original memory text.</p>
+
+<hr>
+
+<h2>Targeted IDs: Benjamin False Memories</h2>
+
+<table>
+<tr><td>ID</td><td>Memory Text</td></tr>
+</tbody></table>
+<table>
+<tr><td>`14ddf0c0-a8e4-49e3-941c-849c071c713c`</td><td>"There is no Benjamin in the system, and all associated memories and tasks are based on false information."</td></tr>
+<tr><td>`196d0128-a0d7-4492-a7d0-154e0be33ab7`</td><td>"There are 10 false Mem0 entries related to a non-existent person named Benjamin that need to be manually purged."</td></tr>
+<tr><td>`17a00b39-7563-4428-bf2a-e83f9670180e`</td><td>"The `followup-benjamin-hourly` cron job with id `25907b9b-ffc3-4096-90eb-c472b245ecac` has been deleted."</td></tr>
+<tr><td>`3684c632-97dc-443e-b425-e89717c7d299`</td><td>"The memory file for 2026-03-27 has been corrected to reflect that Benjamin does not exist."</td></tr>
+<tr><td>`7ee22498-0598-4bcc-b9e6-1cb815c29868`</td><td>"The cron job `followup-benjamin-hourly` with id `25907b9b-ffc3-4096-90eb-c472b245ecac` should be deleted."</td></tr>
+<tr><td>`dade246e-aa4d-4c93-9c58-4a98ddb31984`</td><td>"Benjamin is a fictional person and all reminders and memories related to him were incorrect and have been partially cleaned up from local memory files."</td></tr>
+<tr><td>`d06b88e0-2d3b-4499-b159-a65dafa791ab`</td><td>"The novel is a serialized fiction about AO workers, with all characters being imaginary and any resemblance to actual sessions or prompts being coincidental."</td></tr>
+<tr><td>`d5f1143e-5e3d-4219-b998-9a2c0f5f9275`</td><td>"Jeffrey has an image file named IMG_0904.png that he plans to share with Benjamin along with his story."</td></tr>
+</tbody></table>
+
+<p><strong>Confirmation hash (SHA256 of sorted IDs):</strong></p>
+<pre><code class="language-">03e4c283a85a1df739c3d7b2d61d642bd6d543d87b5f204f58db56f0562a1f57</code></pre>
+
+<hr>
+
+<h2>Smoke Test</h2>
+
+<p>After any script update, run smoke tests to verify correctness:</p>
+
+
+
+<pre><code class="language-bash"># Smoke test: dry-run with a known set of IDs
+./scripts/mem0-purge.sh --ids-inline "00000000-0000-0000-0000-000000000000" 2&gt;&amp;1
+# Expected: exits 0, prints preview for the placeholder ID, does NOT attempt delete</code></pre>
+
+<p>The script is <strong>idempotent in dry-run mode</strong> — it can be run as many times as needed before the live run.</p>
+
+<hr>
+
+<h2>Troubleshooting</h2>
+
+<table>
+<tr><td>Symptom</td><td>Fix</td></tr>
+</tbody></table>
+<table>
+<tr><td>`python3: command not found`</td><td>Install Python 3.12+</td></tr>
+<tr><td>Qdrant unreachable</td><td>`docker start openclaw-mem0-qdrant` or start via launchd</td></tr>
+<tr><td>`mem0_config` import error</td><td>Ensure `~/.smartclaw/.claude/hooks/` is on Python path</td></tr>
+<tr><td>`AttributeError: 'NoneType'...` on `m.get()`</td><td>ID not found in Qdrant — already deleted or never existed</td></tr>
+<tr><td>Hash mismatch after editing IDs file</td><td>Re-run dry-run to get the new computed hash</td></tr>
+</tbody></table>
+  <script>
+  if (typeof mermaid !== 'undefined') {
+    mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+  }
+  </script>
+</body>
+</html>

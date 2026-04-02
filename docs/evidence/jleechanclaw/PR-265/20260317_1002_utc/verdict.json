@@ -1,0 +1,31 @@
+{
+  "pr": 265,
+  "repo": "jleechanorg/smartclaw",
+  "timestamp": "2026-03-17T10:03:12.803234+00:00",
+  "stage1": {
+    "status": "PASS",
+    "reviewer": "self",
+    "findings": [],
+    "claims_verified": 7,
+    "claims_failed": 0
+  },
+  "stage2": {
+    "status": "PASS",
+    "reviewer": "independent",
+    "model": "openai/codex",
+    "findings": [
+      "No circular citations detected in the provided claims-to-artifact mapping.",
+      "No missing or empty artifacts were found; all listed files exist and are non-empty.",
+      "Claim #5 is only partially supported by available diff content (explicit +/- counts are not present in the truncated artifact, as the claim itself states)."
+    ],
+    "confidence": 0.7,
+    "independence_verified": true,
+    "model_family_differs_from_stage1": true
+  },
+  "coderabbit": {
+    "status": "COMMENTED",
+    "critical_findings": 0,
+    "major_findings": 0
+  },
+  "overall": "PASS"
+}

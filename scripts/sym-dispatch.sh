@@ -1,30 +1,87 @@
 #!/usr/bin/env bash
-# sym-dispatch.sh - Dispatch tasks to the Symphony daemon
-#
-# Usage:
-#   sym-dispatch.sh "<task text>"
-#   sym-dispatch.sh --plugin <plugin_name> <input_json>
-
 set -euo pipefail
 
-SYMPHONY_SOCKET="${SYMPHONY_SOCKET:-$HOME/.openclaw/symphony/daemon.sock}"
-SYMPHONY_MEMORY_QUEUE_MODE="${SYMPHONY_MEMORY_QUEUE_MODE:-always}"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+RUNTIME_ROOT="${SYMPHONY_DAEMON_RUNTIME:-$HOME/Library/Application Support/smartclaw/symphony_daemon}"
+METADATA="$RUNTIME_ROOT/daemon_metadata.json"
 
-if [ ! -S "$SYMPHONY_SOCKET" ]; then
-  echo "ERROR: Symphony daemon socket not found at $SYMPHONY_SOCKET" >&2
-  echo "Run scripts/install-symphony-daemon.sh to install the daemon." >&2
-  exit 1
-fi
+ensure_daemon() {
+  if [[ ! -f "$METADATA" ]]; then
+    PYTHONPATH="$ROOT_DIR/src" python3 "$ROOT_DIR/scripts/setup-symphony-daemon.py"
+  fi
+}
 
-_json_str() { printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'; }
+build_generic_input() {
+  local task_text="$1"
+  local ts
+  ts="$(date +%s)"
+  local input_path="$RUNTIME_ROOT/generic_task_${ts}.json"
 
-if [ "${1:-}" = "--plugin" ]; then
-  plugin_name="${2:?plugin name required}"
-  input_json="${3:?input JSON required}"
-  payload="{\"type\":\"plugin\",\"plugin\":$(_json_str "$plugin_name"),\"input\":$input_json,\"memory_queue_mode\":$(_json_str "$SYMPHONY_MEMORY_QUEUE_MODE")}"
-else
-  task_text="${1:?task text required}"
-  payload="{\"type\":\"task\",\"task\":$(_json_str "$task_text"),\"memory_queue_mode\":$(_json_str "$SYMPHONY_MEMORY_QUEUE_MODE")}"
-fi
+  mkdir -p "$RUNTIME_ROOT"
+  python3 - "$input_path" "$task_text" <<'PY'
+import json
+import sys
+import uuid
+from pathlib import Path
 
-echo "$payload" | nc -U "$SYMPHONY_SOCKET"
+out = Path(sys.argv[1])
+task = sys.argv[2].strip()
+if not task:
+    raise SystemExit("sym-dispatch requires a non-empty task")
+
+words = task.split()
+summary = " ".join(words[:8])
+task_id = uuid.uuid4().hex[:12]
+out.write_text(
+    json.dumps(
+        {
+            "tasks": [
+                {
+                    "id": task_id,
+                    "title": summary,
+                    "description": task,
+                    "labels": ["adhoc"],
+                }
+            ]
+        },
+        indent=2,
+    ),
+    encoding="utf-8",
+)
+print(out)
+PY
+}
+
+main() {
+  ensure_daemon
+
+  if [[ "${1:-}" == "--plugin" ]]; then
+    local plugin="${2:-}"
+    local input="${3:-}"
+    if [[ -z "$plugin" || -z "$input" ]]; then
+      echo "Usage: sym-dispatch.sh --plugin <plugin_name> <input_json>" >&2
+      exit 1
+    fi
+    SYMPHONY_TASK_PLUGIN="$plugin" \
+    SYMPHONY_TASK_PLUGIN_INPUT="$input" \
+    "$ROOT_DIR/scripts/enqueue-symphony-tasks.sh"
+    exit 0
+  fi
+
+  local task_text="$*"
+  if [[ -z "$task_text" ]]; then
+    echo "Usage: sym-dispatch.sh <task text>" >&2
+    echo "   or: sym-dispatch.sh --plugin <plugin_name> <input_json>" >&2
+    exit 1
+  fi
+
+  local input_path
+  input_path="$(build_generic_input "$task_text")"
+
+  SYMPHONY_TASK_PLUGIN="generic_tasks" \
+  SYMPHONY_TASK_PLUGIN_INPUT="$input_path" \
+  SYMPHONY_MEMORY_QUEUE_MODE="${SYMPHONY_MEMORY_QUEUE_MODE:-always}" \
+  "$ROOT_DIR/scripts/enqueue-symphony-tasks.sh"
+}
+
+main "$@"

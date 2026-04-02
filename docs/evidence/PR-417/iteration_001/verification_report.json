@@ -1,0 +1,47 @@
+{
+  "reviewer_timestamp": "2026-03-28T22:48:57Z",
+  "bundle_path": "${HOME}/.smartclaw/docs/evidence/PR-417/iteration_001",
+  "overall_verdict": "FAIL",
+  "phases": {
+    "structure": {
+      "verdict": "FAIL",
+      "checks": {
+        "required_files": "FAIL - artifacts/collection_log.txt missing; evidence.md.sha256, metadata.json.sha256, methodology.md.sha256 missing (bundle uses checksums.sha256 instead)",
+        "sha256_integrity": "PASS - all 6 internal files match checksums.sha256; external paths (../../../../) resolve and match but break portability",
+        "symlink_validity": "N/A - no symlinks in this bundle structure",
+        "metadata_completeness": "FAIL - git_provenance.git_head=7b6a580d, expected 790ffaf8c (PR #420 head); also mismatched across metadata.json, README.md head_sha fields"
+      }
+    },
+    "integrity": {
+      "verdict": "FAIL",
+      "checks": {
+        "claim_map_self_ref": "PASS - all 25 claims map to artifacts/smoke_test_output.txt; no self-references",
+        "raw_artifact_exists": "PASS - artifacts/smoke_test_output.txt exists with 30 lines of pytest output",
+        "collection_log": "FAIL - artifacts/collection_log.txt does not exist; evidence-standards.md requires this file with actual command output",
+        "inferential_language": "PASS - no causal/inferential claims for unmeasured behaviors; claim class is unit_test_coverage (appropriate)"
+      }
+    },
+    "measurement": {
+      "verdict": "PASS",
+      "checks": {
+        "statistical_adequacy": "PASS - N=18 passed (N>=10 minimum met); no variance claims made",
+        "methodology_complete": "PASS - pytest runner documented, command listed, environment specified, hermeticity described, skip rationale given",
+        "before_after_symmetry": "N/A - unit test coverage claim, not before/after comparison",
+        "cross_category_check": "N/A - no Nx speedup or cross-category comparisons made"
+      }
+    }
+  },
+  "violations": [
+    "artifacts/collection_log.txt missing entirely - evidence-standards.md requires this file with actual command output (not just a start timestamp)",
+    "git_provenance.git_head=7b6a580debb8e47dbc83c79d7ca0f369a004103e does not match PR #420 head_sha=790ffaf8c4f742b8545fed8f6a55ccce0f2fd938 (stale by 14+ commits)",
+    "metadata.json shows pr=417, head_sha=7b6a580d; README.md shows head_sha=c13b152; three different SHAs with no reconciliation",
+    "Bundle uses checksums.sha256 (single consolidated file) instead of individual .sha256 files per document - evidence-reviewer expects per-file .sha256",
+    "checksums.sha256 references external paths (../../../../scripts/mem0-purge.sh, etc.) outside the bundle - breaks portability as noted in prior review comment"
+  ],
+  "recommendations": [
+    "Add artifacts/collection_log.txt with the exact pytest invocation and any pre/post command output",
+    "Update metadata.json: set git_provenance.git_head=790ffaf8c4f742b8545fed8f6a55ccce0f2fd938, pr=420, reconcile head_sha across all fields",
+    "Regenerate checksums.sha256 to use paths relative to bundle root (basenames only), or generate per-file .sha256 files for each document",
+    "Verify mem0-purge.sh and test_mem0_purge_smoke.py SHAs are stable at PR #420 commit before re-running review"
+  ]
+}

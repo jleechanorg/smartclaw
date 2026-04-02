@@ -26,7 +26,7 @@ A PR is considered **green** when ALL of these are true:
 Run AO status to find all active sessions:
 
 ```bash
-cd ~/projects_reference/agent-orchestrator && ao status --json 2>/dev/null || ao status
+cd ~/.smartclaw && ao status --json 2>/dev/null || ao status
 ```
 
 Extract the list of PRs being worked on from the output.

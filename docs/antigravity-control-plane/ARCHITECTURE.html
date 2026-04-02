@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Antigravity Control Plane — Architecture</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11.13.0/dist/mermaid.min.js" integrity="sha384-tI0sDqjGJcqrQ8e/XKiQGS+ee11v5knTNWx2goxMBxe4DO9U0uKlfxJtYB9ILZ4j" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --bg2: #161b22;
+      --bg3: #21262d;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent2: #3fb950;
+      --accent3: #f78166;
+      --accent4: #d2a8ff;
+      --code-bg: #1f2937;
+      --table-header: #1c2128;
+      --link: #58a6ff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.65;
+    }
+
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 24px 0;
+    }
+
+    .sidebar-title {
+      padding: 0 20px 16px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 8px;
+    }
+
+    .sidebar nav a {
+      display: block;
+      padding: 6px 20px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13px;
+      border-left: 2px solid transparent;
+      transition: all 0.15s;
+    }
+
+    .sidebar nav a:hover,
+    .sidebar nav a.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: rgba(88, 166, 255, 0.07);
+    }
+
+    .sidebar nav a.sub {
+      padding-left: 36px;
+      font-size: 12px;
+    }
+
+    .main {
+      flex: 1;
+      max-width: 900px;
+      padding: 48px 56px;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-bottom: 40px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h2 {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text);
+      margin-top: 52px;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--accent4);
+      margin-top: 28px;
+      margin-bottom: 10px;
+    }
+
+    p {
+      margin-bottom: 14px;
+      color: var(--text);
+    }
+
+    ul, ol {
+      margin: 10px 0 14px 24px;
+      color: var(--text);
+    }
+
+    li {
+      margin-bottom: 6px;
+    }
+
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 18px;
+      overflow-x: auto;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12.5px;
+      line-height: 1.55;
+      margin: 14px 0 20px;
+      color: #cdd9e5;
+    }
+
+    code {
+      background: var(--code-bg);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12.5px;
+      color: #cdd9e5;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+      border-radius: 0;
+      font-size: inherit;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0 24px;
+      font-size: 13.5px;
+    }
+
+    th {
+      background: var(--table-header);
+      color: var(--text-muted);
+      font-weight: 600;
+      text-align: left;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    td {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .badge-green { background: rgba(63, 185, 80, 0.15); color: var(--accent2); border: 1px solid rgba(63, 185, 80, 0.3); }
+    .badge-red   { background: rgba(247, 129, 102, 0.15); color: var(--accent3); border: 1px solid rgba(247, 129, 102, 0.3); }
+    .badge-blue  { background: rgba(88, 166, 255, 0.15); color: var(--accent); border: 1px solid rgba(88, 166, 255, 0.3); }
+
+    .callout {
+      border-left: 3px solid var(--accent);
+      background: rgba(88, 166, 255, 0.06);
+      padding: 12px 16px;
+      border-radius: 0 6px 6px 0;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+
+    .callout.note { border-color: var(--accent4); background: rgba(210, 168, 255, 0.06); }
+
+    .diagram {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      margin: 20px 0;
+    }
+
+    .diagram pre {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 12px;
+      color: #cdd9e5;
+      margin: 0;
+    }
+
+    .tenet-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      margin: 16px 0 28px;
+    }
+
+    .tenet-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 20px;
+    }
+
+    .tenet-card h4 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+
+    .tenet-card p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    section { scroll-margin-top: 24px; }
+
+    .flow-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .flow-num {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: var(--bg);
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .flow-content { flex: 1; padding-top: 2px; }
+    .flow-content strong { color: var(--text); }
+    .flow-content p { margin-bottom: 4px; color: var(--text-muted); font-size: 13.5px; }
+
+    @media (max-width: 900px) {
+      .sidebar { display: none; }
+      .main { padding: 28px 20px; max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-title">Antigravity Control Plane</div>
+    <nav>
+      <a href="#high-level-architecture">High-Level Architecture</a>
+      <a href="#components">Components</a>
+      <a href="#single-controller-safety" class="sub">Single-Controller Safety</a>
+      <a href="#multi-repo-routing" class="sub">Multi-Repo Routing</a>
+      <a href="#mcp-mail-contract" class="sub">MCP Mail Contract</a>
+      <a href="#failure-handling">Failure Handling</a>
+      <a href="#crash-recovery">Crash Recovery</a>
+      <a href="#launchd-integration">Launchd Integration</a>
+    </nav>
+  </aside>
+  <main class="main">
+    <h1>Antigravity Control Plane — Architecture</h1>
+    <div class="subtitle">Design Document &nbsp;·&nbsp; Bead: ORCH-ag1 &nbsp;·&nbsp; Status: Design in progress</div>
+
+    <section id="high-level-architecture">
+      <h2>High-Level Architecture</h2>
+      <div class="diagram">
+        <pre>┌─────────────────────────────────────────────────────────────────────┐
+│                    Antigravity Control Plane                        │
+│                     (smartclaw, singleton)                       │
+│                                                                     │
+│  ┌──────────┐  ┌────────────┐  ┌───────────┐  ┌─────────────┐  │
+│  │Scheduler │  │ Global Lock │  │Dispatcher │  │Recovery Loop│  │
+│  │ (enqueue)│  │ (singleton) │  │(MCP Mail) │  │ (stale jobs)│  │
+│  └────┬─────┘  └──────┬──────┘  └─────┬─────┘  └──────┬──────┘  │
+│       │                │                │                │         │
+│  ┌────▼────────────────▼────────────────▼────────────────▼────┐  │
+│  │                    Job Store (SQLite + JSONL)                │  │
+│  └─────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+                               │ MCP Mail (async, durable)
+                               ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                    AO Workers (stateless, N × Sonnet)                │
+│                                                                       │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                 │
+│  │  Worker 1   │  │  Worker 2   │  │  Worker N   │                 │
+│  │(repo: foo)  │  │(repo: bar)  │  │(repo: baz)  │                 │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘                 │
+│         │                  │                  │                      │
+│         ▼                  ▼                  ▼                      │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │           Antigravity IDE (macOS, controlled via Peekaboo)   │   │
+│  │  Manager Window ──► per-repo workspace ──► Claude session    │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────────────┘
+                               │
+                               │ Outcomes reported via MCP Mail reply
+                               ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                     Reporter + Slack Notifier                        │
+│               (outcome ledger → Slack channel notification)          │
+└─────────────────────────────────────────────────────────────────────┘</pre>
+      </div>
+    </section>
+
+    <section id="components">
+      <h2>Components</h2>
+
+      <h3 id="scheduler">1. Scheduler</h3>
+      <p><strong>File:</strong> <code>src/orchestration/antig_control_plane/scheduler.py</code></p>
+      <p>Receives job enqueue requests (CLI, API, or webhook) and inserts them into the job store. Responsibilities:</p>
+      <ul>
+        <li>Validate job payload against <code>DataContracts</code> schema</li>
+        <li>Assign idempotency key (hash of repo + objective + priority + correlation_id)</li>
+        <li>Dedupe: reject if idempotency key already exists and job is not terminal</li>
+        <li>Enqueue with state <code>queued</code> and <code>scheduled_at</code> timestamp</li>
+        <li>Support priority queue ordering (CRITICAL &gt; HIGH &gt; NORMAL &gt; LOW)</li>
+        <li>Emit <code>job_enqueued</code> event to the dispatcher</li>
+      </ul>
+      <p><strong>API surface:</strong></p>
+      <pre><code>@dataclass
+class EnqueueRequest:
+    repo: str                          # e.g. "jleechanorg/smartclaw"
+    worktree_path: str | None         # None = create fresh worktree
+    objective: str                    # natural language instruction
+    priority: Priority                # CRITICAL | HIGH | NORMAL | LOW
+    correlation_id: str | None        # for grouping related jobs
+    metadata: dict[str, Any] | None  # opaque to control plane
+    requestor: str                    # e.g. "slack:@jleechan" or "cron:nightly"
+    max_attempts: int = 3
+
+@dataclass
+class EnqueueResponse:
+    job_id: str                       # UUID
+    idempotency_key: str
+    state: JobState
+    enqueued_at: datetime
+    duplicate: bool                   # True if deduped</code></pre>
+
+      <h3 id="global-lock">2. Global Lock (Singleton Safety)</h3>
+      <p><strong>File:</strong> <code>src/orchestration/antig_control_plane/global_lock.py</code></p>
+      <p>Enforces that only one instance of the control plane runs at a time. Uses OS-level file locking + a heartbeat lease.</p>
+      <p><strong>Mechanism:</strong></p>
+      <ol>
+        <li>Acquire <code>flock(LOCKFILE, LOCK_EX | LOCK_NB)</code> on <code>$OPENCLAW_STATE_DIR/antig_control_plane.lock</code></li>
+        <li>Write <code>{pid, hostname, started_at}</code> to lockfile</li>
+        <li>Heartbeat thread updates <code>locked_at</code> every 30 seconds</li>
+        <li>On startup: if lockfile exists and process is alive, refuse to start</li>
+        <li>On startup: if lockfile exists and process is dead, break the stale lock</li>
+        <li>On shutdown: release lock + update lockfile with <code>stopped_at</code></li>
+      </ol>
+      <p><strong>Safety property:</strong> Even if the Python process is SIGKILL'd, the OS releases the flock within seconds. A stale lock only survives if the machine crashes or the lockfile is corrupted.</p>
+      <p><strong>Recovery loop bypass:</strong> The recovery loop also checks the global lock. If the control plane is not running (lockfile stale), recovery actions are skipped.</p>
+
+      <h3 id="dispatcher">3. Dispatcher</h3>
+      <p><strong>File:</strong> <code>src/orchestration/antig_control_plane/dispatcher.py</code></p>
+      <p>Reads <code>queued</code> jobs from the store and dispatches them to AO workers via MCP Mail. Responsibilities:</p>
+      <ul>
+        <li>Poll for <code>queued</code> jobs every 10 seconds (configurable)</li>
+        <li>Select highest-priority job for each repo (one active job per repo at a time)</li>
+        <li>Format job as MCP Mail message with full job payload</li>
+        <li>Send to AO worker via <code>mcp__mcp-agent-mail__send_message</code> (or REST fallback)</li>
+        <li>Update job state to <code>dispatched</code>, record <code>dispatched_at</code> and <code>worker_id</code></li>
+        <li>Handle MCP Mail delivery failures with retry (exponential backoff, max 5 attempts)</li>
+        <li>Track <code>dispatched_at</code> per attempt</li>
+      </ul>
+      <p><strong>Per-repo exclusivity:</strong> A repo has at most one <code>running</code> or <code>dispatched</code> job at a time. This prevents two workers from operating on the same worktree simultaneously.</p>
+
+      <h3 id="ao-adapter">4. AO Adapter</h3>
+      <p><strong>File:</strong> <code>src/orchestration/antig_control_plane/ao_adapter.py</code></p>
+      <p>Thin translation layer between the control plane and AO MCP Mail interface. Responsibilities:</p>
+      <ul>
+        <li>Serialize job payload to MCP Mail <code>send_message</code> format</li>
+        <li>Deserialize AO worker response from MCP Mail reply</li>
+        <li>Handle AO-specific errors (worker not registered, queue full, etc.)</li>
+        <li>Map AO <code>worker_id</code> to control plane <code>worker_id</code></li>
+        <li>Stub/mock interface for local testing without AO</li>
+      </ul>
+      <p><strong>MCP Mail contract</strong> (see also <code>roadmap/AGENT_ORCHESTRATOR_MCP_MAIL_INTEGRATION.md</code>):</p>
+      <pre><code># Dispatch message (control plane → AO worker)
+{
+    "to": "ao:worker:antig-{repo_slug}",
+    "subject": "antigravity_job",
+    "body": {
+        "job_id": "uuid",
+        "idempotency_key": "sha256...",
+        "repo": "jleechanorg/smartclaw",
+        "worktree_path": "/tmp/smartclaw-ag-worktree",
+        "objective": "Implement feature X in repo Y",
+        "priority": "HIGH",
+        "correlation_id": "parent-job-uuid",
+        "attempt": 1,
+        "max_attempts": 3,
+        "dispatched_at": "2026-03-24T12:00:00Z"
+    }
+}
+
+# Result message (AO worker → control plane)
+{
+    "job_id": "uuid",
+    "outcome": "completed" | "failed" | "blocked",
+    "result": { ... },  # opaque to control plane
+    "completed_at": "2026-03-24T12:30:00Z",
+    "worker_id": "ao:worker:antig-smartclaw-1",
+    "error": str | None,
+    "attempts": 1
+}</code></pre>
+
+      <h3 id="executor">5. Executor (Per-Worker)</h3>
+      <p><strong>File:</strong> <code>src/orchestration/antig_control_plane/executor.py</code></p>
+      <p>Runs inside each AO worker (or as a standalone script invoked by AO). The executor is the <strong>Peekaboo client</strong> that implements the Antigravity skill's screenshot-decide-act loop. Responsibilities:</p>
+      <ul>
+        <li>Receive job payload from dispatcher (via MCP Mail or direct invocation)</li>
+        <li>Setup: acquire worktree (create or use existing), launch Antigravity workspace</li>
+        <li>Loop: screenshot → decide → act → repeat (until done or blocked)</li>
+        <li>Completion criteria: goal evidence visible in screenshot, or blocked with exact blocker</li>
+        <li>Record per-step evidence to job's JSONL log</li>
+        <li>Report outcome to dispatcher/reporter on completion</li>
+      </ul>
+      <p><strong>Executor is stateless</strong> with respect to the job store — it reads the job, executes, and reports. It does not poll the job store or make routing decisions.</p>
+
+      <h3 id="recovery-loop">6. Recovery Loop</h3>
+      <p><strong>File:</strong> <code>src/orchestration/antig_control_plane/recovery_loop.py</code></p>
+      <p>Detects stale jobs and recovers them. Runs on a configurable interval (default: 5 minutes). Responsibilities:</p>
+      <ul>
+        <li>Find all <code>running</code> jobs where <code>last_heartbeat_at</code> is older than <code>max_heartbeat_age</code> (default: 30 minutes)</li>
+        <li>Find all <code>dispatched</code> jobs where no worker has reported within a dispatch timeout (default: 5 minutes) — worker died before ack or ack was lost; these permanently block the per-repo slot</li>
+        <li>For each stale job:
+          <ul>
+            <li>If <code>attempts &lt; max_attempts</code>: re-enqueue as <code>queued</code> (increment <code>attempt</code>)</li>
+            <li>If <code>attempts &gt;= max_attempts</code>: mark as <code>deadlettered</code>, emit alert</li>
+          </ul>
+        </li>
+        <li>Detect crashed control plane: if global lock is stale, recovery loop is a no-op</li>
+        <li>Log all recovery actions to <code>recovery_log.jsonl</code></li>
+      </ul>
+      <p><strong>Heartbeat contract:</strong> Executors (AO workers) must send heartbeat updates to the control plane every 10 minutes. Absence of heartbeat = stale job.</p>
+
+      <h3 id="reporter">7. Reporter</h3>
+      <p><strong>File:</strong> <code>src/orchestration/antig_control_plane/reporter.py</code></p>
+      <p>Records job outcomes and sends Slack notifications. Responsibilities:</p>
+      <ul>
+        <li>On <code>completed</code>: record outcome, emit Slack success notification</li>
+        <li>On <code>failed</code>: record outcome with error, emit Slack failure notification</li>
+        <li>On <code>deadlettered</code>: record outcome, emit Slack alert (pager-worthy)</li>
+        <li>Maintain <code>outcome_ledger.jsonl</code> with full outcome records</li>
+        <li>Support configurable Slack channel per job priority</li>
+      </ul>
+      <p><strong>Slack message format:</strong></p>
+      <pre><code>[Antigravity] JOB COMPLETED
+Repo: jleechanorg/smartclaw
+Job: Implement feature X
+Duration: 28m 14s
+Attempts: 1
+Worker: ao:worker:antig-smartclaw-1
+Result: https://github.com/jleechanorg/smartclaw/pull/XXX</code></pre>
+    </section>
+
+    <section id="single-controller-safety">
+      <h2>Single-Controller Safety Model</h2>
+      <p>The singleton controller enforces that <strong>only one Antigravity control plane instance runs at a time</strong>. This is critical because:</p>
+      <ol>
+        <li>Antigravity's Manager window is single-threaded from the user's perspective — concurrent workers would fight for window focus.</li>
+        <li>Worktree operations (create, delete, reset) are not safe for concurrent access.</li>
+        <li>Global lock prevents split-brain scenarios where two control planes route the same job to different workers.</li>
+      </ol>
+      <p><strong>Enforcement layers:</strong></p>
+      <ul>
+        <li><strong>OS flock</strong> — prevents two processes from acquiring the lock file simultaneously</li>
+        <li><strong>Startup check</strong> — on start, verify no other instance is running</li>
+        <li><strong>Heartbeat</strong> — if the control plane stops emitting heartbeats, AO workers stop accepting new jobs from it</li>
+      </ul>
+    </section>
+
+    <section id="multi-repo-routing">
+      <h2>Multi-Repo Routing Model</h2>
+      <div class="diagram">
+        <pre>                 Control Plane (singleton)
+                            │
+          ┌─────────────────┼─────────────────┐
+          │                 │                  │
+       Repo A            Repo B             Repo C
+    (smartclaw)   (agent-orchestrator)  (other)
+          │                 │                  │
+    Worker: antig-a    Worker: antig-b    Worker: antig-c
+    Worktree: /tmp/   Worktree: /tmp/    Worktree: /tmp/
+    Max: 1 concurrent  Max: 1 concurrent  Max: 1 concurrent</pre>
+      </div>
+      <p><strong>Per-repo job slots:</strong> Each repo has a maximum of 1 running or dispatched job at a time. This is enforced by the dispatcher. A job for repo A is only dispatched if no other job for repo A is in <code>running</code> or <code>dispatched</code> state.</p>
+      <p><strong>Cross-repo parallelism:</strong> Jobs for different repos run in parallel. The Antigravity skill can handle multiple workspaces simultaneously — the Manager window shows all workspaces in a sidebar, and each workspace is an independent session.</p>
+    </section>
+
+    <section id="mcp-mail-contract">
+      <h2>MCP Mail Contract</h2>
+      <p>The MCP Mail contract defines the message schema for control plane ↔ AO worker communication. See <code>DATA-CONTRACTS.md</code> for full schema.</p>
+      <p><strong>Key contract properties:</strong></p>
+      <ul>
+        <li><strong>Durability:</strong> MCP Mail delivers with at-least-once semantics; idempotency keys prevent double-execution</li>
+        <li><strong>Routing:</strong> Worker selection is by repo (each repo has a dedicated worker pool)</li>
+        <li><strong>Timeout:</strong> Jobs have a configurable <code>timeout</code> field; executor must report before timeout or job is considered stale</li>
+        <li><strong>Cancellation:</strong> Control plane can send a <code>cancel</code> message to a worker; worker must acknowledge and stop</li>
+      </ul>
+    </section>
+
+    <section id="failure-handling">
+      <h2>Failure Handling</h2>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>Failure</th><th>Detection</th><th>Response</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>AO worker dies mid-job</td><td>Recovery loop (missing heartbeat)</td><td>Re-enqueue job, increment attempt</td></tr>
+            <tr><td>MCP Mail delivery fails</td><td>Dispatcher (retry exhaustion)</td><td>Exponential backoff, then fail job</td></tr>
+            <tr><td>Antigravity UI changes</td><td>Peekaboo selector mismatch</td><td>Alert + deadletter job; requires human fix</td></tr>
+            <tr><td>Control plane crashes</td><td>Global lock goes stale</td><td>Recovery loop refuses to act; human intervenes</td></tr>
+            <tr><td>Worktree corruption</td><td>AO worker reports error</td><td>Deadletter job; alert human</td></tr>
+            <tr><td>Peekaboo permissions revoked</td><td>Preflight check failure</td><td>Block all new jobs; alert via Slack</td></tr>
+            <tr><td>Duplicate job submitted</td><td>Idempotency key check</td><td>Reject silently (return existing job_id)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="crash-recovery">
+      <h2>Crash Recovery</h2>
+      <p>When the control plane restarts after a crash:</p>
+      <ol>
+        <li><strong>Acquire global lock</strong> — if stale, break it and proceed</li>
+        <li><strong>Scan job store</strong> for <code>running</code> jobs — these are orphaned (crashed workers); also scan <code>dispatched</code> jobs for those where the worker died before reporting back (orphaned dispatches)</li>
+        <li><strong>For each orphaned job</strong>: if <code>attempts &lt; max_attempts</code>, re-enqueue; else deadletter</li>
+        <li><strong>Resume dispatcher loop</strong> — continue polling for queued jobs</li>
+        <li><strong>Resume recovery loop</strong> — continue stale detection</li>
+      </ol>
+      <p><strong>Guarantee:</strong> No job is lost. Either it completes, deadletters, or is re-enqueued.</p>
+    </section>
+
+    <section id="launchd-integration">
+      <h2>Launchd Integration</h2>
+      <p>The control plane runs as a LaunchAgent (consistent with existing smartclaw patterns):</p>
+      <div class="diagram">
+        <pre>launchd/
+  ai.smartclaw.antig-control-plane.plist   ← NEW</pre>
+      </div>
+      <p>Config:</p>
+      <ul>
+        <li><code>KeepAlive</code>: false (singleton — if it crashes, LaunchControl can restart)</li>
+        <li><code>RunAtLoad</code>: false (started manually or by orchestrator)</li>
+        <li><code>StandardOutPath</code>: <code>$OPENCLAW_LOG_DIR/antig-control-plane.log</code></li>
+        <li><code>StandardErrorPath</code>: <code>$OPENCLAW_LOG_DIR/antig-control-plane.err</code></li>
+      </ul>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  const sections = document.querySelectorAll('section[id], h2[id], h3[id]');
+  const links = document.querySelectorAll('.sidebar nav a');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`.sidebar nav a[href="#${entry.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+
+<script>
+  if (typeof mermaid !== 'undefined') {
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      securityLevel: 'strict',
+      flowchart: { curve: 'basis', padding: 20 },
+      sequence: { mirrorActors: false, messageAlign: 'center' }
+    });
+  } else {
+    document.querySelectorAll('.mermaid').forEach(el => {
+      el.textContent = '[Diagram unavailable — mermaid CDN blocked]';
+    });
+  }
+</script>
+</body>
+</html>

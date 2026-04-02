@@ -1,0 +1,14 @@
+{
+  "check_runs": [
+    {
+      "name": "Cursor Bugbot",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "ping-coderabbit",
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>ai.smartclaw.github-intake</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>${HOME}/.smartclaw/scripts/github-intake.sh</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>/Users/jleechan</string>
+    <key>PATH</key>
+    <string>${HOME}/.nvm/versions/node/current/bin:${HOME}/.nvm/versions/node/v22.22.0/bin:${HOME}/Library/pnpm:${HOME}/.bun/bin:${HOME}/.local/bin:${HOME}/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>INTAKE_DRY_RUN</key>
+    <string>0</string>
+    <key>INTAKE_MAX_DISPATCH</key>
+    <string>3</string>
+    <key>INTAKE_COOLDOWN</key>
+    <string>3600</string>
+  </dict>
+
+  <!-- Run daily at 9:00 AM local time -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>9</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>${HOME}/.smartclaw/logs/github-intake.log</string>
+  <key>StandardErrorPath</key>
+  <string>${HOME}/.smartclaw/logs/github-intake.log</string>
+</dict>
+</plist>
