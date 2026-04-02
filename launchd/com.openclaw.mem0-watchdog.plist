@@ -8,8 +8,8 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>__HOME__/.smartclaw/scripts/mem0-native-module-watchdog.sh</string>
-        <string>--fix</string>
+        <string>-lc</string>
+        <string>@HOME@/.smartclaw/scripts/mem0-native-module-watchdog.sh --fix</string>
     </array>
 
     <key>StartInterval</key>
@@ -25,17 +25,17 @@
     <integer>30</integer>
 
     <key>StandardOutPath</key>
-    <string>__HOME__/.smartclaw/logs/mem0-watchdog.log</string>
+    <string>@HOME@/.smartclaw/logs/mem0-watchdog.log</string>
 
     <key>StandardErrorPath</key>
-    <string>__HOME__/.smartclaw/logs/mem0-watchdog.err.log</string>
+    <string>@HOME@/.smartclaw/logs/mem0-watchdog.err.log</string>
 
     <key>EnvironmentVariables</key>
     <dict>
         <key>HOME</key>
-        <string>__HOME__</string>
+        <string>@HOME@</string>
         <key>PATH</key>
-        <string>__HOME__/.nvm/versions/node/v22.22.0/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <string>@HOME@/.nvm/versions/node/v22.22.0/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     </dict>
 </dict>
 </plist>

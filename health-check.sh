@@ -95,7 +95,7 @@ install_gateway() {
   log "plist missing or bootstrap failed; regenerating via install-launchagents.sh..."
   local LAUNCHD_SCRIPT="$HOME/.smartclaw/scripts/install-launchagents.sh"
   if [ -f "$LAUNCHD_SCRIPT" ] && [ -x "$LAUNCHD_SCRIPT" ]; then
-    if command_ok bash "$LAUNCHD_SCRIPT" 2>&1 | tee -a "$LOG_FILE"; then
+    if command_ok bash "$LAUNCHD_SCRIPT" >> "$LOG_FILE" 2>&1; then
       # Re-check plist after regeneration
       if [ -f "$plist" ] && command_ok launchctl bootstrap "gui/$(id -u)" "$plist"; then
         log "plist regenerated and gateway service loaded successfully."
@@ -304,8 +304,8 @@ if gateway_health_ok; then
   TODAY_LOG="/tmp/openclaw/openclaw-$(date +%F).log"
   SESSIONS_DIR="$HOME/.smartclaw/agents/main/sessions"
   if [ -f "$TODAY_LOG" ]; then
-    last_post_epoch=$(grep -o '"date":"[^"]*"' "$TODAY_LOG" 2>/dev/null \
-      | grep -i "postMessage\|chat.post" \
+    last_post_epoch=$(grep -i "postMessage\|chat.post" "$TODAY_LOG" 2>/dev/null \
+      | grep -o '"date":"[^"]*"' \
       | sed 's/"date":"//;s/"//' \
       | sort | tail -1 | xargs -I{} date -jf "%Y-%m-%dT%H:%M:%S" "{}" "+%s" 2>/dev/null || echo 0)
     now_ep="$(date +%s)"
