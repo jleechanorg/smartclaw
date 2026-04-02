@@ -23,7 +23,7 @@ The 3-stage pipeline (orch-1ps epic) adds automated safety gates between `~/.sma
                                 │ git pull / merge
                                 │ (staging-promote.sh)
                                 ▲
-                                │ ~/.smartclaw-staging/  (WORKTREE — staging
+                                │ ~/.smartclaw-staging/  (WORKTREE — staging gateway)
 ┌───────────────────────────────┴──────────────────────────────────────────────────────────┐
 │  ~/.smartclaw-staging/  (STAGING — staging gateway on port 18790)                        │
 │  Branch: staging                                                                       │
@@ -85,8 +85,8 @@ flowchart LR
 **What it does**:
 - A long-lived `staging` branch exists in `jleechanorg/smartclaw`
 - `~/.smartclaw-staging/` is a git worktree checked out to the `staging` branch
-- When the staging branch is updated (PR merged), pull into `~/.smartclaw-staging/` manually:
-  `git -C ~/.smartclaw-staging pull`
+- When the staging branch is updated (via PR merge, not direct push), `~/.smartclaw-staging/` updates via the worktree mechanism when `staging-promote.sh` next runs — it merges the updated `origin/staging` into the local worktree
+- Manual fallback remains valid if needed: `git -C ~/.smartclaw-staging pull`
 
 **Why worktree over plain directory**: A worktree is tied to the git repo. Any changes in `~/.smartclaw-staging/` can be committed back to the staging branch. A plain directory requires manual sync.
 
@@ -102,7 +102,7 @@ git branch --set-upstream-to=origin/staging staging 2>/dev/null || \
 git worktree add ~/.smartclaw-staging origin/staging
 ```
 
-**Staging sync invariant**: After any staging branch creation or reset, verify `git rev-list staging..main --count -ne 0` (staging should be at or ahead of main, never behind). A stale staging branch would be a regression path.
+**Staging sync invariant**: After any staging branch creation or reset, verify staging is at or ahead of main (never behind). Run `git rev-list staging..main --count` — if the output is non-zero, staging is behind main and must be fast-forwarded. A stale staging branch would be a regression path.
 
 ## Stage 2 — Auto-Promote
 
@@ -197,7 +197,8 @@ The staging gateway is a separate process from the production gateway (port 1878
 #    If it fails: fix the config issues, push
 
 # 4. Merge PR to staging
-#    Staging worktree (~/.smartclaw-staging/) — git pull into it after merge
+#    staging-promote.sh merges origin/staging into the local staging worktree
+#    (manual fallback: git -C ~/.smartclaw-staging pull)
 
 # 5. Run canary against staging gateway
 bash scripts/staging-canary.sh --port 18790

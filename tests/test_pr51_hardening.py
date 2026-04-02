@@ -65,15 +65,12 @@ def test_no_runtime_db_or_progress_artifacts_tracked() -> None:
 
 
 def test_no_literal_tokens_in_backup_configs() -> None:
-    # Scan committed config artefacts only: the redacted snapshot and the
-    # launchd templates checked in under launchd/.  The live openclaw.json and
+    # Scan committed config artefacts only: launchd templates checked in under
+    # launchd/. The live openclaw.json and
     # ~/Library/LaunchAgents/*.plist are gitignored runtime files that must
     # contain real tokens to work — scanning them here would always fail.
     LAUNCHD_TEMPLATES_DIR = REPO_ROOT / "launchd"
     files: list[Path] = []
-    redacted = REPO_ROOT / "openclaw.json.redacted"
-    if redacted.exists():
-        files.append(redacted)
     if LAUNCHD_TEMPLATES_DIR.is_dir():
         files.extend(sorted(LAUNCHD_TEMPLATES_DIR.glob("*.plist")))
 

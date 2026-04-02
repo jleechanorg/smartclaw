@@ -521,7 +521,7 @@ bash scripts/staging-promote.sh
 
 ## SmartClaw Export (Portable Subset)
 
-This repo is the operator-primary source. `smartclaw` is the portable downstream mirror.
+This repository can export a portable subset to a downstream mirror repository (default target: `jleechanorg/smartclaw`).
 
 Export flow is map-driven and repeatable:
 

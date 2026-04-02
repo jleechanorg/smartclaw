@@ -370,9 +370,6 @@ if [[ "$live_json_ok" -eq 1 ]]; then
   validate_heartbeat_config
   assert_slack_listen_all_invited_channels "$LIVE_OPENCLAW/openclaw.json" 'live openclaw.json'
 fi
-if [[ -f "$REPO_ROOT/openclaw.json.redacted" ]]; then
-  assert_slack_listen_all_invited_channels "$REPO_ROOT/openclaw.json.redacted" 'openclaw.json.redacted'
-fi
 
 live_token_raw=''
 live_token=''
@@ -847,109 +844,12 @@ fi
 
 printf '\n=== openclaw.json validation ===\n'
 
-# Sync redaction-related env vars from live openclaw.json for verify + pytest roundtrip.
-# Always overwrite when the JSON has a value — stale tokens in ~/.bashrc must not win over
-# the live config (otherwise drift checks false-fail even after regenerating .redacted).
-sync_redaction_env_from_openclaw_json() {
-  local cfg="$REPO_ROOT/openclaw.json"
-  if [[ ! -f "$cfg" ]]; then
-    return 0
-  fi
-  # shellcheck disable=SC1090
-  eval "$(python3 - "$cfg" <<'PY'
-import json
-import shlex
-import sys
-
-cfg_path = sys.argv[1]
-with open(cfg_path, encoding="utf-8") as f:
-    cfg = json.load(f)
-
-
-def get_path(d, path):
-    node = d
-    for p in path[:-1]:
-        node = node[p]
-    return node[path[-1]]
-
-
-REDACTION_MAP = [
-    (["env", "XAI_API_KEY"], "XAI_API_KEY"),
-    (["env", "SLACK_BOT_TOKEN"], "SLACK_BOT_TOKEN"),
-    (["env", "OPENCLAW_SLACK_APP_TOKEN"], "OPENCLAW_SLACK_APP_TOKEN"),
-    (["env", "OPENCLAW_HOOKS_TOKEN"], "OPENCLAW_HOOKS_TOKEN"),
-    (["hooks", "token"], "OPENCLAW_HOOKS_TOKEN"),
-    (["channels", "slack", "botToken"], "SLACK_BOT_TOKEN"),
-    (["channels", "slack", "appToken"], "OPENCLAW_SLACK_APP_TOKEN"),
-    (["channels", "discord", "token"], "DISCORD_BOT_TOKEN"),
-    (["gateway", "auth", "token"], "OPENCLAW_GATEWAY_TOKEN"),
-    (["gateway", "remote", "token"], "OPENCLAW_GATEWAY_REMOTE_TOKEN"),
-    (["plugins", "entries", "openclaw-mem0", "config", "oss", "embedder", "config", "apiKey"], "OPENAI_API_KEY"),
-    (["plugins", "entries", "openclaw-mem0", "config", "oss", "llm", "config", "api_key"], "GROQ_API_KEY"),
-    (["plugins", "entries", "openclaw-mem0", "config", "oss", "llm", "config", "apiKey"], "GROQ_API_KEY"),
-]
-seen = set()
-for path, var in REDACTION_MAP:
-    if var in seen:
-        continue
-    seen.add(var)
-    try:
-        val = get_path(cfg, path)
-    except (KeyError, TypeError):
-        continue
-    if val is None:
-        continue
-    print(f"export {var}={shlex.quote(str(val))}")
-PY
-)"
-}
-
-sync_redaction_env_from_openclaw_json
-
-# First check: regenerate from openclaw.json.redacted + env vars and diff against live (any diff = FAIL).
-# Must match scripts/verify-config-from-redacted.sh required_vars list.
-REDACTED_ROUNDTRIP_VARS=(
-  XAI_API_KEY
-  SLACK_BOT_TOKEN
-  OPENCLAW_SLACK_APP_TOKEN
-  OPENCLAW_HOOKS_TOKEN
-  OPENCLAW_GATEWAY_TOKEN
-  OPENCLAW_GATEWAY_REMOTE_TOKEN
-  OPENAI_API_KEY
-  GROQ_API_KEY
-  DISCORD_BOT_TOKEN
-)
-missing_redaction_vars=()
-for var in "${REDACTED_ROUNDTRIP_VARS[@]}"; do
-  if [[ -z "${!var:-}" ]]; then
-    missing_redaction_vars+=("$var")
-  fi
-done
-
-if [[ "${OPENCLAW_DOCTOR_SKIP_REDACTED_ROUNDTRIP:-0}" == "1" ]]; then
-  warn 'openclaw.json redacted roundtrip skipped (OPENCLAW_DOCTOR_SKIP_REDACTED_ROUNDTRIP=1)'
-elif [[ ${#missing_redaction_vars[@]} -gt 0 ]]; then
-  warn "openclaw.json redacted roundtrip skipped (missing env vars: ${missing_redaction_vars[*]} — export them to enforce zero drift vs openclaw.json.redacted)"
-elif [[ -f "$REPO_ROOT/scripts/verify-config-from-redacted.sh" ]]; then
-  verify_out="$TMP_DIR/verify-config-from-redacted.out"
-  if bash "$REPO_ROOT/scripts/verify-config-from-redacted.sh" >"$verify_out" 2>&1; then
-    pass 'openclaw.json matches openclaw.json.redacted + env vars (regenerated diff is empty)'
-  else
-    fail 'openclaw.json does NOT match openclaw.json.redacted + env vars — config drift (red)'
-    while IFS= read -r line || [[ -n "$line" ]]; do
-      printf '%s\n' "$line"
-    done <"$verify_out"
-  fi
-else
-  warn 'scripts/verify-config-from-redacted.sh not found — skipping redacted config roundtrip check'
-fi
-
-# Second check: pytest validation
+# Pytest validation
 if command -v python3 >/dev/null 2>&1 && python3 -c "import pytest" >/dev/null 2>&1; then
   pytest_out="$TMP_DIR/pytest-configs.txt"
   # Run only the comprehensive config-validation classes (not legacy tests with known pre-existing failures)
   python3 -m pytest "$REPO_ROOT/tests/test_openclaw_configs.py" \
-    -k "TestMetaAndLogging or TestAuthProfiles or TestAgentDefaults or TestToolsConfig or TestEnvSection or TestGatewaySecurity or TestHooksConfig or TestSessionConfig or TestCommandsConfig or TestMessagesConfig or TestPluginChannelConsistency or TestSlackChannelsConfig or TestRequiredAgents or TestSkillsConfig or TestExecSafeBins or TestRedactedConfigRoundtrip" \
+    -k "TestMetaAndLogging or TestAuthProfiles or TestAgentDefaults or TestToolsConfig or TestEnvSection or TestGatewaySecurity or TestHooksConfig or TestSessionConfig or TestCommandsConfig or TestMessagesConfig or TestPluginChannelConsistency or TestSlackChannelsConfig or TestRequiredAgents or TestSkillsConfig or TestExecSafeBins" \
     -v --tb=short 2>&1 | tee "$pytest_out" || true
   pytest_exit=${PIPESTATUS[0]}
   if [[ "$pytest_exit" -eq 0 ]]; then

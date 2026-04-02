@@ -16,10 +16,18 @@ name: Skeptic Gate
 on:
   pull_request:
     types: [opened, synchronize, edited, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Open PR number in this repo (dry-run / re-run skeptic on demand).
+        required: true
+        type: string
 
 concurrency:
-  group: skeptic-gate-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  group: skeptic-gate-${{ github.event.pull_request.number || github.event.inputs.pr_number }}
+  # Do not cancel in-flight runs: rapid pushes were leaving CANCELLED Skeptic Gate
+  # checks on the PR alongside the final SUCCESS, which breaks some merge/UX flows.
+  cancel-in-progress: false
 
 jobs:
   skeptic_gate:
@@ -27,9 +35,15 @@ jobs:
     # Skip fork PRs: untrusted code should not run on self-hosted runners (security risk).
     # Uses head.repo.id == base.repo.id (not head.repo.fork) to also skip cross-repo PRs.
     # Null guard: if head.repo is null (e.g. deleted repo), fail closed — skip the job.
-    if: github.event.pull_request.head.repo != null && github.event.pull_request.head.repo.id == github.event.pull_request.base.repo.id
+    # workflow_dispatch: same-repo manual runs only (no pull_request payload).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.head.repo != null &&
+       github.event.pull_request.head.repo.id == github.event.pull_request.base.repo.id)
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      PR_NUM: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number || github.event.pull_request.number }}
     permissions:
       contents: read
       pull-requests: write
@@ -45,7 +59,7 @@ jobs:
           import { writeFileSync, appendFileSync } from 'fs';
 
           const apiKey = process.env.ANTHROPIC_API_KEY;
-          const prNum  = process.env.PR_NUM;
+          const prNum  = process.env.PR_NUM || '';
           const ghToken = process.env.GITHUB_TOKEN || '';
           const repo    = process.env.GITHUB_REPOSITORY || '';
           const apiBase = process.env.GITHUB_API_URL || 'https://api.github.com';
@@ -69,6 +83,13 @@ jobs:
             console.log('Starting skeptic gate...');
             let verdict = 'UNKNOWN';
             let output = '';
+
+            if (!prNum || String(prNum).trim() === '') {
+              verdict = 'ERROR';
+              output = 'VERDICT: ERROR - PR_NUM missing (workflow misconfigured).';
+              writeOutput(verdict, output);
+              process.exit(1);
+            }
 
             if (!apiKey) {
               verdict = 'SKIPPED';
@@ -208,13 +229,11 @@ jobs:
             output = anthropicOut;
             console.log('SKEPTIC_RAW_OUTPUT_LENGTH=' + output.length);
             console.log('SKEPTIC_RAW_OUTPUT_PREVIEW=' + output.slice(0, 200));
-            // Use multiline ^ so verdict must be at start of a line (the first line of output).
-            // The i flag makes it case-insensitive; m makes ^/$ match per line.
-            // FAIL/PASS must be followed by end-of-line, colon, dash, or space — prevents
-            // matching "FAIL" inside explanatory text (e.g. "VERDICT: FAIL - if..." in prompt).
-            if (/^VERDICT[:\s]+FAIL[\s\-:]?\s*$/im.test(output)) {
+            // Multiline ^ — verdict on first line. Use \\b so "VERDICT: FAIL - reason" and
+            // "VERDICT: PASS — notes" match; avoid matching FAIL/PASS inside prompt boilerplate.
+            if (/^VERDICT[:\s]+FAIL\b/im.test(output)) {
               verdict = 'FAIL';
-            } else if (/^VERDICT[:\s]+PASS[\s\-:]?\s*$/im.test(output)) {
+            } else if (/^VERDICT[:\s]+PASS\b/im.test(output)) {
               verdict = 'PASS';
             } else {
               // Model returned unparseable output (no VERDICT: PASS or FAIL found).
@@ -254,18 +273,39 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL || 'https://api.anthropic.com/v1/messages' }}
-          PR_NUM: ${{ github.event.pull_request.number }}
         run: |
           node run-skeptic.mjs
+
+      - name: Skeptic gate summary
+        if: always()
+        run: |
+          {
+            echo "## Skeptic Gate"
+            echo ""
+            echo "- **PR** #$PR_NUM @ \`$PR_HEAD_SHA\`"
+            echo "- **Verdict (from step)** ${{ steps.run_skeptic.outcome }}"
+            echo ""
+            if [ -f skeptic-output.txt ]; then
+              echo "### Output (truncated)"
+              echo ""
+              echo '```text'
+              head -c 12000 skeptic-output.txt
+              echo ""
+              echo '```'
+            else
+              echo "_No skeptic-output.txt (evaluation did not write output)._"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Post skeptic findings as PR comment
         if: always()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUM: ${{ github.event.pull_request.number }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          OWNER: ${{ github.event.pull_request.base.repo.owner.login }}
-          REPO: ${{ github.event.pull_request.base.repo.name }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
         run: >
           if [ -f skeptic-output.txt ]; then
             python3 -c "import json, os; text = open('skeptic-output.txt').read()[:5800]; sha = os.environ.get('PR_HEAD_SHA', '')[:7]; lines = ['## Skeptic Gate Findings', '', '\`\`\`', text, '\`\`\`', '', '_Skeptic gate ran on commit \`\`\`' + sha + '\`\`\`_', '<!-- HEAD-SHA: ' + os.environ.get('PR_HEAD_SHA', '') + ' -->']; open('/tmp/skeptic_comment.json', 'w').write(json.dumps({'body': chr(10).join(lines)}))"

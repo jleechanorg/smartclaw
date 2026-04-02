@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin${PATH:+:$PATH}"
+export PATH="$HOME/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin${PATH:+:$PATH}"
 trap '' PIPE
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -189,6 +189,7 @@ get_session_info() {
     branch="$(echo "$session_json" | jq -r '.branch // empty' 2>/dev/null)" || branch=""
     status="$(echo "$session_json" | jq -r '.status // empty' 2>/dev/null)" || status=""
     pr_url="$(echo "$session_json" | jq -r '.prUrl // .prUrl // empty' 2>/dev/null)" || pr_url=""
+    pr_number="$(echo "$session_json" | jq -r '.prNumber // empty' 2>/dev/null)" || pr_number=""
 
     [[ -z "$session_name" ]] && continue
 
@@ -264,6 +265,31 @@ get_session_info() {
       session_report="• \`$session_name\` ($project_id) $label"
     fi
 
+    # Add PR off-track diagnostics (zero-touch smooth proxy: inactivity > 60m)
+    if [[ -n "$repo" && -n "$pr_number" && "$pr_number" != "null" ]]; then
+      pr_updated_at="$(gh pr view "$pr_number" --repo "$repo" --json updatedAt --jq '.updatedAt' 2>/dev/null)" || pr_updated_at=""
+      if [[ -n "$pr_updated_at" && "$pr_updated_at" != "null" ]]; then
+        pr_updated_epoch="$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%SZ" "$pr_updated_at" "+%s" 2>/dev/null)" || pr_updated_epoch="0"
+        now_epoch="$(date +%s)"
+        idle_min=$(( (now_epoch - pr_updated_epoch) / 60 ))
+        idle_h=$(( idle_min / 60 ))
+        idle_m=$(( idle_min % 60 ))
+        if [[ "$idle_min" -gt 60 ]]; then
+          offtrack_status=":red_circle: off-track"
+        else
+          offtrack_status=":green_circle: on-track"
+        fi
+
+        fail_summary="$(gh pr checks "$pr_number" --repo "$repo" --json name,state 2>/dev/null | jq -r '[.[] | select(.state != "SUCCESS") | "\(.name):\(.state)"] | .[:3] | join(", ")' 2>/dev/null)" || fail_summary=""
+        if [[ -z "$fail_summary" || "$fail_summary" == "null" ]]; then
+          fail_summary="none"
+        fi
+
+        session_report="$session_report
+  PR #$pr_number $offtrack_status | idle ${idle_h}h${idle_m}m | blockers: $fail_summary"
+      fi
+    fi
+
     # Detect stalled sessions (working but no commits pushed for >1h or stuck/ci_failed/needs_input)
     if [[ "$status" == "stuck" || "$status" == "ci_failed" || "$status" == "killed" ]]; then
       stalled=$((stalled + 1))
@@ -287,7 +313,6 @@ get_session_info() {
   save_state "$current_state"
 
   # Build and post Slack report
-  local header=""
   header="*AO Progress Report* | $(date '+%H:%M PDT') | $session_count sessions"
   if [[ $healthy -gt 0 ]]; then
     header="$header | :white_check_mark: $healthy healthy"
@@ -302,7 +327,6 @@ get_session_info() {
   if [[ ${#report_blocks[@]} -eq 0 ]]; then
     post_slack "$header — no active sessions"
   else
-    local body=""
     body="$(printf '%s\n' "${report_blocks[@]}")"
     post_slack "$header
 $body"

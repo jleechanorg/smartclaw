@@ -55,23 +55,44 @@ if [[ -d "$AO_DIR" ]] && command -v "$AO_BIN" >/dev/null 2>&1; then
 fi
 
 # ---------------------------------------------------------------------------
-# Fetch open PRs via REST API (no GraphQL — avoids rate limits)
+# Fetch PRs modified in the last 7 days via GitHub Search API.
+# Includes open, closed, merged — any PR with updated_at >= 7 days ago.
+# Falls back to plain open-PRs list on failure (e.g. search not available).
 # Returns compact JSON objects, one per line.
 # ---------------------------------------------------------------------------
 fetch_open_prs() {
-  local raw exit_code
+  local raw
+  local week_ago
+  week_ago="$(TZ=UTC date -u -v-7d '+%Y-%m-%d' 2>/dev/null)" || week_ago="$(date -u -d '7 days ago' '+%Y-%m-%d' 2>/dev/null)"
+
+  # Try search API first (includes all states, filtered by updated date)
+  raw="$(gh api "search/issues?q=repo:$REPO+is:pr+updated:>=$week_ago&per_page=100&sort=updated&order=desc" 2>/dev/null)" || raw=""
+
+  if [[ -n "$raw" ]]; then
+    local item_count
+    item_count="$(jq -rn "$raw | .total_count" 2>/dev/null)" || item_count="0"
+    log "Search API returned $item_count items (updated >= $week_ago)"
+    # Extract PR fields from search results (items array)
+    local first_num
+    first_num="$(jq -rn "$raw | if .items[0].number then .items[0].number else empty end" 2>/dev/null)" || true
+    if [[ -n "$first_num" && "$first_num" != "null" ]]; then
+      jq -c '.items[] | {number, title, state:.state, headRefName:.head.ref, isDraft:.draft, created_at, updatedAt:.updated_at}' <<<"$raw" || true
+      return
+    fi
+  fi
+
+  # Fallback: plain open PRs list
+  log "Search API empty/failed — falling back to open-PRs list"
   raw="$(gh api "repos/$REPO/pulls?state=open&per_page=100" 2>/dev/null)" || true
   if [[ -z "$raw" ]]; then
     echo "[]"; return
   fi
-  # Check it's a non-empty array
   local first_num
   first_num="$(jq -rn "$raw | if .[0].number then .[0].number else empty end" 2>/dev/null)" || true
   if [[ -z "$first_num" ]] || [[ "$first_num" == "null" ]]; then
     echo "[]"; return
   fi
-  # Output compact JSON for each PR
-  jq -c '.[] | {number, title, headRefName:.head.ref, isDraft:.draft, created_at, updatedAt:.updated_at}' <<<"$raw" || echo "[]"
+  jq -c '.[] | {number, title, state:.state, headRefName:.head.ref, isDraft:.draft, created_at, updatedAt:.updated_at}' <<<"$raw" || echo "[]"
 }
 
 # ---------------------------------------------------------------------------
@@ -207,19 +228,34 @@ compute_age_hm() {
     title="$(jq -rn "$pr_json | .title" 2>/dev/null)" || title=""
     head_ref="$(jq -rn "$pr_json | .headRefName" 2>/dev/null)" || head_ref=""
     draft="$(jq -rn "$pr_json | .isDraft" 2>/dev/null)" || draft="null"
-    created_at="$(jq -rn "$pr_json | .created_at" 2>/dev/null)" || created_at=""
+    pr_state="$(jq -rn "$pr_json | .state" 2>/dev/null)" || pr_state="unknown"
+    # Prefer updatedAt for age (reflects last modification), fall back to created_at
+    modified_at="$(jq -rn "$pr_json | .updatedAt" 2>/dev/null)" || modified_at=""
+    created_at_fallback="$(jq -rn "$pr_json | .created_at" 2>/dev/null)" || created_at_fallback=""
 
     [[ -z "$number" || "$number" == "null" ]] && continue
 
-    # Compute age
-    age_hm="$(compute_age_hm "$created_at")"
+    # Use updatedAt for age if available, else created_at
+    age_ts="${modified_at:-$created_at_fallback}"
+    age_hm="$(compute_age_hm "$age_ts")"
     # Extract numeric hours for trajectory threshold check
     age_hours="${age_hm%%h*}"
     [[ -z "${age_hours:-}" ]] && age_hours=0
 
+    # For closed/merged PRs: skip 7-green checks, show final state
+    if [[ "$pr_state" == "closed" || "$pr_state" == "merged" ]]; then
+      if [[ "$pr_state" == "merged" ]]; then
+        echo "PR #$number | age: ${age_hm} | ✅ MERGED — ${title}"
+      else
+        echo "PR #$number | age: ${age_hm} | ⚫ CLOSED — ${title}"
+      fi
+      ((total++)) || true
+      continue
+    fi
+
     # Skip drafts
     if [[ "$draft" == "true" ]]; then
-      echo "PR #$number | SKIP (draft)"
+      echo "PR #$number | age: ${age_hm} | SKIP (draft)"
       continue
     fi
 

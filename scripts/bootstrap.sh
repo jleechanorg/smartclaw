@@ -8,6 +8,59 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# Canonical AO config lives under ~/.smartclaw/ (tracked harness root). ~/agent-orchestrator.yaml
+# must point there so the AO CLI and pollers see one source of truth — not a worktree path
+# (orch-2u9d, CLAUDE.md worktree isolation).
+ensure_agent_orchestrator_symlink() {
+    local ao_yaml="$HOME/agent-orchestrator.yaml"
+    local canon_yaml="$HOME/.smartclaw/agent-orchestrator.yaml"
+    local repo_yaml="$REPO_ROOT/agent-orchestrator.yaml"
+    # Legacy behavior wrapped symlink creation in `if [ -f "$REPO_YAML" ]; then …`.
+    # We keep that safety (at least one real file must exist) but prefer the canonical
+    # harness path when present (orch-2u9d).
+    if [[ ! -f "$canon_yaml" && ! -f "$repo_yaml" ]]; then
+        if [[ -n "${SYMLINK_FAIL_ON_MISSING:-}" ]]; then
+            echo "ERROR: cannot create ~/agent-orchestrator.yaml: neither $canon_yaml nor $repo_yaml exists" >&2
+            return 1
+        fi
+        echo "Skipping ~/agent-orchestrator.yaml: neither $canon_yaml nor $repo_yaml exists"
+        return 0
+    fi
+    local target
+    if [[ -f "$canon_yaml" ]]; then
+        target="$canon_yaml"
+    else
+        target="$repo_yaml"
+        echo "NOTE: $canon_yaml not found — symlinking to repo copy $repo_yaml"
+    fi
+
+    if [[ -L "$ao_yaml" ]]; then
+        local current expected
+        current="$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$ao_yaml" 2>/dev/null || echo "")"
+        expected="$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$target" 2>/dev/null || echo "")"
+        if [[ -n "$current" && -n "$expected" && "$current" == "$expected" ]]; then
+            echo "Symlink valid: $ao_yaml -> $current"
+        else
+            echo "WARNING: symlink points to stale target ($current), updating to $expected"
+            ln -sf "$target" "$ao_yaml" && echo "Symlink updated: $ao_yaml -> $target"
+        fi
+    elif [[ -f "$ao_yaml" ]]; then
+        echo "WARNING: $ao_yaml exists as a regular file — backing up to $ao_yaml.bak and replacing with symlink"
+        mv "$ao_yaml" "$ao_yaml.bak"
+        ln -s "$target" "$ao_yaml" && echo "Symlink: $ao_yaml -> $target"
+    elif [[ -e "$ao_yaml" ]]; then
+        echo "ERROR: $ao_yaml exists but is not a regular file or symlink; remove or rename it manually" >&2
+        return 1
+    else
+        ln -s "$target" "$ao_yaml" && echo "Symlink: $ao_yaml -> $target"
+    fi
+}
+
+if [[ "${1:-}" == "--symlink-only" ]]; then
+    SYMLINK_FAIL_ON_MISSING=1 ensure_agent_orchestrator_symlink
+    exit $?
+fi
+
 echo "=== OpenClaw Bootstrap ==="
 echo "Repo root: $REPO_ROOT"
 
@@ -16,29 +69,9 @@ if [ -d "$REPO_ROOT/workspace-monitor" ]; then
     ln -sf "$REPO_ROOT/skills" "$REPO_ROOT/workspace-monitor/skills" && echo "Symlink: workspace-monitor/skills -> skills/"
 fi
 
-# Agent Orchestrator config — symlink ~/agent-orchestrator.yaml → repo copy
-AO_YAML="$HOME/agent-orchestrator.yaml"
-REPO_YAML="$REPO_ROOT/agent-orchestrator.yaml"
-if [ -f "$REPO_YAML" ]; then
-    if [ -L "$AO_YAML" ]; then
-        # Verify symlink points to correct target (not stale from repo move).
-        # Use python for realpath — readlink -f is GNU-only and unavailable on macOS.
-        CURRENT_TARGET="$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$AO_YAML" 2>/dev/null || echo "")"
-        EXPECTED_TARGET="$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$REPO_YAML" 2>/dev/null || echo "")"
-        if [ -n "$CURRENT_TARGET" ] && [ -n "$EXPECTED_TARGET" ] && [ "$CURRENT_TARGET" = "$EXPECTED_TARGET" ]; then
-            echo "Symlink valid: $AO_YAML -> $CURRENT_TARGET"
-        else
-            echo "WARNING: symlink points to stale target ($CURRENT_TARGET), updating to $EXPECTED_TARGET"
-            ln -sf "$REPO_YAML" "$AO_YAML" && echo "Symlink updated: ~/agent-orchestrator.yaml -> $REPO_YAML"
-        fi
-    elif [ -f "$AO_YAML" ]; then
-        echo "WARNING: $AO_YAML exists as a regular file — backing up to $AO_YAML.bak and replacing with symlink"
-        mv "$AO_YAML" "$AO_YAML.bak"
-        ln -s "$REPO_YAML" "$AO_YAML" && echo "Symlink: ~/agent-orchestrator.yaml -> $REPO_YAML"
-    else
-        ln -s "$REPO_YAML" "$AO_YAML" && echo "Symlink: ~/agent-orchestrator.yaml -> $REPO_YAML"
-    fi
-fi
+# Agent Orchestrator config — symlink ~/agent-orchestrator.yaml → ~/.smartclaw/agent-orchestrator.yaml (canonical)
+unset SYMLINK_FAIL_ON_MISSING
+ensure_agent_orchestrator_symlink
 
 # --- Webhook daemon setup ---
 WEBHOOK_CFG="$HOME/.smartclaw/webhook.json"
@@ -167,8 +200,7 @@ fi
 
 echo ""
 echo "Next: inject real tokens into openclaw.json"
-echo "  cp openclaw.json.redacted openclaw.json"
-echo "  # then edit openclaw.json with real tokens"
+echo "  # create or edit openclaw.json with real tokens"
 echo ""
 echo "Also set in ~/.bashrc:"
 echo "  export OPENCLAW_AO_HOOK_TOKEN='<token>'   # AO → openclaw notifier webhook token"

@@ -23,7 +23,8 @@ on:
 
 concurrency:
   group: staging-canary-gate-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  # Match skeptic-gate: avoid CANCELLED check spam on rapid pushes.
+  cancel-in-progress: false
 
 permissions:
   contents: read

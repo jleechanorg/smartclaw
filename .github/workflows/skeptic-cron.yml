@@ -85,7 +85,7 @@ jobs:
                   def stale_threshold: 900;
                   def skip_stale: (.app.slug == "cursor" and .status == "in_progress" and (($now | tonumber) - (.started_at | fromdateiso8601) > stale_threshold));
                   (map(.check_runs // []) | add) as $runs |
-                  ($runs | map(select(.name == "Skeptic Gate" or .name == "Staging Canary Gate" | not))) as $external_runs |
+                  ($runs | map(select(.name != "Skeptic Gate" and .name != "Staging Canary Gate"))) as $external_runs |
                   if ($external_runs | length) == 0 then "neutral"
                   elif ($external_runs | map(select(.conclusion == null and .status == "in_progress" and (skip_stale | not))) | length) > 0 then "in_progress"
                   elif ($external_runs | map(select(.conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral" and .conclusion != "cancelled")) | length) > 0 then "failure"
@@ -204,23 +204,31 @@ jobs:
             # Capture verdict data separately from the gh api exit status so we can
             # fail closed on API errors while still distinguishing empty-result from crash.
             # --slurp: flatten all pages into single array so jq sees all results at once.
-            SKEPTIC_VERDICT_RAW=$(gh api repos/${{ github.repository }}/issues/$PR_NUM/comments --paginate --slurp \
-              | jq -r '[.[][] | select(.user.login == "github-actions[bot]" and (.body | test("VERDICT:"; "i")))] | sort_by(.created_at) | reverse | .[0] // null' 2>/dev/null)
-            if [ $? -ne 0 ] || [ -z "$SKEPTIC_VERDICT_RAW" ] || [ "$SKEPTIC_VERDICT_RAW" = "null" ]; then
-              # gh api or jq failed, OR no verdict comment found — treat as MISSING.
-              # Fail-closed for API errors (rate limit / auth); fail-open for empty result
-              # (rate limits reset on next cron run in 30 min).
-              SKEPTIC_VERDICT="SKEPTIC_NO_VERDICT"
-              SKEPTIC_SHA_MISMATCH=""
+            # Do not pipe gh into jq in one subshell — $? would reflect jq only, not gh.
+            SKEPTIC_VERDICT=""
+            SKEPTIC_SHA_MISMATCH=""
+            SKEPTIC_COMMENTS_JSON=""
+            if ! SKEPTIC_COMMENTS_JSON=$(gh api repos/${{ github.repository }}/issues/$PR_NUM/comments --paginate --slurp 2>/dev/null); then
+              SKEPTIC_VERDICT="SKEPTIC_ERROR"
             else
-              SKEPTIC_VERDICT=$(echo "$SKEPTIC_VERDICT_RAW" | jq -r '.body')
-              VERDICT_SHA=$(echo "$SKEPTIC_VERDICT_RAW" | jq -r '.body' | python3 -c "import sys,re; m=re.search(r'<!--\s*HEAD-SHA:\s*([a-f0-9]+)', sys.stdin.read()); print(m.group(1) if m else '')" 2>/dev/null || echo "")
-              if [ -n "$VERDICT_SHA" ] && [ "$VERDICT_SHA" != "$PR_HEAD" ]; then
-                echo "  [7] Skeptic: STALE (verdict SHA \`${VERDICT_SHA:0:7}\`, PR head \`${PR_HEAD:0:7}\` — treating as MISSING)"
+              SKEPTIC_VERDICT_RAW=$(printf '%s\n' "$SKEPTIC_COMMENTS_JSON" | jq -r '[.[][] | select(.user.login == "github-actions[bot]" and (.body | test("VERDICT:"; "i")))] | sort_by(.created_at) | reverse | .[0] // null' 2>/dev/null)
+              JQ_STAT=$?
+              if [ "$JQ_STAT" -ne 0 ]; then
+                SKEPTIC_VERDICT="SKEPTIC_ERROR"
+              elif [ -z "$SKEPTIC_VERDICT_RAW" ] || [ "$SKEPTIC_VERDICT_RAW" = "null" ]; then
+                # No verdict comment found — MISSING (skeptic-cron may auto-post).
                 SKEPTIC_VERDICT="SKEPTIC_NO_VERDICT"
-                SKEPTIC_SHA_MISMATCH="true"
-              else
                 SKEPTIC_SHA_MISMATCH=""
+              else
+                SKEPTIC_VERDICT=$(echo "$SKEPTIC_VERDICT_RAW" | jq -r '.body')
+                VERDICT_SHA=$(echo "$SKEPTIC_VERDICT_RAW" | jq -r '.body' | python3 -c "import sys,re; m=re.search(r'<!--\s*HEAD-SHA:\s*([a-f0-9]+)', sys.stdin.read()); print(m.group(1) if m else '')" 2>/dev/null || echo "")
+                if [ -n "$VERDICT_SHA" ] && [ "$VERDICT_SHA" != "$PR_HEAD" ]; then
+                  echo "  [7] Skeptic: STALE (verdict SHA \`${VERDICT_SHA:0:7}\`, PR head \`${PR_HEAD:0:7}\` — treating as MISSING)"
+                  SKEPTIC_VERDICT="SKEPTIC_NO_VERDICT"
+                  SKEPTIC_SHA_MISMATCH="true"
+                else
+                  SKEPTIC_SHA_MISMATCH=""
+                fi
               fi
             fi
             if echo "$SKEPTIC_VERDICT" | grep -qi "VERDICT: PASS"; then

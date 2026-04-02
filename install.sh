@@ -10,7 +10,7 @@
 #
 # Prerequisites:
 #   - openclaw.json must exist at ~/.smartclaw/openclaw.json with real tokens hardcoded
-#     (copy from openclaw.json.redacted and fill in secrets — never commit that file)
+#     (create/update this local runtime file directly; it is gitignored)
 #   - openclaw CLI must be in PATH
 
 set -euo pipefail
@@ -42,7 +42,7 @@ fi
 if [[ ! -f "$REPO_ROOT/openclaw.json" ]]; then
   echo ""
   echo "ERROR: ~/.smartclaw/openclaw.json not found."
-  echo "  Copy openclaw.json.redacted and fill in real tokens before running install."
+  echo "  Create openclaw.json with real tokens before running install."
   exit 1
 fi
 

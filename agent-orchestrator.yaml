@@ -515,6 +515,30 @@ projects:
       Push to fork origin: git push fork feat/cursor-gemini-plugins-clean
 
       '
+  mctrl-test:
+    name: mctrl_test LeetCode
+    repo: jleechanorg/mctrl_test
+    path: ~/projects_reference/mctrl_test
+    defaultBranch: main
+    sessionPrefix: mt
+    workspace: worktree
+    worktreeDir: ~/.worktrees/mctrl-test
+    backfillAllPRs: false
+    agentConfig:
+      permissions: skip
+    agentRules: >
+      You are working on LeetCode solutions in jleechanorg/mctrl_test.
+
+      Use [agento] prefix for all commits.
+      Never push to main directly — always open a PR.
+
+      7-GREEN LOOP:
+      1. Check CI — ensure tests pass
+      2. Check mergeable — rebase if needed
+      3. Post @coderabbitai all good? — wait for CR
+      4. Fix CR comments if any
+      5. Once CR APPROVED: /er via evidence-reviewer subagent
+      6. All 7 criteria met → auto-merge
 notifiers:
   openclaw:
     plugin: openclaw

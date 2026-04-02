@@ -15,6 +15,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 UNINSTALL_FLAG="${1:-}"
 
+# ~/agent-orchestrator.yaml → ~/.smartclaw/agent-orchestrator.yaml (orch-2u9d)
+if [[ "$UNINSTALL_FLAG" != "--uninstall" ]]; then
+  bash "$SCRIPT_DIR/bootstrap.sh" --symlink-only
+fi
+
 echo "=== Install All LaunchAgents ==="
 echo ""
 
@@ -31,7 +36,6 @@ run_installer() {
 }
 
 run_installer "OpenClaw (gateway + startup + MC)"  "install-launchagents.sh"
-run_installer "OpenClaw config sync (hourly)"     "install-config-sync.sh"
 run_installer "mctrl supervisor"                   "install-mctrl-supervisor.sh"
 run_installer "ao orchestrators (reactions)"       "install-ao-orchestrators.sh"
 run_installer "ao lifecycle-worker (agent-orchestrator)" "install-ao-lifecycle-agent-orchestrator.sh"

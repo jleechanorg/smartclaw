@@ -16,31 +16,6 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DISCORD_CONFIG = REPO_ROOT / "discord-eng-bot" / "openclaw.json"
 MAIN_CONFIG = REPO_ROOT / "openclaw.json"
-REDACTED_CONFIG = REPO_ROOT / "openclaw.json.redacted"
-
-# Secrets replaced in openclaw.json.redacted and the env vars that hold their real values.
-# When ALL env vars are set (i.e. on the real machine), the roundtrip test expands the
-# redacted file and asserts it equals the live config — catching drift between the two.
-_REDACTION_MAP: list[tuple[list[str], str]] = [
-    (["env", "XAI_API_KEY"],                                     "XAI_API_KEY"),
-    (["env", "SLACK_BOT_TOKEN"],                        "SLACK_BOT_TOKEN"),
-    (["env", "OPENCLAW_SLACK_APP_TOKEN"],                        "OPENCLAW_SLACK_APP_TOKEN"),
-    (["env", "OPENCLAW_HOOKS_TOKEN"],                            "OPENCLAW_HOOKS_TOKEN"),
-    (["hooks", "token"],                                          "OPENCLAW_HOOKS_TOKEN"),
-    (["channels", "slack", "botToken"],                           "SLACK_BOT_TOKEN"),
-    (["channels", "slack", "appToken"],                           "OPENCLAW_SLACK_APP_TOKEN"),
-    (["channels", "discord", "token"],                            "DISCORD_BOT_TOKEN"),
-    (["gateway", "auth", "token"],                                "OPENCLAW_GATEWAY_TOKEN"),
-    (["gateway", "remote", "token"],                              "OPENCLAW_GATEWAY_REMOTE_TOKEN"),
-    (["plugins", "entries", "openclaw-mem0", "config", "oss", "embedder", "config", "apiKey"], "OPENAI_API_KEY"),
-    (["plugins", "entries", "openclaw-mem0", "config", "oss", "llm", "config", "api_key"],    "GROQ_API_KEY"),
-    (["plugins", "entries", "openclaw-mem0", "config", "oss", "llm", "config", "apiKey"],     "GROQ_API_KEY"),
-]
-# Timestamp fields that change on every doctor run — excluded from roundtrip comparison.
-_VOLATILE_PATHS: list[tuple[list[str], ...]] = [
-    (["meta", "lastTouchedAt"],),
-    (["wizard", "lastRunAt"],),
-]
 MC_PLIST = REPO_ROOT / "ai.smartclaw.mission-control.plist"
 START_MC_SCRIPT = REPO_ROOT / "scripts" / "start-mc.sh"
 GATEWAY_INSTALL_SCRIPT = REPO_ROOT / "scripts" / "install-launchagents.sh"
@@ -620,159 +595,6 @@ class TestExecSafeBins:
 
 
 # ---------------------------------------------------------------------------
-# ORCH-exec2: openclaw.json.redacted roundtrip test
-#
-# openclaw.json.redacted is the committed snapshot of the live config with
-# secrets replaced by ${VAR} placeholders.  When all env vars are available
-# (i.e. on the real machine), this test expands the redacted file and asserts
-# it matches the live config exactly — catching any drift between the two.
-#
-# To update after config changes: regenerate openclaw.json.redacted by running
-#   python3 scripts/generate_redacted_config.py
-# then commit the result.
-# ---------------------------------------------------------------------------
-
-
-def _expand_redacted(redacted: dict) -> dict:
-    """Substitute ${VAR} placeholders with real env var values in-place (deep copy).
-
-    Also expands ``${HOME}`` in all string values back to the real home directory,
-    matching the portable replacement done by ``generate_redacted_config.py``.
-    """
-    import os
-    import json
-
-    # First, do a text-level expansion of ${HOME} across the whole structure.
-    home = os.path.expanduser("~")
-    raw = json.dumps(redacted)
-    raw = raw.replace("${HOME}", home)
-    expanded = json.loads(raw)
-
-    # Then substitute secret placeholders with real env var values.
-    for path, env_var in _REDACTION_MAP:
-        value = os.environ.get(env_var)
-        if value is None:
-            continue
-        obj = expanded
-        try:
-            for p in path[:-1]:
-                obj = obj[p]
-            if path[-1] in obj and isinstance(obj[path[-1]], str) and obj[path[-1]].startswith("${"):
-                obj[path[-1]] = value
-        except (KeyError, TypeError):
-            pass
-    return expanded
-
-
-def _blank_volatile(obj: dict) -> dict:
-    """Zero out timestamp fields that change on every doctor run."""
-    import copy
-    result = copy.deepcopy(obj)
-    volatile_paths = [
-        ["meta", "lastTouchedAt"],
-        ["wizard", "lastRunAt"],
-    ]
-    for path in volatile_paths:
-        node = result
-        try:
-            for p in path[:-1]:
-                node = node[p]
-            if path[-1] in node:
-                node[path[-1]] = "__volatile__"
-        except (KeyError, TypeError):
-            pass
-    return result
-
-
-class TestRedactedConfigRoundtrip:
-    @pytest.fixture(scope="class")
-    def redacted_cfg(self) -> dict:
-        if not REDACTED_CONFIG.exists():
-            pytest.skip("openclaw.json.redacted not present — run scripts/generate_redacted_config.py")
-        return json.loads(REDACTED_CONFIG.read_text())
-
-    def test_redacted_config_is_valid_json(self, redacted_cfg: dict):
-        """openclaw.json.redacted must parse as valid JSON."""
-        assert isinstance(redacted_cfg, dict)
-
-    def test_redacted_config_has_no_raw_secrets(self, redacted_cfg: dict):
-        """No xox*, sk-*, gsk_*, or long hex tokens should appear as bare strings."""
-        import re
-        raw = REDACTED_CONFIG.read_text()
-        secret_patterns = [
-            (r'xox[bpars]-[0-9A-Za-z-]+', "Slack token"),
-            (r'xapp-[0-9A-Za-z-]+', "Slack app token"),
-            (r'sk-proj-[0-9A-Za-z_-]{20,}', "OpenAI API key"),
-            (r'gsk_[0-9A-Za-z]{20,}', "Groq API key"),
-            (r'xai-[0-9A-Za-z]{20,}', "xAI API key"),
-        ]
-        found = []
-        for pattern, label in secret_patterns:
-            if re.search(pattern, raw):
-                found.append(label)
-        assert not found, (
-            f"openclaw.json.redacted contains raw secrets: {found}. "
-            "Regenerate with scripts/generate_redacted_config.py (ORCH-exec2)"
-        )
-
-    def test_redacted_placeholders_use_env_var_syntax(self, redacted_cfg: dict):
-        """All redacted fields must use ${VAR_NAME} syntax, not bare env var names."""
-        import re
-        env_ref = re.compile(r"^\$\{[A-Z][A-Z0-9_]+\}$")
-        bad = []
-        for path, _ in _REDACTION_MAP:
-            obj = redacted_cfg
-            try:
-                for p in path[:-1]:
-                    obj = obj[p]
-                val = obj.get(path[-1], "")
-            except (KeyError, TypeError):
-                continue
-            if val and not env_ref.match(str(val)):
-                bad.append(f"{'.'.join(path)}={val!r}")
-        assert not bad, (
-            f"Redacted fields not using ${{VAR}} syntax: {bad}. "
-            "Regenerate with scripts/generate_redacted_config.py (ORCH-exec2)"
-        )
-
-    def test_roundtrip_matches_live_config(self, redacted_cfg: dict, main_cfg: dict):
-        """Expanding openclaw.json.redacted with real env vars must equal openclaw.json exactly.
-
-        Fails when the live config changes but openclaw.json.redacted is not regenerated.
-        Fix: run 'python3 scripts/generate_redacted_config.py' and commit the result.
-        """
-        import os
-        required_vars = {env_var for _, env_var in _REDACTION_MAP}
-        missing_env = required_vars - set(os.environ)
-        if missing_env:
-            pytest.skip(
-                f"Roundtrip skipped — env vars not set: {sorted(missing_env)}. "
-                "Run on the real machine with openclaw env loaded."
-            )
-        expanded = _expand_redacted(redacted_cfg)
-        expected = _blank_volatile(main_cfg)
-        actual = _blank_volatile(expanded)
-        assert actual == expected, (
-            "openclaw.json.redacted expanded with env vars does not match openclaw.json. "
-            "Config has drifted — regenerate with scripts/generate_redacted_config.py "
-            "and commit (ORCH-exec2)"
-        )
-
-    def test_redacted_slack_wildcard_allows_all_invited(self, redacted_cfg: dict):
-        """Tracked template must keep channels.slack.channels['*'] for allowlist-wide coverage."""
-        slack = redacted_cfg.get("channels", {}).get("slack", {})
-        if slack.get("enabled") is not True:
-            pytest.skip("channels.slack.enabled is not True in redacted template")
-        star = (slack.get("channels") or {}).get("*")
-        assert star is not None, (
-            "openclaw.json.redacted must define channels.slack.channels['*'] so every "
-            "invited Slack channel is allowed under allowlist policy (ORCH-slack3)"
-        )
-        assert star.get("allow") is True
-        assert star.get("requireMention") is False
-
-
-# ---------------------------------------------------------------------------
 # ORCH-meta1: meta section must be present and version must be a valid semver-like string
 #
 # meta.lastTouchedVersion is stamped by `openclaw doctor` — a null or missing
@@ -1154,24 +976,10 @@ class TestEnvSection:
 
         Raw credential literals in env section are logged when openclaw logs
         config state, creating credential leak risk in log files (ORCH-env1).
-        The live config may have raw values (the redacted config enforces ${VAR} form)
-        — this test checks the redacted config if present, otherwise skips.
         """
-        if not REDACTED_CONFIG.exists():
-            pytest.skip(
-                "openclaw.json.redacted not present — env secret check is "
-                "validated by TestRedactedConfigRoundtrip when redacted config exists (ORCH-env1)"
-            )
-        redacted = json.loads(REDACTED_CONFIG.read_text())
-        env_section = redacted.get("env", {})
-        bad = []
-        for key, value in env_section.items():
-            is_secret, label = _is_raw_secret(str(value))
-            if is_secret:
-                bad.append(f"env.{key} looks like a raw {label}")
-        assert not bad, (
-            f"Redacted config env section contains raw secrets: {bad}. "
-            "Regenerate with scripts/generate_redacted_config.py (ORCH-env1)"
+        pytest.skip(
+            "openclaw.json is a local gitignored runtime file and may contain real tokens; "
+            "raw secret enforcement is validated on tracked artifacts instead (ORCH-env1)"
         )
 
 
