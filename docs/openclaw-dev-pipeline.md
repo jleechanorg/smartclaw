@@ -190,18 +190,27 @@ Auto-promotion via PR (created in Stage 2). skeptic-cron merges when 7-green.
 
 **How this is usually wired:**
 
-- **CI / server-side (push-triggered):** a workflow or post-receive hook on `staging` runs the same steps as `staging-promote.sh` when a push lands. That matches the “push to `staging`” wording above.
-- **Local-only (commit-triggered):** a `post-commit` hook in the **staging** worktree runs `~/scripts/staging-promote.sh` right after you commit there. That fires on **local commit**, not on `git push`; use it only if you accept that timing, or mirror the script in CI for true push automation.
+- **CI / server-side (push-triggered):** a workflow or post-receive hook on `staging` runs the same steps as `~/.openclaw/scripts/staging-promote.sh` when a push lands. That matches the “push to `staging`” wording above.
+- **Local-only (commit-triggered):** a `post-commit` hook runs `~/.openclaw/scripts/staging-promote.sh` for commits in **`~/.openclaw-staging/`**, and restarts the prod gateway for commits in **`~/.openclaw/`** (see shared hook below). That fires on **local commit**, not on `git push`; use it only if you accept that timing, or mirror the script in CI for true push automation.
 
-Hooks must be installed in the **shared Git hooks directory**, not a worktree-only `.git` file path. Resolve it with `git rev-parse --git-common-dir` (or set `core.hooksPath` in Git 2.9+):
+Hooks must be installed in the **shared Git hooks directory**, not a worktree-only `.git` file path. Resolve it with `git rev-parse --git-common-dir` (or set `core.hooksPath` in Git 2.9+). Use **one** `post-commit` script so you do not overwrite the same file twice:
 
 ```bash
-STAGING_ROOT="$HOME/.openclaw-staging"
-GIT_COMMON="$(git -C "$STAGING_ROOT" rev-parse --git-common-dir)"
+GIT_COMMON="$(git -C "$HOME/.openclaw" rev-parse --git-common-dir)"
 HOOKS="$GIT_COMMON/hooks"
 cat > "$HOOKS/post-commit" << 'EOF'
 #!/bin/bash
-~/scripts/staging-promote.sh
+set -euo pipefail
+# Path-based dispatch works with detached HEAD (common when main is checked out elsewhere).
+root=$(git rev-parse --show-toplevel)
+case "$root" in
+  "$HOME/.openclaw-staging")
+    "$HOME/.openclaw/scripts/staging-promote.sh"
+    ;;
+  "$HOME/.openclaw")
+    launchctl kickstart -k "gui/$(id -u)/ai.openclaw.gateway"
+    ;;
+esac
 EOF
 chmod +x "$HOOKS/post-commit"
 ```
@@ -252,25 +261,15 @@ gh pr create \
 
 Tests: all passed
 Gateway: healthy at http://127.0.0.1:18810
-Automation: staging-promote.sh" \
+Automation: ~/.openclaw/scripts/staging-promote.sh" \
   || echo "PR may already exist"
 ```
 
-### 3. Prod watch (launchd + git hook)
+### 3. Production gateway restart (launchd + same hook)
 
 **Intended effect:** after `main` updates, restart the native prod gateway.
 
-**Push-triggered automation** should run this on the server or via CI when `main` moves. **Local post-commit** below runs on commit in the prod worktree; adjust to match how you deploy.
-
-```bash
-GIT_COMMON="$(git -C "$HOME/.openclaw" rev-parse --git-common-dir)"
-HOOKS="$GIT_COMMON/hooks"
-cat > "$HOOKS/post-commit" << 'EOF'
-#!/bin/bash
-launchctl kickstart -k "gui/$(id -u)/ai.openclaw.gateway"
-EOF
-chmod +x "$HOOKS/post-commit"
-```
+**Push-triggered automation** should run `launchctl kickstart … ai.openclaw.gateway` on the server or via CI when `main` moves. For **local post-commit**, the shared hook above runs when `git rev-parse --show-toplevel` is `~/.openclaw` (the production worktree path).
 
 ---
 
@@ -289,29 +288,48 @@ chmod +x "$HOOKS/post-commit"
 ### One-time setup
 
 ```bash
-# 1. Create staging worktree on staging branch
+# 1. Ensure remote branch staging exists (required before adding that worktree)
+git fetch origin
+if ! git show-ref --verify --quiet refs/remotes/origin/staging; then
+  git checkout -b staging
+  git push -u origin staging
+  git checkout -
+fi
+
+# 2. Create staging worktree
 git worktree add ~/.openclaw-staging origin/staging
 
-# 2. Confirm staging worktree
-git -C ~/.openclaw-staging branch  # should show "(detached at ...)"
+# 3. Confirm staging worktree
+git -C ~/.openclaw-staging branch  # may show "(detached at ...)" first
 git -C ~/.openclaw-staging checkout staging
 
-# 3. Install staging Docker gateway
+# 4. Install staging Docker gateway
 # See openclaw-docker-staging-setup.md
 
-# 4. Create staging branch if it doesn't exist
-git checkout -b staging
-git push -u origin staging
+# 5. Production worktree — Git allows only one checkout of branch `main` at a time.
+#    If `git worktree add ~/.openclaw main` fails because `main` is checked out elsewhere,
+#    free it in the other clone/worktree first, or use a detached tree at main's tip:
+git fetch origin
+git worktree add ~/.openclaw origin/main
+git -C ~/.openclaw checkout --detach
+# When you can attach `main` here instead (no other worktree holds main):
+# git -C ~/.openclaw switch -C main
 
-# 5. Create production worktree if it doesn't exist
-git worktree add ~/.openclaw main
-
-# 6. Install git hooks for auto-restart (hooks dir works with linked worktrees)
+# 6. Install shared post-commit hook (same script as "Automation Components")
 GIT_COMMON="$(git -C "$HOME/.openclaw" rev-parse --git-common-dir)"
 HOOKS="$GIT_COMMON/hooks"
 cat > "$HOOKS/post-commit" << 'EOF'
 #!/bin/bash
-launchctl kickstart -k "gui/$(id -u)/ai.openclaw.gateway"
+set -euo pipefail
+root=$(git rev-parse --show-toplevel)
+case "$root" in
+  "$HOME/.openclaw-staging")
+    "$HOME/.openclaw/scripts/staging-promote.sh"
+    ;;
+  "$HOME/.openclaw")
+    launchctl kickstart -k "gui/$(id -u)/ai.openclaw.gateway"
+    ;;
+esac
 EOF
 chmod +x "$HOOKS/post-commit"
 ```
