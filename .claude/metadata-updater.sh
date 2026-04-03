@@ -67,6 +67,12 @@ while true; do
 done
 
 # Guardrail: enforce [agento] prefix on gh pr create titles (PreToolUse only).
+# Guardrail: block gh pr merge even when chained after && or ; (PreToolUse only).
+# Use cmd_first to catch merge/subcommand in any chained position.
+cmd_first="${clean_command%%&&*}"
+cmd_first="${cmd_first%%;*}"
+
+
 # PostToolUse falls through to metadata update — no need to re-check there.
 pr_create_pattern='^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]+[[:space:]]+)*gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$)'
 if [[ "$hook_event" == "PreToolUse" && "$clean_command" =~ $pr_create_pattern ]]; then
@@ -88,22 +94,27 @@ for i, arg in enumerate(args):
     if arg.startswith('-t'):
         print(arg[2:], end='')
         break
-" "$clean_command" 2>/dev/null || true)
+" "$clean_command" 2>/dev/null || exit 1)
   if [[ -z "$first_title" || "$first_title" != \[agento\]* ]]; then
     echo "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Blocked by AO policy: gh pr create titles must start with [agento]. Prefix your title with [agento] and retry.\"}}"
     exit 0
   fi
   # Prefix check passed — title is valid, allow the tool.
-  # Exit here so PreToolUse does NOT fall through to metadata writers below.
-  echo '{}'
-  exit 0
+  # Continue so merge guard can also inspect this command.
 fi
 
 # Hard guardrail: block agent-triggered gh pr merge by default.
 # Placed BEFORE the PostToolUse-only guard so PreToolUse denials fire correctly.
 # Rationale: prompt rules (e.g., "NEVER MERGE") are advisory; this enforces policy in code.
 # Escape hatch for trusted/manual flows: AO_ALLOW_GH_PR_MERGE=1
-merge_pattern='^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]+[[:space:]]+)*gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$)'
+#
+# merge_pattern: matches gh pr merge at any position — beginning of string OR after &&/;/| separators.
+# This catches:
+#   - gh pr merge 7
+#   - gh pr create ... && gh pr merge 7
+#   - gh pr merge 7 && echo done
+#   - gh pr merge; gh pr merge 8
+merge_pattern='(^|[;&][[:space:]]*)([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]+[[:space:]]+)*gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$)'
 if [[ "$clean_command" =~ $merge_pattern ]]; then
   if [[ "$hook_event" != "PostToolUse" && ${AO_ALLOW_GH_PR_MERGE:-_} != "1" ]]; then
     echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Blocked by AO policy: agents must not run gh pr merge. Leave merge to orchestrator/human."}}'
@@ -142,8 +153,8 @@ update_metadata_key() {
   # Create temp file
   local temp_file="${metadata_file}.tmp"
 
-  # Escape special sed characters in value (& and \ — not | or / in BRE)
-  local escaped_value=$(echo "$value" | sed 's/[&\\]/\\&/g')
+  # Escape special sed characters in value (& and | and \)
+  local escaped_value=$(echo "$value" | sed 's/[&|\\]/\\&/g')
 
   # Check if key already exists
   if grep -q "^$key=" "$metadata_file" 2>/dev/null; then
@@ -214,9 +225,11 @@ if [[ "$clean_command" =~ ^git[[:space:]]+switch[[:space:]]+([^[:space:]-]+[/-][
   fi
 fi
 
-# Detect: gh pr merge (only when explicitly allowed AND in PostToolUse — not PreToolUse)
+# Detect: gh pr merge (PostToolUse only — merge already succeeded)
 # Gate on PostToolUse to avoid marking status=merged before the merge actually succeeds.
-if [[ "$clean_command" =~ $merge_pattern && ${AO_ALLOW_GH_PR_MERGE:-_} == "1" && "$hook_event" == "PostToolUse" ]]; then
+# No AO_ALLOW_GH_PR_MERGE check needed here — PreToolUse already enforced that.
+# Use cmd_first to handle chained commands (gh pr create ... && gh pr merge).
+if [[ "$hook_event" == "PostToolUse" && ("$cmd_first" =~ $merge_pattern || "$clean_command" =~ $merge_pattern) ]]; then
   update_metadata_key "status" "merged"
   echo '{"systemMessage": "Updated metadata: status = merged"}'
   exit 0
