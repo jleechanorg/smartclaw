@@ -97,15 +97,15 @@ export OPENCLAW_SLACK_APP_TOKEN="xapp-..."        # optional — Socket Mode onl
 export SLACK_USER_TOKEN="xoxp-..."                # your personal user token (for agento triggers)
 
 # ── Slack user/bot IDs (change if using a different Slack workspace) ──────────
-export JLEECHAN_SLACK_USER_ID="U09GH5BR3QU"      # your Slack user ID
-export OPENCLAW_BOT_USER_ID="U0AEZC7RX1Q"        # openclaw bot user ID
+export JLEECHAN_SLACK_USER_ID="${SLACK_USER_ID}"        # your Slack user ID
+export OPENCLAW_BOT_USER_ID="${SLACK_BOT_USER_ID}"      # openclaw bot user ID
 
 # ── Slack channels (change if using a different Slack workspace) ──────────────
-export AGENTO_CHANNEL="C0AJQ5M0A0Y"              # #ai-general — agento dispatch
+export AGENTO_CHANNEL="${AGENTO_CHANNEL_ID}"        # agento dispatch
 export SLACK_TEST_CHANNEL="${SLACK_CHANNEL_ID}"          # #ai-slack-test — E2E test channel
 export JLEECHAN_DM_CHANNEL="${SLACK_CHANNEL_ID}"         # your DM channel (for notifications)
-export OPENCLAW_MONITOR_SLACK_TARGET="C0AP8LRKM9N"     # canary/monitor alert channel
-export OPENCLAW_MONITOR_THREAD_REPLY_CHANNEL="C0AP8LRKM9N"
+export OPENCLAW_MONITOR_SLACK_TARGET="${MONITOR_CHANNEL_ID}"  # canary/monitor alert channel
+export OPENCLAW_MONITOR_THREAD_REPLY_CHANNEL="${MONITOR_CHANNEL_ID}"
 
 # ── Gateway ───────────────────────────────────────────────────────────────────
 export OPENCLAW_URL="http://127.0.0.1:18789"
@@ -127,8 +127,8 @@ To find channel/user IDs in a new Slack workspace: open the channel in Slack →
 
 | Variable | Value | Description |
 |----------|-------|-------------|
-| `JLEECHAN_SLACK_USER_ID` | `U09GH5BR3QU` | Your Slack user ID. Scripts use this to identify messages from you. |
-| `OPENCLAW_BOT_USER_ID` | `U0AEZC7RX1Q` | openclaw bot user ID. Gateway ignores its own messages using this. |
+| `JLEECHAN_SLACK_USER_ID` | `${SLACK_USER_ID}` | Your Slack user ID. Scripts use this to identify messages from you. |
+| `OPENCLAW_BOT_USER_ID` | `${SLACK_BOT_USER_ID}` | openclaw bot user ID. Gateway ignores its own messages using this. |
 
 ### Slack Channels
 
@@ -136,14 +136,14 @@ All channel IDs are env vars — change them in `~/.bashrc` when moving to a new
 
 | Variable | Channel | ID | Purpose |
 |----------|---------|-----|---------|
-| `AGENTO_CHANNEL` | `#ai-general` | `C0AJQ5M0A0Y` | Agento dispatch — post here as you to trigger agento |
+| `AGENTO_CHANNEL` | `#ai-general` | `${AGENTO_CHANNEL_ID}` | Agento dispatch — post here as you to trigger agento |
 | `SLACK_TEST_CHANNEL` | `#ai-slack-test` | `${SLACK_CHANNEL_ID}` | E2E test channel for mctrl/monitor tests |
 | `JLEECHAN_DM_CHANNEL` | jleechan DM | `${SLACK_CHANNEL_ID}` | Your DM channel — notifications land here |
-| `OPENCLAW_MONITOR_SLACK_TARGET` | monitor canary channel | `C0AP8LRKM9N` | Primary alert channel for monitor problem reports |
+| `OPENCLAW_MONITOR_SLACK_TARGET` | monitor canary channel | `${MONITOR_CHANNEL_ID}` | Primary alert channel for monitor problem reports |
 | `OPENCLAW_MONITOR_PROBE_SLACK_TARGET` | same | same | Probe channel for gateway Slack connectivity |
 | `OPENCLAW_MONITOR_GATEWAY_PROBE_TARGET` | same | same | Channel monitor sends probe messages to |
 | `OPENCLAW_MONITOR_GATEWAY_PROBE_MESSAGE_ENABLE` | `0` | n/a | Set to `1` to post startup "monitor check started" probe; default `0` keeps startup probe silent |
-| `OPENCLAW_MONITOR_STATUS_SLACK_TARGET` | monitor canary channel | `C0AP8LRKM9N` | Status-broadcast — receives periodic health summary |
+| `OPENCLAW_MONITOR_STATUS_SLACK_TARGET` | monitor canary channel | `${MONITOR_CHANNEL_ID}` | Status-broadcast — receives periodic health summary |
 | `OPENCLAW_MONITOR_THREAD_REPLY_CHANNEL` | same | same | Scanned for open threads lacking a bot reply |
 
 Other known channel IDs (not yet env vars):
@@ -151,11 +151,11 @@ Other known channel IDs (not yet env vars):
 | Channel | ID |
 |---------|----|
 | `#all-jleechan-ai` | `${SLACK_CHANNEL_ID}` |
-| `#smartclaw` | `C0AJ3SD5C79` |
-| `#novel` | `C0ANS2MF15G` |
-| `#antig-orchestrator` | `C0ANX2HU5V1` | Anti-gravity orchestrator discussion |
-| `#ralph-status` | `C0AGX2Q0EA3` |
-| `#disk-usage-alerts` | `C0AKNDEARS5` |
+| `#smartclaw` | `${SMARTCLAW_CHANNEL_ID}` |
+| `#novel` | `${NOVEL_CHANNEL_ID}` |
+| `#antig-orchestrator` | `${ANTIG_CHANNEL_ID}` | Anti-gravity orchestrator discussion |
+| `#ralph-status` | `${RALPH_CHANNEL_ID}` |
+| `#disk-usage-alerts` | `${DISK_ALERTS_CHANNEL_ID}` |
 
 ### Agent Orchestrator
 
