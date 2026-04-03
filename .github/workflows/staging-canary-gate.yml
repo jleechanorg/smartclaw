@@ -165,17 +165,25 @@ jobs:
           // ── Check 5: SDK protocol version (via package.json if available) ──
           console.log('\n[5/6] SDK protocol version check...');
           let pkg;
+          let pkgText;
           try {
             // Use git show so it works under sparse-checkout (package.json may be checked out,
             // but git show is more reliable than reading from the sparse working tree).
-            const pkgText = execFileSync(
+            pkgText = execFileSync(
               'git',
               ['show', `${headSha}:${pkgPath}`],
               { encoding: 'utf8', maxBuffer: 512 * 1024 }
             );
-            pkg = JSON.parse(pkgText);
-          } catch {
-            console.log('  SKIP  SDK protocol version — package.json not changed in this PR (not an openclaw gateway PR)');
+          } catch (e) {
+            console.log(`  SKIP  SDK protocol version — unable to read ${pkgPath} at ${headSha}: ${e.message}`);
+          }
+
+          if (pkgText) {
+            try {
+              pkg = JSON.parse(pkgText);
+            } catch (e) {
+              FAIL('SDK protocol version', `Invalid JSON in ${pkgPath}: ${e.message}`);
+            }
           }
 
           if (pkg && pkg.dependencies) {
