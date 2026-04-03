@@ -80,17 +80,26 @@ jobs:
           CONFIG_FILE: ${{ steps.find_config.outputs.config_file }}
           PKG_FILE: ${{ steps.find_config.outputs.pkg_file }}
           GITHUB_SHA: ${{ github.sha }}
+          BASE_REF: ${{ github.base_ref }}
         run: |
           cat > run-canary-checks.mjs << "ENDSCRIPT"
           import { readFileSync, writeFileSync } from 'fs';
+          import { execSync } from 'child_process';
 
           const configPath = process.env.CONFIG_FILE;
           const pkgPath = process.env.PKG_FILE || 'package.json';
+          const baseRef = process.env.BASE_REF;
           let configText;
           try {
-            configText = readFileSync(configPath, 'utf8');
+            // Read config via git show so it works with sparse-checkout.
+            // Sparse checkout only materializes package*.json, not openclaw.json.
+            // git show origin/<base_ref>:<path> reads from git history directly.
+            configText = execSync(
+              `git show origin/${baseRef}:${configPath}`,
+              { encoding: 'utf8', maxBuffer: 1024 * 1024 }
+            );
           } catch (e) {
-            console.error('Could not read config file:', e.message);
+            console.error('Could not read config file via git show:', e.message);
             process.exit(1);
           }
 
