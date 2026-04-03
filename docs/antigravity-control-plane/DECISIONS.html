@@ -443,7 +443,6 @@
   </ul>
     <p><strong>Consequence:</strong> The dispatcher is the only writer to the job store. Executors are pure functions: job in → Antigravity actions → result out. This makes testing easy (mock executor input/output) and AO workers simple to write.</p>
     <p><strong>Review:</strong> If heartbeat frequency becomes a bottleneck, consider switching to a callback-based model where executors push updates directly.</p>
-    </section>
 
     <section id="color-legend">
     <h2>Color Legend</h2>

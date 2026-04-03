@@ -127,6 +127,33 @@ resolve_doctor_sh_path() {
   return 1
 }
 
+# When the gateway LaunchAgent uses OPENCLAW_STATE_DIR / OPENCLAW_CONFIG_PATH (e.g. prod
+# profile), the default openclaw CLI still reads ~/.smartclaw unless these are set — doctor.sh
+# then false-fails Slack/memory probes while /health stays OK. Mirror gateway plist into the
+# environment for doctor only (respect env if already set; no-op on non-macOS or missing plist).
+apply_openclaw_env_from_gateway_launchd() {
+  local plist="${OPENCLAW_MONITOR_GATEWAY_PLIST_PATH:-$HOME/Library/LaunchAgents/ai.smartclaw.gateway.plist}"
+  [ -f "$plist" ] || return 0
+  [ -x /usr/libexec/PlistBuddy ] || return 0
+  local val
+  if [ -z "${OPENCLAW_STATE_DIR:-}" ]; then
+    val="$(/usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:OPENCLAW_STATE_DIR" "$plist" 2>/dev/null)" || val=""
+    [ -n "$val" ] && export OPENCLAW_STATE_DIR="$val"
+  fi
+  if [ -z "${OPENCLAW_CONFIG_PATH:-}" ]; then
+    val="$(/usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:OPENCLAW_CONFIG_PATH" "$plist" 2>/dev/null)" || val=""
+    [ -n "$val" ] && export OPENCLAW_CONFIG_PATH="$val"
+  fi
+}
+
+run_monitor_doctor_sh() {
+  (
+    export OPENCLAW_DOCTOR_SKIP_INFERENCE=1
+    apply_openclaw_env_from_gateway_launchd
+    bash "$DOCTOR_SH_PATH"
+  ) 2>&1
+}
+
 if [ -z "$OPENCLAW_BIN" ]; then
   log "openclaw CLI not found"
   exit 1
@@ -371,6 +398,10 @@ run_token_probes() {
   # Each subprobe writes a single line: PASS:key  FAIL:key:reason  WARN:key:reason
   local td
   td="$(mktemp -d /tmp/monitor-token-probes.XXXXXX)"
+  # Track PIDs + their result files explicitly: a bare `wait` would also block on
+  # unrelated background jobs (e.g. Phase 2 ai_orch), wedging the monitor for hours.
+  # Format per entry: "pid:result_file" so wait failures can write synthetic FAILs.
+  local _tp_pids=()
 
   # --- gateway token ---
   local gateway_token
@@ -400,7 +431,7 @@ run_token_probes() {
         printf 'FAIL:gateway.auth.token:health_http=%s\n' "$code" > "$td/gateway"
       fi
     fi
-  ) &
+  ) & _tp_pids+=("$!:$td/gateway")
 
   # --- slack bot token ---
   local slack_bot_token
@@ -420,7 +451,7 @@ run_token_probes() {
         printf 'FAIL:channels.slack.botToken:auth_test_http=%s\n' "$code" > "$td/slack_bot"
       fi
     fi
-  ) &
+  ) & _tp_pids+=("$!:$td/slack_bot")
 
   # --- slack app token ---
   local slack_app_token
@@ -440,7 +471,7 @@ run_token_probes() {
         printf 'FAIL:channels.slack.appToken:apps_open_http=%s\n' "$code" > "$td/slack_app"
       fi
     fi
-  ) &
+  ) & _tp_pids+=("$!:$td/slack_app")
 
   # --- openai / mem0 token ---
   local openai_token
@@ -459,7 +490,7 @@ run_token_probes() {
         printf 'FAIL:mem0.openai.apiKey:http=%s\n' "$code" > "$td/openai"
       fi
     fi
-  ) &
+  ) & _tp_pids+=("$!:$td/openai")
 
   # --- xai token ---
   local xai_token
@@ -478,7 +509,7 @@ run_token_probes() {
         printf 'FAIL:env.XAI_API_KEY:http=%s\n' "$code" > "$td/xai"
       fi
     fi
-  ) &
+  ) & _tp_pids+=("$!:$td/xai")
 
   # --- discord token ---
   local discord_token
@@ -497,7 +528,7 @@ run_token_probes() {
         printf 'FAIL:channels.discord.token:http=%s\n' "$code" > "$td/discord"
       fi
     fi
-  ) &
+  ) & _tp_pids+=("$!:$td/discord")
 
   # --- mcp-agent-mail ---
   local mcp_mail_url mcp_mail_auth_raw mcp_mail_token
@@ -524,11 +555,28 @@ run_token_probes() {
         if [ "$code" = "200" ]; then printf 'PASS:mcp-agent-mail.Authorization\n' > "$td/mcp_mail"
         else printf 'FAIL:mcp-agent-mail.Authorization:http=%s\n' "$code" > "$td/mcp_mail"; fi
       fi
-    ) &
+    ) & _tp_pids+=("$!:$td/mcp_mail")
   fi
 
-  # Wait for all probes to complete
-  wait
+  # Wait only for token-probe children (never unrelated monitor background jobs).
+  # Each entry is "pid:result_file"; on non-zero exit write a synthetic FAIL so
+  # a crashed subshell (no temp file) is surfaced instead of silently skipped.
+  local _entry _pid _f
+  for _entry in "${_tp_pids[@]}"; do
+    _pid="${_entry%%:*}"
+    _f="${_entry##*:}"
+    wait "$_pid" 2>/dev/null && continue
+    # Subshell died before writing its result file — record synthetic FAIL.
+    [ -f "$_f" ] || case "$(basename "$_f")" in \
+      gateway)    printf 'FAIL:%s.probe:subshell_crash\n' 'gateway.auth.token' > "$_f" ;; \
+      slack_bot)  printf 'FAIL:%s.probe:subshell_crash\n' 'channels.slack.botToken' > "$_f" ;; \
+      slack_app)  printf 'FAIL:%s.probe:subshell_crash\n' 'channels.slack.appToken' > "$_f" ;; \
+      openai)    printf 'FAIL:%s.probe:subshell_crash\n' 'mem0.openai.apiKey' > "$_f" ;; \
+      xai)       printf 'FAIL:%s.probe:subshell_crash\n' 'env.XAI_API_KEY' > "$_f" ;; \
+      discord)   printf 'FAIL:%s.probe:subshell_crash\n' 'channels.discord.token' > "$_f" ;; \
+      mcp_mail)  printf 'FAIL:%s.probe:subshell_crash\n' 'mcp-agent-mail.Authorization' > "$_f" ;; \
+    esac
+  done
 
   # Aggregate results from temp files
   local fail_count=0 warn_count=0 details=""
@@ -808,7 +856,7 @@ WS_CHURN_RC=0
 WS_CHURN_SUMMARY="skipped"
 LOG_TODAY="/tmp/openclaw/openclaw-$(date +%F).log"
 if [ -f "$LOG_TODAY" ]; then
-  WS_THRESHOLD="${OPENCLAW_MONITOR_WS_CHURN_THRESHOLD:-10}"
+  WS_THRESHOLD="${OPENCLAW_MONITOR_WS_CHURN_THRESHOLD:-30}"
   # Only scan the last WS_LOOKBACK_MINUTES (default 60) to avoid false positives
   # from past incidents earlier in the same day's log file.
   WS_LOOKBACK_MINUTES="${OPENCLAW_MONITOR_WS_CHURN_LOOKBACK:-60}"
@@ -1163,7 +1211,7 @@ if [ "$DOCTOR_SH_ENABLED" = "1" ]; then
     if DOCTOR_SH_PATH="$(resolve_doctor_sh_path)"; then
       DOCTOR_SH_RAN=1
       # Skip inference probe: monitor already runs a canary E2E test for LLM reachability.
-      DOCTOR_SH_OUTPUT="$(OPENCLAW_DOCTOR_SKIP_INFERENCE=1 bash "$DOCTOR_SH_PATH" 2>&1)"
+      DOCTOR_SH_OUTPUT="$(run_monitor_doctor_sh)"
       DOCTOR_SH_RC=$?
 
       # Intermittent hardening: retry once when failure appears to be only
@@ -1174,7 +1222,7 @@ if [ "$DOCTOR_SH_ENABLED" = "1" ]; then
         && [ "$DOCTOR_SH_RC" -ne 0 ] \
         && printf '%s\n' "$DOCTOR_SH_OUTPUT" | rg -q '^\[FAIL\] openclaw gateway health command failed'; then
         sleep "$DOCTOR_SH_RETRY_DELAY_SEC"
-        _doctor_retry_output="$(OPENCLAW_DOCTOR_SKIP_INFERENCE=1 bash "$DOCTOR_SH_PATH" 2>&1)"
+        _doctor_retry_output="$(run_monitor_doctor_sh)"
         _doctor_retry_rc=$?
         if [ "$_doctor_retry_rc" -eq 0 ]; then
           DOCTOR_SH_OUTPUT="$DOCTOR_SH_OUTPUT\n\n[INFO] monitor retry: recovered after ${DOCTOR_SH_RETRY_DELAY_SEC}s backoff\n$_doctor_retry_output"

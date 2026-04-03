@@ -149,7 +149,19 @@ bash scripts/staging-canary.sh --port 18789
 | 5. SDK protocol version | `@agentclientprotocol/sdk` ≤ 0.16 | **Yes** |
 | 6. Heartbeat latency | `/health` responds in < 5s | No — needs local gateway |
 
-CI runs checks 2 and 5 (static analysis, no local gateway needed). The remaining 4 checks must be run locally.
+CI runs checks 2 and 5 (static analysis, no local gateway needed). The remaining 4 checks require a machine with the staging gateway (see **Stage 3b**).
+
+## Stage 3b — Full canary in CI (self-hosted)
+
+**File**: `.github/workflows/staging-canary-full.yml`
+
+**What it does**: When `openclaw.json` changes in a PR, runs **`scripts/staging-canary.sh` (all 6 checks)** on a **self-hosted runner** (typically your Mac with `ai.smartclaw.staging` listening on port **18810**).
+
+**Why**: GitHub-hosted runners cannot reach `127.0.0.1` on your machine or load `~/.smartclaw/extensions`. This job closes that gap so the full canary runs automatically on every config PR once a runner is registered.
+
+**Setup**: `.github/SELFHOSTED_TEST.md` — add labels `self-hosted` **and** `openclaw-staging`. Optional repo variables: `STAGING_CANARY_PORT` (default `18810`), `OPENCLAW_STAGING_CONFIG` (absolute path if your staging JSON is not `~/.smartclaw/openclaw.staging.json`). Set `ENABLE_STAGING_CANARY_SELFHOSTED=false` to skip the job (runner offline) without removing the runner.
+
+**Not included**: `monitor-agent.sh` stays on LaunchAgent (`ai.smartclaw.monitor-agent`); it is operational monitoring, not a PR gate.
 
 **CI gate behavior**:
 - PRs touching `openclaw.json` are blocked from merging if CI fails (the `staging-canary-gate` does not trigger on `package.json` changes alone; `skeptic-gate` still reviews all PRs)
@@ -160,7 +172,7 @@ CI runs checks 2 and 5 (static analysis, no local gateway needed). The remaining
 
 **File**: `scripts/staging-canary.sh`
 
-The full canary must be run **locally** against the staging gateway before merging staging → main. This is the final human/gate check before production promotion.
+Run the full canary against the staging gateway before merging staging → main (or rely on **Stage 3b** if a self-hosted runner is configured). This is the final gate before production promotion.
 
 ```bash
 # Start staging gateway (one-time or after machine reboot)
@@ -260,6 +272,7 @@ git push origin staging
 | orch-1ps.1 — Staging branch + worktree | Done | — | 2026-03-31 |
 | orch-1ps.2 — staging-promote.sh | Done | #459 merged | 2026-03-31 |
 | orch-1ps.3 — CI gate (staging-canary-gate.yml) | Done | #458 merged | 2026-03-31 |
+| orch-1ps.3b — Full canary self-hosted (staging-canary-full.yml) | Done | — | 2026-04-03 |
 | orch-1ps.4 — Git hooks for auto-restart | Open (P1) | — | — |
 
 ## Related Documentation
@@ -267,6 +280,8 @@ git push origin staging
 - `scripts/staging-canary.sh` — 6-point canary test (source of truth for checks)
 - `scripts/staging-promote.sh` — promotion logic
 - `scripts/staging-gateway.sh` — staging gateway lifecycle management
-- `.github/workflows/staging-canary-gate.yml` — CI gate workflow
+- `.github/workflows/staging-canary-gate.yml` — CI gate workflow (portable checks)
+- `.github/workflows/staging-canary-full.yml` — full 6/6 canary on self-hosted runner
+- `.github/SELFHOSTED_TEST.md` — register a runner for Stage 3b
 - `roadmap/ORCHESTRATION_DESIGN.md` — orchestration system design
 - `memory/project_3stage_pipeline_design.md` — design decisions from Slack #C0AJ3SD5C79

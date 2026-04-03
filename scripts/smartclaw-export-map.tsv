@@ -26,6 +26,7 @@
 .github/workflows/coderabbit-ping-on-push.yml	.github/workflows/coderabbit-ping-on-push.yml
 .github/workflows/skeptic-cron.yml	.github/workflows/skeptic-cron.yml
 .github/workflows/skeptic-gate.yml	.github/workflows/skeptic-gate.yml
+.github/workflows/staging-canary-full.yml	.github/workflows/staging-canary-full.yml
 .github/workflows/staging-canary-gate.yml	.github/workflows/staging-canary-gate.yml
 AUTO_START_GUIDE.md	AUTO_START_GUIDE.md
 BACKUP_AND_RESTORE.md	BACKUP_AND_RESTORE.md
@@ -137,6 +138,7 @@ launchd/ai.smartclaw.qdrant.plist.template	launchd/smartclaw.qdrant.plist.templa
 launchd/ai.smartclaw.schedule.ao-progress-reporter.plist.template	launchd/smartclaw.schedule.ao-progress-reporter.plist.template
 launchd/ai.smartclaw.schedule.bug-hunt-9am.plist	launchd/smartclaw.schedule.bug-hunt-9am.plist
 launchd/ai.smartclaw.schedule.bug-hunt-9am.plist.template	launchd/smartclaw.schedule.bug-hunt-9am.plist.template
+launchd/ai.smartclaw.schedule.commit-pending.plist.template	launchd/smartclaw.schedule.commit-pending.plist.template
 launchd/ai.smartclaw.schedule.composio-upstream-reminder.plist.template	launchd/smartclaw.schedule.composio-upstream-reminder.plist.template
 launchd/ai.smartclaw.schedule.cron-backup-sync.plist.template	launchd/smartclaw.schedule.cron-backup-sync.plist.template
 launchd/ai.smartclaw.schedule.daily-research.plist.template	launchd/smartclaw.schedule.daily-research.plist.template
@@ -185,6 +187,7 @@ scripts/check-pr-worker-coverage.sh	scripts/check-pr-worker-coverage.sh
 scripts/check-workspace-parity.sh	scripts/check-workspace-parity.sh
 scripts/claude_start.sh	scripts/claude_start.sh
 scripts/codebase_loc.sh	scripts/codebase_loc.sh
+scripts/commit-pending-changes.sh	scripts/commit-pending-changes.sh
 scripts/composio-upstream-reminder.sh	scripts/composio-upstream-reminder.sh
 scripts/consolidate-workspace-snapshots.sh	scripts/consolidate-workspace-snapshots.sh
 scripts/cr-loop-guard.sh	scripts/cr-loop-guard.sh
@@ -286,11 +289,17 @@ scripts/validate-memory-answer-evidence.sh	scripts/validate-memory-answer-eviden
 scripts/validate-skeptic-gate.sh	scripts/validate-skeptic-gate.sh
 scripts/weekly-error-trends.sh	scripts/weekly-error-trends.sh
 scripts/workspace-report.sh	scripts/workspace-report.sh
+skills/add-minimax-provider/.clawhub/origin.json	skills/add-minimax-provider/.clawhub/origin.json
+skills/add-minimax-provider/README.md	skills/add-minimax-provider/README.md
+skills/add-minimax-provider/SKILL.md	skills/add-minimax-provider/SKILL.md
+skills/add-minimax-provider/_meta.json	skills/add-minimax-provider/_meta.json
 skills/agento/SKILL.md	skills/agento/SKILL.md
 skills/agento_report/SKILL.md	skills/agento_report/SKILL.md
 skills/antigravity-computer-use/SKILL.md	skills/antigravity-computer-use/SKILL.md
 skills/bidi-cmux-alignment/SKILL.md	skills/bidi-cmux-alignment/SKILL.md
 skills/claude-code-computer-use/SKILL.md	skills/claude-code-computer-use/SKILL.md
+skills/cmux-codex-autoapprove/SKILL.md	skills/cmux-codex-autoapprove/SKILL.md
+skills/cmux-codex-autoapprove/scripts/cmux_codex_approve_launchd.py	skills/cmux-codex-autoapprove/scripts/cmux_codex_approve_launchd.py
 skills/cmux/.clawhub/origin.json	skills/cmux/.clawhub/origin.json
 skills/cmux/SKILL.md	skills/cmux/SKILL.md
 skills/cmux/_meta.json	skills/cmux/_meta.json
@@ -311,6 +320,7 @@ tests/fixtures/generic_tasks_fixture.json	tests/fixtures/generic_tasks_fixture.j
 tests/fixtures/swe_bench_verified_fixture.json	tests/fixtures/swe_bench_verified_fixture.json
 tests/test_backup_scripts.py	tests/test_backup_scripts.py
 tests/test_canary_integration.py	tests/test_canary_integration.py
+tests/test_commit_pending_changes.py	tests/test_commit_pending_changes.py
 tests/test_e2e_local_ingest.py	tests/test_e2e_local_ingest.py
 tests/test_e2e_orch_output_integrity.py	tests/test_e2e_orch_output_integrity.py
 tests/test_evidence.py	tests/test_evidence.py

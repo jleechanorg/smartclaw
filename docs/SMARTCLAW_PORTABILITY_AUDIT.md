@@ -1,11 +1,11 @@
 # SmartClaw Portability Audit
 
-Generated: 2026-04-02 09:36:41 PDT
+Generated: 2026-04-02 23:18:09 PDT
 
 ## Summary
 
-- Candidate files evaluated: 342
-- Included in export map: 325
+- Candidate files evaluated: 352
+- Included in export map: 335
 - Excluded as non-portable/private/runtime: 17
 
 ## Selection Rules
@@ -47,6 +47,7 @@ Non-portable paths are excluded when they contain:
 - `.github/workflows/coderabbit-ping-on-push.yml`
 - `.github/workflows/skeptic-cron.yml`
 - `.github/workflows/skeptic-gate.yml`
+- `.github/workflows/staging-canary-full.yml`
 - `.github/workflows/staging-canary-gate.yml`
 - `AUTO_START_GUIDE.md`
 - `BACKUP_AND_RESTORE.md`
@@ -80,7 +81,6 @@ Non-portable paths are excluded when they contain:
 - `docs/antigravity-control-plane/DECISIONS.md`
 - `docs/antigravity-control-plane/OVERVIEW.html`
 - `docs/antigravity-control-plane/OVERVIEW.md`
-- `docs/antigravity-control-plane/ROLLOUT.html`
 - _...truncated; see `scripts/smartclaw-export-map.tsv` for full list._
 
 ## Excluded Files (sample)

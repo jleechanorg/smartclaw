@@ -1,38 +1,30 @@
 #!/usr/bin/env bash
 # staging-gateway.sh — Start/stop/status for OpenClaw staging gateway (port 18790)
-# Production runs on 18789; staging is isolated for pre-deploy validation.
+# Production runs on 18789; staging uses the main ~/.smartclaw/ dir + openclaw.staging.json.
+# This script delegates to launchd (ai.smartclaw.staging) for reliable long-running operation.
 set -euo pipefail
 
 STAGING_PORT="${OPENCLAW_STAGING_PORT:-18790}"
-STAGING_DIR="${HOME}/.smartclaw/staging"
-STAGING_CONFIG="${STAGING_DIR}/openclaw.json"
-STAGING_PID_FILE="${STAGING_DIR}/.gateway.pid"
-STAGING_LOG="${HOME}/.smartclaw/logs/staging-gateway.log"
-NODE_BIN="${OPENCLAW_NODE_BIN:-$(launchctl print gui/$(id -u)/com.smartclaw.gateway 2>/dev/null | grep -oE '/[^ ]*bin/node' | head -1 || command -v node 2>/dev/null || true)}"
-if [[ -z "$NODE_BIN" || ! -x "$NODE_BIN" ]]; then
-    echo "ERROR: Node.js not found. Set OPENCLAW_NODE_BIN or ensure node is in PATH."
-    exit 1
-fi
-OPENCLAW_BIN="${OPENCLAW_BIN:-$(command -v openclaw 2>/dev/null || true)}"
-if [[ -z "$OPENCLAW_BIN" || ! -x "$OPENCLAW_BIN" ]]; then
-    echo "ERROR: openclaw binary not found. Install openclaw globally or set OPENCLAW_BIN."
-    exit 1
-fi
+OPENCLAW_DIR="${HOME}/.smartclaw"
+STAGING_CONFIG="${OPENCLAW_DIR}/openclaw.staging.json"
+STAGING_LABEL="ai.smartclaw.staging"
 
 usage() {
-    echo "Usage: $0 {start|stop|status}"
+    echo "Usage: $0 {start|stop|status|restart}"
     echo ""
     echo "Manages the OpenClaw staging gateway on port ${STAGING_PORT}."
-    echo "Production runs on 18789; staging is isolated for pre-deploy testing."
+    echo "Delegates to launchd label '${STAGING_LABEL}' for reliability."
+    echo "Production gateway runs on port 18789."
     exit 1
 }
 
+# Guard: staging config must exist
 ensure_staging_config() {
     if [[ ! -f "$STAGING_CONFIG" ]]; then
         echo "ERROR: Staging config not found at $STAGING_CONFIG"
         echo "Create it by copying production config:"
-        echo "  cp ~/.smartclaw/openclaw.json ${STAGING_CONFIG}"
-        echo "  Then modify port and Slack channel settings."
+        echo "  cp ~/.smartclaw/openclaw.json ~/.smartclaw/openclaw.staging.json"
+        echo "  Then modify port to 18790 and Slack routing."
         exit 1
     fi
 }
@@ -40,159 +32,108 @@ ensure_staging_config() {
 start_gateway() {
     ensure_staging_config
 
-    # Check if already running (validate PID owns the staging port)
-    if [[ -f "$STAGING_PID_FILE" ]]; then
-        local pid
-        pid=$(cat "$STAGING_PID_FILE" 2>/dev/null || echo "")
-        if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
-            # Verify this PID actually owns the staging port (not a recycled PID)
-            if lsof -i ":${STAGING_PORT}" -p "$pid" 2>/dev/null | grep -q LISTEN; then
-                echo "Staging gateway already running (PID: $pid, port: $STAGING_PORT)"
-                return 0
-            else
-                echo "WARNING: PID $pid alive but not listening on port $STAGING_PORT — stale PID file"
-                rm -f "$STAGING_PID_FILE"
-            fi
-        else
-            rm -f "$STAGING_PID_FILE"
-        fi
+    local state
+    state=$(launchctl print gui/$(id -u)/${STAGING_LABEL} 2>/dev/null | grep "state = " | awk '{print $NF}' || echo "not loaded")
+    if [[ "$state" == "running" ]]; then
+        echo "Staging gateway already running (launchd: ${STAGING_LABEL}, port: ${STAGING_PORT})"
+        return 0
     fi
 
-    # Check if production or another process is on the staging port
-    if lsof -i ":${STAGING_PORT}" 2>/dev/null | grep -q LISTEN; then
-        echo "ERROR: Port ${STAGING_PORT} is already in use"
-        lsof -i ":${STAGING_PORT}" | grep LISTEN
-        exit 1
+    # Install + load the plist if not already
+    if [[ ! -f "${OPENCLAW_DIR}/ai.smartclaw.staging.plist" ]]; then
+        echo "Installing launchd plist..."
+        install -m 644 /dev/null "${OPENCLAW_DIR}/ai.smartclaw.staging.plist"
+        cat > "${OPENCLAW_DIR}/ai.smartclaw.staging.plist" << PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>ai.smartclaw.staging</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME</key>
+		<string>/Users/jleechan</string>
+		<key>OPENCLAW_RAW_STREAM</key>
+		<string>1</string>
+		<key>OPENCLAW_RAW_STREAM_PATH</key>
+		<string>/tmp/openclaw/staging-raw-stream.jsonl</string>
+	</dict>
+	<key>KeepAlive</key>
+	<true/>
+	<key>ProgramArguments</key>
+	<array>
+		<string>${HOME}/.nvm/versions/node/v22.22.0/bin/node</string>
+		<string>/opt/homebrew/lib/node_modules/openclaw/dist/index.js</string>
+		<string>gateway</string>
+		<string>--port</string>
+		<string>18790</string>
+		<string>--config</string>
+		<string>${HOME}/.smartclaw/openclaw.staging.json</string>
+		<string>--allow-unconfigured</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>${HOME}/.smartclaw/logs/staging-gateway.err.log</string>
+	<key>StandardOutPath</key>
+	<string>${HOME}/.smartclaw/logs/staging-gateway.log</string>
+</dict>
+</plist>
+PLIST
     fi
 
-    # Ensure log directory exists
-    mkdir -p "$(dirname "$STAGING_LOG")"
+    launchctl bootout gui/$(id -u)/${STAGING_LABEL} 2>/dev/null || true
+    launchctl bootstrap gui/$(id -u) "${OPENCLAW_DIR}/ai.smartclaw.staging.plist" 2>&1
 
+    # Wait for health (max 20s)
     echo "Starting staging gateway..."
-    echo "  Node: $NODE_BIN"
-    echo "  Config: $STAGING_CONFIG"
-    echo "  Port: $STAGING_PORT"
-    echo "  Log: $STAGING_LOG"
-
-    # Start gateway with staging config (inherit production env vars for parity)
-    OPENCLAW_CONFIG_DIR="$STAGING_DIR" \
-    OPENCLAW_PORT="$STAGING_PORT" \
-    NODE_ENV="staging" \
-    GOOGLE_CLOUD_PROJECT="${GOOGLE_CLOUD_PROJECT:-}" \
-    NODE_EXTRA_CA_CERTS="${NODE_EXTRA_CA_CERTS:-}" \
-    NODE_USE_SYSTEM_CA="${NODE_USE_SYSTEM_CA:-}" \
-    nohup "$NODE_BIN" "$OPENCLAW_BIN" gateway run \
-        --bind loopback \
-        --port "$STAGING_PORT" \
-        --force \
-        >> "$STAGING_LOG" 2>&1 &
-
-    local gateway_pid=$!
-    echo "$gateway_pid" > "$STAGING_PID_FILE"
-
-    # Wait for startup (max 15 seconds)
     local attempts=0
-    while [[ $attempts -lt 15 ]]; do
+    while [[ $attempts -lt 20 ]]; do
         sleep 1
         attempts=$((attempts + 1))
         if curl -sf "http://127.0.0.1:${STAGING_PORT}/health" >/dev/null 2>&1; then
-            echo "Staging gateway started (PID: $gateway_pid, port: $STAGING_PORT)"
+            echo "Staging gateway started (port: ${STAGING_PORT})"
             return 0
         fi
-        # Check if process died
-        if ! kill -0 "$gateway_pid" 2>/dev/null; then
-            echo "ERROR: Staging gateway process died during startup"
-            echo "Check logs: tail -20 $STAGING_LOG"
-            rm -f "$STAGING_PID_FILE"
-            exit 1
-        fi
     done
-
-    echo "WARNING: Gateway started (PID: $gateway_pid) but health endpoint not responding after 15s"
-    echo "Check logs: tail -20 $STAGING_LOG"
+    echo "WARNING: Gateway started but health endpoint not responding after 20s."
+    echo "Check logs: tail -20 ${OPENCLAW_DIR}/logs/staging-gateway.log"
 }
 
 stop_gateway() {
-    if [[ ! -f "$STAGING_PID_FILE" ]]; then
-        echo "Staging gateway not running (no PID file)"
-        return 0
-    fi
-
-    local pid
-    pid=$(cat "$STAGING_PID_FILE" 2>/dev/null || echo "")
-
-    if [[ -z "$pid" ]]; then
-        echo "Staging gateway not running (empty PID file)"
-        rm -f "$STAGING_PID_FILE"
-        return 0
-    fi
-
-    if kill -0 "$pid" 2>/dev/null; then
-        echo "Stopping staging gateway (PID: $pid)..."
-        kill "$pid" 2>/dev/null || true
-        # Wait for graceful shutdown (max 5 seconds)
-        local attempts=0
-        while [[ $attempts -lt 5 ]]; do
-            sleep 1
-            attempts=$((attempts + 1))
-            if ! kill -0 "$pid" 2>/dev/null; then
-                echo "Staging gateway stopped"
-                rm -f "$STAGING_PID_FILE"
-                return 0
-            fi
-        done
-        # Force kill
-        kill -9 "$pid" 2>/dev/null || true
-        echo "Staging gateway force-killed"
-    else
-        echo "Staging gateway not running (stale PID: $pid)"
-    fi
-
-    rm -f "$STAGING_PID_FILE"
+    launchctl bootout gui/$(id -u)/${STAGING_LABEL} 2>&1 || true
+    echo "Staging gateway stopped"
 }
 
 status_gateway() {
     echo "=== Staging Gateway Status ==="
     echo "Port: $STAGING_PORT"
+    echo "Config: $STAGING_CONFIG"
 
-    # PID file check
-    if [[ -f "$STAGING_PID_FILE" ]]; then
-        local pid
-        pid=$(cat "$STAGING_PID_FILE" 2>/dev/null || echo "")
-        if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
-            echo "Process: RUNNING (PID: $pid)"
-        else
-            echo "Process: DEAD (stale PID: $pid)"
-        fi
-    else
-        echo "Process: NOT RUNNING"
-    fi
+    local state pid
+    state=$(launchctl print gui/$(id -u)/${STAGING_LABEL} 2>/dev/null | grep "state = " | awk '{print $NF}' || echo "not loaded")
+    pid=$(launchctl print gui/$(id -u)/${STAGING_LABEL} 2>/dev/null | grep "pid = " | awk '{print $NF}' || echo "none")
 
-    # Port check
+    echo "Launchd: ${state} (pid: ${pid})"
+
     if lsof -i ":${STAGING_PORT}" 2>/dev/null | grep -q LISTEN; then
         echo "Port: LISTENING"
     else
         echo "Port: NOT LISTENING"
     fi
 
-    # Health check
-    if curl -sf "http://127.0.0.1:${STAGING_PORT}/health" >/dev/null 2>&1; then
+    if curl -sf --max-time 3 "http://127.0.0.1:${STAGING_PORT}/health" >/dev/null 2>&1; then
         echo "Health: OK"
     else
         echo "Health: UNREACHABLE"
     fi
-
-    # Config check
-    if [[ -f "$STAGING_CONFIG" ]]; then
-        echo "Config: $STAGING_CONFIG (exists)"
-    else
-        echo "Config: $STAGING_CONFIG (MISSING)"
-    fi
 }
 
 case "${1:-}" in
-    start)  start_gateway ;;
-    stop)   stop_gateway ;;
-    status) status_gateway ;;
-    *)      usage ;;
+    start)   start_gateway ;;
+    stop)    stop_gateway ;;
+    status)  status_gateway ;;
+    restart) stop_gateway; sleep 2; start_gateway ;;
+    *)       usage ;;
 esac

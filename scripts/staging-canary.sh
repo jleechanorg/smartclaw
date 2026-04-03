@@ -51,11 +51,17 @@ fi
 
 # ── Check 2: Config schema validation (no unrecognized keys) ──
 echo "[2/6] Config schema validation..."
-CONFIG_DIR="${OPENCLAW_STAGING_DIR:-$HOME/.smartclaw/staging}"
-if [[ "$PORT" == "18789" ]]; then
-    CONFIG_DIR="$HOME/.smartclaw"
+# Staging gateway (18790) uses openclaw.staging.json at repo root.
+# Production gateway (18789) uses openclaw.json at repo root.
+# Explicit override (CI / custom layouts)
+if [[ -n "${OPENCLAW_STAGING_CONFIG:-}" ]]; then
+    CONFIG_FILE="$OPENCLAW_STAGING_CONFIG"
+elif [[ "$PORT" == "18789" ]]; then
+    CONFIG_FILE="$HOME/.smartclaw/openclaw.json"
+else
+    # PORT == 18790 (staging) or any other non-prod port
+    CONFIG_FILE="$HOME/.smartclaw/openclaw.staging.json"
 fi
-CONFIG_FILE="$CONFIG_DIR/openclaw.json"
 if [[ ! -f "$CONFIG_FILE" ]]; then
     check "Config schema validation" 1 "Config file not found: $CONFIG_FILE"
 else
