@@ -38,6 +38,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           sparse-checkout: |
             package.json
             package-lock.json
@@ -50,7 +51,10 @@ jobs:
         id: find_config
         run: |
           echo "Detecting changed config files in this PR..."
-          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...${{ github.sha }} 2>/dev/null || echo "")
+          if ! git rev-parse --verify "origin/${{ github.base_ref }}" >/dev/null 2>&1; then
+            git fetch --no-tags --depth=1 origin "${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}"
+          fi
+          CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}...${{ github.sha }}")
 
           CONFIG_FILE=""
           # Look for openclaw.json anywhere in the diff
@@ -84,7 +88,7 @@ jobs:
         run: |
           cat > run-canary-checks.mjs << "ENDSCRIPT"
           import { readFileSync, writeFileSync } from 'fs';
-          import { execSync } from 'child_process';
+          import { execFileSync } from 'child_process';
 
           const configPath = process.env.CONFIG_FILE;
           const pkgPath = process.env.PKG_FILE || 'package.json';
@@ -94,8 +98,9 @@ jobs:
             // Read config via git show so it works with sparse-checkout.
             // Sparse checkout only materializes package*.json, not openclaw.json.
             // git show origin/<base_ref>:<path> reads from git history directly.
-            configText = execSync(
-              `git show origin/${baseRef}:${configPath}`,
+            configText = execFileSync(
+              'git',
+              ['show', `origin/${baseRef}:${configPath}`],
               { encoding: 'utf8', maxBuffer: 1024 * 1024 }
             );
           } catch (e) {
@@ -203,7 +208,7 @@ jobs:
               `| ----- | ------ | ------ |`,
               ...checks.map(c => `| ${c.name} | ${c.result} | ${c.detail} |`),
               ``,
-              `_Staging canary ran on commit \`$GITHUB_SHA\` via staging-canary-gate workflow_`,
+              `_Staging canary ran on commit \`${process.env.GITHUB_SHA}\` via staging-canary-gate workflow_`,
               ``,
               `> **Manual gate required**: Gateway-specific checks (health, Slack connectivity, native module ABI, heartbeat latency) require \`scripts/staging-canary.sh --port 18790\` run locally against the staging gateway before merging.`,
             ].join('\n');

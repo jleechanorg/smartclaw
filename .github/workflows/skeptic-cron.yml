@@ -242,7 +242,11 @@ jobs:
                 ' 2>/dev/null || printf '\t')
                 SKEPTIC_VERDICT=$(printf '%s\n' "$PARSED" | cut -f1)
                 VERDICT_SHA=$(printf '%s\n' "$PARSED" | cut -f2)
-                if [ -n "$VERDICT_SHA" ] && [ "$VERDICT_SHA" != "$PR_HEAD" ]; then
+                if [ -z "$VERDICT_SHA" ]; then
+                  echo "  [7] Skeptic: UNPARSED (missing HEAD-SHA marker — treating as MISSING)"
+                  SKEPTIC_VERDICT="SKEPTIC_NO_VERDICT"
+                  SKEPTIC_SHA_MISMATCH="true"
+                elif [ "$VERDICT_SHA" != "$PR_HEAD" ]; then
                   echo "  [7] Skeptic: STALE (verdict SHA \`${VERDICT_SHA:0:7}\`, PR head \`${PR_HEAD:0:7}\` — treating as MISSING)"
                   SKEPTIC_VERDICT="SKEPTIC_NO_VERDICT"
                   SKEPTIC_SHA_MISMATCH="true"
@@ -295,13 +299,14 @@ jobs:
               echo "  → Skeptic VERDICT: PASS confirmed"
             elif [ "$SKEPTIC_VERDICT" = "SKEPTIC_NO_VERDICT" ]; then
               # No VERDICT comment found — skeptic-gate either skipped or failed to post.
-              # UNKNOWN/ERROR exits with non-zero in the gate, so CI fails first.
-              # Only auto-post when there is genuinely no verdict (MISSING = skeptic-cron is the skeptic).
-              echo "  → Posting VERDICT: PASS (skeptic-cron is automated skeptic)"
+              # Fail-closed: do NOT post a synthetic PASS. Block auto-merge until a real
+              # skeptic verdict is available. Post SKIPPED so reviewers know the gate is open.
+              echo "  → Skeptic verdict missing; blocking auto-merge (fail-closed)"
               gh api repos/${{ github.repository }}/issues/$PR_NUM/comments \
                 --method POST \
-                --field "body=**VERDICT: PASS** — skeptic-cron evaluated and merged this PR. All 6 criteria confirmed green.  \n\n<!-- HEAD-SHA: $PR_HEAD -->" \
+                --field "body=**VERDICT: SKIPPED** — skeptic verdict missing for this HEAD; auto-merge blocked pending manual review.  \n\n<!-- HEAD-SHA: $PR_HEAD -->" \
                 --jq '.id' > /dev/null 2>&1 || true
+              continue
             elif [ "$SKEPTIC_VERDICT" = "SKIPPED" ]; then
               # ANTHROPIC_API_KEY not configured — skeptic-gate cannot run.
               # Fail-closed: do NOT post PASS or enable auto-merge when the skeptic
