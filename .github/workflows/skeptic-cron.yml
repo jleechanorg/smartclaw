@@ -304,7 +304,7 @@ jobs:
               echo "  → Skeptic verdict missing; blocking auto-merge (fail-closed)"
               gh api repos/${{ github.repository }}/issues/$PR_NUM/comments \
                 --method POST \
-                --field "body=**VERDICT: SKIPPED** — skeptic verdict missing for this HEAD; auto-merge blocked pending manual review.  \n\n<!-- HEAD-SHA: $PR_HEAD -->" \
+                --field "body=## Skeptic Gate Findings\n\n**VERDICT: SKIPPED** — skeptic verdict missing for this HEAD; auto-merge blocked pending manual review.  \n\n<!-- HEAD-SHA: $PR_HEAD -->" \
                 --jq '.id' > /dev/null 2>&1 || true
               continue
             elif [ "$SKEPTIC_VERDICT" = "SKIPPED" ]; then
@@ -315,7 +315,7 @@ jobs:
               echo "  → VERDICT: SKIPPED — skeptic-gate unavailable (ANTHROPIC_API_KEY not configured); blocking auto-merge"
               gh api repos/${{ github.repository }}/issues/$PR_NUM/comments \
                 --method POST \
-                --field "body=**VERDICT: SKIPPED** — skeptic-gate unavailable (ANTHROPIC_API_KEY not configured). Auto-merge blocked; manual review required.  \n\n<!-- HEAD-SHA: $PR_HEAD -->" \
+                --field "body=## Skeptic Gate Findings\n\n**VERDICT: SKIPPED** — skeptic-gate unavailable (ANTHROPIC_API_KEY not configured). Auto-merge blocked; manual review required.  \n\n<!-- HEAD-SHA: $PR_HEAD -->" \
                 --jq '.id' > /dev/null 2>&1 || true
               continue
             else
