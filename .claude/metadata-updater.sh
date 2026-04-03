@@ -50,20 +50,45 @@ fi
 #   cd ~/.worktrees/project && gh pr create ...
 #   FOO=bar gh pr create ...
 # are correctly detected. Agents frequently cd into a worktree first.
-# Store the regex pattern in a variable for clarity (avoids shell quoting confusion).
-# Uses space-padded (&&|;) to avoid breaking on paths containing & or ; chars.
-cd_prefix_pattern='^[[:space:]]*cd[[:space:]]+.*[[:space:]]+(&&|;)[[:space:]]+(.*)'
+# Tokenize using shell word-splitting so leading segments are stripped one
+# token at a time (no greedy regex that can swallow the real command).
 clean_command="$command"
 while true; do
+  # Tokenize: read -a splits on whitespace (shell words preserved intact).
+  # Quoted args like --body="hello && world" stay as single tokens.
+  read -r -a tokens <<< "$clean_command"
+  if [[ ${#tokens[@]} -eq 0 ]]; then
+    break
+  fi
+  first="${tokens[0]}"
   # Strip leading env assignments: FOO=bar BAZ=qux gh pr create ...
-  if [[ "$clean_command" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^= ]*)[[:space:]]+(.+)$ ]]; then
-    clean_command="${BASH_REMATCH[2]}"
-  # Strip leading cd prefixes: cd /path && gh pr create ...
-  elif [[ "$clean_command" =~ $cd_prefix_pattern ]]; then
-    clean_command="${BASH_REMATCH[2]}"
+  if [[ "$first" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+    remaining=$(printf '%s\n' "${tokens[@]:1}" | paste -sd ' ')
+    clean_command="${remaining:-}"
+  # Strip leading cd and its connector: "cd" ["path"] ["&&"|";"] [next] ...
+  elif [[ "$first" == "cd" ]]; then
+    # Shift off "cd" + the path token (if any) + the connector token (if any).
+    # What remains is the command after the first cd chain.
+    local idx=1
+    # Skip path token(s) until we hit a connector or run out of tokens.
+    while [[ $idx -lt ${#tokens[@]} ]] && [[ "${tokens[$idx]}" != "&&" && "${tokens[$idx]}" != ";" ]]; do
+      ((idx++))
+    done
+    # Skip the connector itself if present.
+    if [[ $idx -lt ${#tokens[@]} && "${tokens[$idx]}" =~ ^(&&|;)$ ]]; then
+      ((idx++))
+    fi
+    # Rejoin remaining tokens as the cleaned command.
+    if [[ $idx -lt ${#tokens[@]} ]]; then
+      clean_command=$(printf '%s\n' "${tokens[@]:$idx}" | paste -sd ' ')
+    else
+      clean_command=""
+    fi
   else
     break
   fi
+  # Exit loop if nothing remains to process.
+  [[ -n "$clean_command" ]] || break
 done
 
 # Guardrail: enforce [agento] prefix on gh pr create titles (PreToolUse only).

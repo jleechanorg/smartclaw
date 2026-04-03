@@ -52,9 +52,20 @@ def temp_home_with_hooks() -> Iterator[str]:
     shutil.rmtree(tmp, ignore_errors=True)
 
 
+def _find_repo_root() -> Path:
+    """Walk up from __file__ to find the repo root (has .git or scripts/)."""
+    current = Path(__file__).resolve().parent
+    while current != current.parent:
+        if (current / ".git").exists() or (current / "scripts").is_dir():
+            return current
+        current = current.parent
+    # Fallback: 4 levels up from artifacts/ → repo root
+    return Path(__file__).parent.parent.parent.parent
+
+
 def run_script(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
     """Run mem0-purge.sh from the repo scripts/ directory."""
-    repo_root = Path(__file__).parent.parent
+    repo_root = _find_repo_root()
     script = repo_root / "scripts" / "mem0-purge.sh"
     return subprocess.run(
         ["bash", str(script)] + list(args),
@@ -70,7 +81,7 @@ class TestMem0PurgeShellcheck:
     @pytest.mark.skipif(shutil.which("shellcheck") is None, reason="shellcheck not installed")
     def test_shellcheck_clean(self) -> None:
         """ShellCheck finds no errors in mem0-purge.sh."""
-        repo_root = Path(__file__).parent.parent
+        repo_root = _find_repo_root()
         script = repo_root / "scripts" / "mem0-purge.sh"
         r = subprocess.run(
             ["shellcheck", str(script)],
