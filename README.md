@@ -633,3 +633,4 @@ bash install.sh                              # full setup: Python package + all 
 Private — personal workspace and tools for jleechan's OpenClaw setup.
 
 bead rev-22j
+CI=pass
