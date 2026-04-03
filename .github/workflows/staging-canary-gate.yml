@@ -86,7 +86,7 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
         run: |
           cat > run-canary-checks.mjs << "ENDSCRIPT"
-          import { readFileSync, writeFileSync } from 'fs';
+          import { writeFileSync } from 'fs';
           import { execFileSync } from 'child_process';
 
           const configPath = process.env.CONFIG_FILE;
@@ -166,7 +166,13 @@ jobs:
           console.log('\n[5/6] SDK protocol version check...');
           let pkg;
           try {
-            const pkgText = readFileSync(pkgPath, 'utf8');
+            // Use git show so it works under sparse-checkout (package.json may be checked out,
+            // but git show is more reliable than reading from the sparse working tree).
+            const pkgText = execFileSync(
+              'git',
+              ['show', `${headSha}:${pkgPath}`],
+              { encoding: 'utf8', maxBuffer: 512 * 1024 }
+            );
             pkg = JSON.parse(pkgText);
           } catch {
             console.log('  SKIP  SDK protocol version — package.json not changed in this PR (not an openclaw gateway PR)');

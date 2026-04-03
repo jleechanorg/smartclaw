@@ -301,22 +301,44 @@ jobs:
               # No VERDICT comment found — skeptic-gate either skipped or failed to post.
               # Fail-closed: do NOT post a synthetic PASS. Block auto-merge until a real
               # skeptic verdict is available. Post SKIPPED so reviewers know the gate is open.
-              echo "  → Skeptic verdict missing; blocking auto-merge (fail-closed)"
-              gh api repos/${{ github.repository }}/issues/$PR_NUM/comments \
-                --method POST \
-                --field "body=## Skeptic Gate Findings\n\n**VERDICT: SKIPPED** — skeptic verdict missing for this HEAD; auto-merge blocked pending manual review.  \n\n<!-- HEAD-SHA: $PR_HEAD -->" \
-                --jq '.id' > /dev/null 2>&1 || true
+              # Deduplicate: only post if no existing SKIPPED comment for this HEAD exists.
+              SKIPPED_EXISTS=$(printf '%s\n' "$SKEPTIC_COMMENTS_JSON" | jq -r \
+                '[.[][] | select(
+                   .user.login == "github-actions[bot]" and
+                   (.body | test("VERDICT.*SKIPPED"; "i")) and
+                   (.body | test("'"$PR_HEAD"'"; ""))
+                 )] | length > 0' 2>/dev/null || echo "false")
+              if [ "$SKIPPED_EXISTS" = "true" ]; then
+                echo "  → Skeptic verdict SKIPPED notice already posted for this HEAD; skipping duplicate"
+              else
+                echo "  → Skeptic verdict missing; blocking auto-merge (fail-closed)"
+                gh api repos/${{ github.repository }}/issues/$PR_NUM/comments \
+                  --method POST \
+                  --field "body=## Skeptic Gate Findings\n\n**VERDICT: SKIPPED** — skeptic verdict missing for this HEAD; auto-merge blocked pending manual review.  \n\n<!-- HEAD-SHA: $PR_HEAD -->" \
+                  --jq '.id' > /dev/null 2>&1 || true
+              fi
               continue
             elif [ "$SKEPTIC_VERDICT" = "SKIPPED" ]; then
               # ANTHROPIC_API_KEY not configured — skeptic-gate cannot run.
               # Fail-closed: do NOT post PASS or enable auto-merge when the skeptic
               # gate is unavailable. Post a clear SKIPPED verdict and leave the PR
               # for manual review.
-              echo "  → VERDICT: SKIPPED — skeptic-gate unavailable (ANTHROPIC_API_KEY not configured); blocking auto-merge"
-              gh api repos/${{ github.repository }}/issues/$PR_NUM/comments \
-                --method POST \
-                --field "body=## Skeptic Gate Findings\n\n**VERDICT: SKIPPED** — skeptic-gate unavailable (ANTHROPIC_API_KEY not configured). Auto-merge blocked; manual review required.  \n\n<!-- HEAD-SHA: $PR_HEAD -->" \
-                --jq '.id' > /dev/null 2>&1 || true
+              # Deduplicate: only post if no existing SKIPPED comment for this HEAD exists.
+              SKIPPED_EXISTS=$(printf '%s\n' "$SKEPTIC_COMMENTS_JSON" | jq -r \
+                '[.[][] | select(
+                   .user.login == "github-actions[bot]" and
+                   (.body | test("VERDICT.*SKIPPED"; "i")) and
+                   (.body | test("'"$PR_HEAD"'"; ""))
+                 )] | length > 0' 2>/dev/null || echo "false")
+              if [ "$SKIPPED_EXISTS" = "true" ]; then
+                echo "  → Skeptic VERDICT: SKIPPED notice already posted for this HEAD; skipping duplicate"
+              else
+                echo "  → VERDICT: SKIPPED — skeptic-gate unavailable (ANTHROPIC_API_KEY not configured); blocking auto-merge"
+                gh api repos/${{ github.repository }}/issues/$PR_NUM/comments \
+                  --method POST \
+                  --field "body=## Skeptic Gate Findings\n\n**VERDICT: SKIPPED** — skeptic-gate unavailable (ANTHROPIC_API_KEY not configured). Auto-merge blocked; manual review required.  \n\n<!-- HEAD-SHA: $PR_HEAD -->" \
+                  --jq '.id' > /dev/null 2>&1 || true
+              fi
               continue
             else
               echo "  → Skeptic verdict unrecognized, skipping (fail-closed)"
