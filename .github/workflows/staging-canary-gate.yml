@@ -84,7 +84,6 @@ jobs:
           CONFIG_FILE: ${{ steps.find_config.outputs.config_file }}
           PKG_FILE: ${{ steps.find_config.outputs.pkg_file }}
           GITHUB_SHA: ${{ github.sha }}
-          BASE_REF: ${{ github.base_ref }}
         run: |
           cat > run-canary-checks.mjs << "ENDSCRIPT"
           import { readFileSync, writeFileSync } from 'fs';
@@ -92,15 +91,15 @@ jobs:
 
           const configPath = process.env.CONFIG_FILE;
           const pkgPath = process.env.PKG_FILE || 'package.json';
-          const baseRef = process.env.BASE_REF;
+          const headSha = process.env.GITHUB_SHA;
           let configText;
           try {
             // Read config via git show so it works with sparse-checkout.
             // Sparse checkout only materializes package*.json, not openclaw.json.
-            // git show origin/<base_ref>:<path> reads from git history directly.
+            // git show <headSha>:<path> reads the PR's version from git history.
             configText = execFileSync(
               'git',
-              ['show', `origin/${baseRef}:${configPath}`],
+              ['show', `${headSha}:${configPath}`],
               { encoding: 'utf8', maxBuffer: 1024 * 1024 }
             );
           } catch (e) {

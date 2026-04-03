@@ -219,7 +219,7 @@ jobs:
             if ! SKEPTIC_COMMENTS_JSON=$(gh api repos/${{ github.repository }}/issues/$PR_NUM/comments --paginate --slurp 2>/dev/null); then
               SKEPTIC_VERDICT="SKEPTIC_ERROR"
             else
-              SKEPTIC_COMMENT_JSON=$(printf '%s\n' "$SKEPTIC_COMMENTS_JSON" | jq -c '[.[][] | select(.user.login == "github-actions[bot]" and (.body | test("VERDICT:"; "i")))] | sort_by(.created_at) | reverse | .[0] // null' 2>/dev/null)
+              SKEPTIC_COMMENT_JSON=$(printf '%s\n' "$SKEPTIC_COMMENTS_JSON" | jq -c '[.[][] | select(.user.login == "github-actions[bot]" and (.body | test("## Skeptic Gate Findings"; "i")) and (.body | test("<!-- HEAD-SHA:\\s*[^>]+-->"; "")))] | sort_by(.created_at) | reverse | .[0] // null' 2>/dev/null)
               JQ_STAT=$?
               if [ "$JQ_STAT" -ne 0 ]; then
                 SKEPTIC_VERDICT="SKEPTIC_ERROR"
