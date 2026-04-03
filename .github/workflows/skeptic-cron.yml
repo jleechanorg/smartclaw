@@ -228,18 +228,31 @@ jobs:
                 SKEPTIC_VERDICT="SKEPTIC_NO_VERDICT"
                 SKEPTIC_SHA_MISMATCH=""
               else
-                # Parse body once: canonical verdict token + HEAD-SHA (no re-grep of full body downstream).
-                PARSED=$(printf '%s\n' "$SKEPTIC_COMMENT_JSON" | jq -r '
-                  .body as $b |
-                  (if ($b | test("<!--[[:space:]]*HEAD-SHA:")) then ($b | capture("<!--[[:space:]]*HEAD-SHA:[[:space:]]*(?<sha>[a-f0-9]+)")).sha else "" end) as $sha |
-                  (if ($b | test("^[[:space:]]*VERDICT:[[:space:]]*FAIL"; "im")) then "FAIL"
-                   elif ($b | test("^[[:space:]]*VERDICT:[[:space:]]*PASS"; "im")) then "PASS"
-                   elif ($b | test("^[[:space:]]*VERDICT:[[:space:]]*SKIPPED"; "im")) then "SKIPPED"
-                   elif ($b | test("^[[:space:]]*VERDICT:[[:space:]]*ERROR"; "im")) then "ERROR"
-                   else "UNPARSED"
-                   end) as $tok |
-                  [$tok, $sha] | @tsv
-                ' 2>/dev/null || printf '\t')
+                # Parse body once: extract first VERDICT token and HEAD-SHA (no priority scanning).
+                # Use Python to avoid shell/jq escaping issues with escaped newlines in JSON.
+                PARSED=$(printf '%s\n' "$SKEPTIC_COMMENTS_JSON" | python3 -c "
+import json, sys, re
+data = json.loads(sys.stdin.read())
+if not data:
+    print('\t', flush=True)
+    sys.exit(0)
+comments = [c for c in data if c['user']['login'] == 'github-actions[bot]' and '## Skeptic Gate Findings' in c['body'] and re.search(r'<!--\s*HEAD-SHA:', c['body'])]
+comments.sort(key=lambda c: c['created_at'], reverse=True)
+if not comments:
+    print('\t', flush=True)
+    sys.exit(0)
+body = comments[0]['body']
+sha_m = re.search(r'<!--\s*HEAD-SHA:\s*([a-f0-9]+)', body)
+sha = sha_m.group(1) if sha_m else ''
+lines = body.split('\\n')
+tok = 'UNPARSED'
+for line in lines:
+    m = re.match(r'(?i).*?VERDICT:\s*(PASS|FAIL|SKIPPED|ERROR)', line)
+    if m:
+        tok = m.group(1)
+        break
+print(f'{tok}\t{sha}', flush=True)
+" 2>/dev/null || printf '\t')
                 SKEPTIC_VERDICT=$(printf '%s\n' "$PARSED" | cut -f1)
                 VERDICT_SHA=$(printf '%s\n' "$PARSED" | cut -f2)
                 if [ -z "$VERDICT_SHA" ]; then
