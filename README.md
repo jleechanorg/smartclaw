@@ -1,68 +1,29 @@
-# Harness Engineering Analyzer
-
-> **NEW (2026-03-18):** This repo now includes an automated daily harness engineering analyzer that runs at 9am via launchd.
-
-Automated daily analysis tool for the smartclaw repository that checks for harness engineering violations and takes corrective action.
-
-## Quick Reference: Daily Analyzer
-
-| Item | Details |
-|------|---------|
-| **Schedule** | 9:00 AM Pacific daily |
-| **Script** | `harness-automation/harness-analyzer.sh` |
-| **LaunchAgent** | `~/Library/LaunchAgents/com.jleechan.harness-analyzer.plist` |
-| **Logs** | `harness-automation/harness-analyzer.log` |
-
-### What the Analyzer Does
-
-1. **Clones** the smartclaw/smartclaw repository
-2. **Analyzes** the codebase for harness engineering violations
-3. **Creates PRs** to fix any violations found  
-4. **Comments** on all open PRs with harness engineering suggestions
-
-### Violations Detected
-
-| Pattern | Description |
-|---------|-------------|
-| Hardcoded Credentials | API keys, passwords, tokens found in code |
-| Missing Error Handling | Async functions without try-catch or .catch() |
-| Improper Async Patterns | async without await, await in non-async |
-| Missing Input Validation | Function parameters without validation |
-| Console.log Leaks | console.log statements in production code |
-| Missing .gitignore | Missing entries for secrets/credentials |
-| Unhandled Promise Rejections | Promises without .catch() handlers |
-
----
-
 # smartclaw
 
-Smoke test bead: rev-faf
+`smartclaw` is Jeffrey’s OpenClaw/AO operations repo: scripts, launchd jobs, policies, and runtime config for running an AI-first engineering loop across Slack + GitHub.
 
-Tools, scripts, and configuration for **smartclaw** — an autonomous orchestrator agent that replaces Jeffrey as the day-to-day operator across all jleechanorg projects.
+## What it does
 
-## User-Focused System Overview
+- Receives requests from chat and routes work to execution agents
+- Uses Agent Orchestrator (`ao`) for isolated git worktrees + PR loops
+- Runs launchd-managed health checks, scheduling, reminders, and watchdogs
+- Automates CI/review follow-up (including CodeRabbit/Bugbot feedback paths)
+- Keeps proofs/evidence and operational docs in-repo for traceability
 
-smartclaw is the **control layer**. It turns plain-English requests into reliable engineering execution:
+## Key components
 
-1. You ask in Slack (or another connected channel).
-2. smartclaw expands context (thread history, policy, constraints, memory).
-3. It routes work to the right execution engine (often Agent Orchestrator / `ao`).
-4. Worker agents execute in isolated git worktrees, run checks, and push updates.
-5. smartclaw reports back with proof artifacts (PR URL, commit URL, checks).
+- `agent-orchestrator.yaml` — AO project/session/reaction config
+- `openclaw.json` — local gateway/runtime config template
+- `scripts/` — operational scripts (monitoring, installs, audits, PR loops)
+- `launchd/` — LaunchAgent templates and concrete plist definitions
+- `skills/` — OpenClaw skill definitions used by the runtime
+- `docs/` — runbooks, incident notes, architecture, and evidence records
 
-### smartclaw + Agent Orchestrator (exact repo pairing)
+## AO pairing
 
-This harness is designed to work directly with the [`jleechanorg/agent-orchestrator`](https://github.com/jleechanorg/agent-orchestrator) fork
-(not the upstream [`ComposioHQ/agent-orchestrator`](https://github.com/ComposioHQ/agent-orchestrator)):
+This repo is designed to run with [`jleechanorg/agent-orchestrator`](https://github.com/jleechanorg/agent-orchestrator) for session lifecycle, worktree isolation, and automated PR/CI feedback handling.
 
-- AO plugin interfaces: `packages/core/src/types.ts`
-- OpenClaw notifier plugin: `packages/plugins/notifier-openclaw/src/index.ts`
-- GitHub SCM integration: `packages/plugins/scm-github/src/index.ts`
-- tmux runtime plugin: `packages/plugins/runtime-tmux/src/index.ts`
-
-In short: **smartclaw handles intent, policy, and user communication**; **Agent Orchestrator handles parallel execution, worktree isolation, and PR/CI feedback loops**.
-
-<!-- E2E probe 1773342687 -->
+In short: **smartclaw owns routing + policy + reporting**; **AO owns parallel coding execution**.
 
 ## Quick Start (Fresh Machine)
 
