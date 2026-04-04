@@ -60,13 +60,13 @@
     </array>
 
     <key>StandardOutPath</key>
-    <string>${HOME}/.smartclaw/logs/bug-hunt-daily.log</string>
+    <string>@HOME@/.smartclaw/logs/bug-hunt-daily.log</string>
 
     <key>StandardErrorPath</key>
-    <string>${HOME}/.smartclaw/logs/bug-hunt-daily.error.log</string>
+    <string>@HOME@/.smartclaw/logs/bug-hunt-daily.error.log</string>
 
     <key>WorkingDirectory</key>
-    <string>${HOME}/project_smartclaw/smartclaw</string>
+    <string>@HOME@/project_smartclaw/smartclaw</string>
 
     <key>ProcessType</key>
     <string>Background</string>
