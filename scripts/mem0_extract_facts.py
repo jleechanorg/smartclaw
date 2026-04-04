@@ -18,7 +18,7 @@ Usage:
     python3 scripts/mem0_extract_facts.py --since 65
     python3 scripts/mem0_extract_facts.py --since 999999 --workers 4  # full corpus rescan
     python3 scripts/mem0_extract_facts.py --since 65 --project=-Users-jleechan--openclaw
-    python3 scripts/mem0_extract_facts.py --session ~/.smartclaw/agents/main/sessions/abc123.jsonl
+    python3 scripts/mem0_extract_facts.py --session ~/.openclaw/agents/main/sessions/abc123.jsonl
 """
 from __future__ import annotations
 
@@ -44,13 +44,13 @@ class AgentId(StrEnum):
 
 
 # State file location
-STATE_DIR = Path.home() / ".smartclaw" / "memory"
+STATE_DIR = Path.home() / ".openclaw" / "memory"
 STATE_FILE = STATE_DIR / "extraction-state.json"
 STATE_LOCK_FILE = STATE_DIR / "extraction-state.lock"
 
 # Source directories
 SOURCES = {
-    AgentId.CLAW_MAIN: Path.home() / ".smartclaw" / "agents",
+    AgentId.CLAW_MAIN: Path.home() / ".openclaw" / "agents",
     AgentId.CLAUDE: Path.home() / ".claude" / "projects",
     AgentId.CODEX: Path.home() / ".codex",
 }
@@ -86,7 +86,7 @@ def _is_session_file(path: Path, agent_id: AgentId) -> bool:
         return any(p in _CODEX_SESSION_DIRS for p in parts)
 
     if agent_id == AgentId.CLAW_MAIN:
-        # OpenClaw: ~/.smartclaw/agents/<agent>/sessions/<file>.jsonl
+        # OpenClaw: ~/.openclaw/agents/<agent>/sessions/<file>.jsonl
         return "sessions" in str(path)
 
     return False
@@ -140,7 +140,7 @@ def get_agent_id_from_path(session_path: Path) -> AgentId | None:
     """Determine agent_id from session file path."""
     path_str = str(session_path)
 
-    if ".smartclaw/agents/" in path_str:
+    if ".openclaw/agents/" in path_str:
         return AgentId.CLAW_MAIN
     elif ".claude/projects/" in path_str:
         return AgentId.CLAUDE

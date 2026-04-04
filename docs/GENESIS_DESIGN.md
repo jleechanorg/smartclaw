@@ -10,12 +10,12 @@ This doc covers: what OpenClaw already provides, what's genuinely new, and the p
 
 ## What OpenClaw Already Provides (that we just need to use)
 
-### Memory System (docs: https://docs.smartclaw.ai/concepts/memory)
+### Memory System (docs: https://docs.openclaw.ai/concepts/memory)
 
 OpenClaw uses **plain Markdown files as source of truth**. The sqlite DB at
-`~/.smartclaw/memory/<agentId>.sqlite` is just an auto-generated index for search.
+`~/.openclaw/memory/<agentId>.sqlite` is just an auto-generated index for search.
 
-**Workspace**: `~/.smartclaw/workspace/`
+**Workspace**: `~/.openclaw/workspace/`
 
 | File | Purpose | Current Status |
 |------|---------|----------------|
@@ -35,7 +35,7 @@ before the session's context window fills up.
 
 ### Configuration Options We Should Enable
 
-In `~/.smartclaw/openclaw.json` under `agents.defaults`:
+In `~/.openclaw/openclaw.json` under `agents.defaults`:
 
 ```jsonc
 {
@@ -45,8 +45,8 @@ In `~/.smartclaw/openclaw.json` under `agents.defaults`:
         "enabled": true,
         // Index worldarchitect.ai and other project dirs
         "extraPaths": [
-          "${HOME}/projects/worldarchitect.ai/.claude/learnings.md",
-          "${HOME}/projects/worldarchitect.ai/CLAUDE.md"
+          "/Users/jleechan/projects/worldarchitect.ai/.claude/learnings.md",
+          "/Users/jleechan/projects/worldarchitect.ai/CLAUDE.md"
         ],
         "query": {
           "hybrid": {
@@ -79,7 +79,7 @@ In `~/.smartclaw/openclaw.json` under `agents.defaults`:
 
 ### Cron System
 
-Already running 3x daily Slack check-ins + 4-hourly backups via `~/.smartclaw/cron/jobs.json`.
+Already running 3x daily Slack check-ins + 4-hourly backups via `~/.openclaw/cron/jobs.json`.
 Genesis cron jobs use the same native format.
 
 Repo source of truth for tracked schedules:
@@ -104,7 +104,7 @@ This enables cross-agent coordination — subagents can send reports to Genesis.
 
 The biggest value-add is actually just **writing content into the existing blank files**:
 
-**`~/.smartclaw/workspace/USER.md`**:
+**`~/.openclaw/workspace/USER.md`**:
 ```markdown
 # USER.md - About Your Human
 
@@ -114,12 +114,12 @@ The biggest value-add is actually just **writing content into the existing blank
 
 ## Projects
 - **worldarchitect.ai** — AI RPG built with Python/Firebase/Gemini 3. Goal: first 100 users.
-  Repo: ${HOME}/projects/worldarchitect.ai
+  Repo: /Users/jleechan/projects/worldarchitect.ai
   GitHub: https://github.com/jleechanorg/worldarchitect.ai
   6,341 commits. This is the main project.
 
 - **openclaw** (this repo) — Personal OpenClaw config backup + Genesis orchestration layer.
-  Repo: ${HOME}/projects_other/openclaw
+  Repo: /Users/jleechan/projects_other/openclaw
   GitHub: https://github.com/jleechanorg/openclaw
 
 - **worldai_claw** — AI RPG powered by OpenClaw.
@@ -132,7 +132,7 @@ The biggest value-add is actually just **writing content into the existing blank
 - Uses Claude Code, Codex, and Gemini for coding.
 ```
 
-**`~/.smartclaw/workspace/MEMORY.md`**:
+**`~/.openclaw/workspace/MEMORY.md`**:
 ```markdown
 # MEMORY.md - Long-Term Knowledge
 
@@ -149,10 +149,10 @@ The biggest value-add is actually just **writing content into the existing blank
 - Daily memory files for session context; MEMORY.md for durable facts
 
 ## Key Paths
-- OpenClaw workspace: ~/.smartclaw/workspace/
-- OpenClaw config: ~/.smartclaw/openclaw.json
-- worldarchitect.ai: ${HOME}/projects/worldarchitect.ai
-- openclaw backup repo: ${HOME}/projects_other/openclaw
+- OpenClaw workspace: ~/.openclaw/workspace/
+- OpenClaw config: ~/.openclaw/openclaw.json
+- worldarchitect.ai: /Users/jleechan/projects/worldarchitect.ai
+- openclaw backup repo: /Users/jleechan/projects_other/openclaw
 
 ## Current Goals
 - Get first 100 users for worldarchitect.ai (AI RPG)
@@ -177,7 +177,7 @@ Keep MEMORY.md concise and focused on durable knowledge.
 
 ### 4. Active Task Registry (optional)
 
-`~/.smartclaw/workspace/tasks.md` — A markdown file (not JSON, so the agent can read/update
+`~/.openclaw/workspace/tasks.md` — A markdown file (not JSON, so the agent can read/update
 it naturally) tracking what's in flight across projects. No native OpenClaw equivalent exists.
 
 ```markdown
@@ -212,9 +212,9 @@ For honesty/learning:
 ## Implementation Plan
 
 ### Phase 1: Fill In What Exists (immediate)
-- [ ] Create `~/.smartclaw/workspace/MEMORY.md` with curated knowledge
-- [ ] Fill in `~/.smartclaw/workspace/USER.md` with user context
-- [ ] Fill in `~/.smartclaw/workspace/TOOLS.md` with local env details
+- [ ] Create `~/.openclaw/workspace/MEMORY.md` with curated knowledge
+- [ ] Fill in `~/.openclaw/workspace/USER.md` with user context
+- [ ] Fill in `~/.openclaw/workspace/TOOLS.md` with local env details
 - [ ] Update `SOUL.md` to reference "Genesis" identity
 - [ ] Write today's `memory/2026-02-25.md` daily log
 

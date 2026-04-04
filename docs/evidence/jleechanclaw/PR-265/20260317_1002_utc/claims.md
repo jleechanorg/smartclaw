@@ -1,6 +1,6 @@
 # Evidence Claims — PR #265
 
-- PR #265 in jleechanorg/smartclaw
+- PR #265 in jleechanorg/jleechanclaw
 - Files changed: 200 total, 8 code files
 - CI: 2/2 passed (see artifacts/ci_check_runs.json)
 - CodeRabbit: state=COMMENTED, 4 CodeRabbit reviews (artifact has all reviewers) (see artifacts/coderabbit_review.json)

@@ -6,17 +6,17 @@ Date: 2026-03-05
 
 This audit compared orchestration capabilities across:
 
-- `mctrl` (`${HOME}/project_smartclaw/mctrl`)
-- `smartclaw` (`${HOME}/project_smartclaw/smartclaw`)
-- `worldarchitect.ai` (`${HOME}/projects/worldarchitect.ai`)
-- AO reference (`${HOME}/projects_reference/agent-orchestrator`)
+- `mctrl` (`/Users/jleechan/project_jleechanclaw/mctrl`)
+- `jleechanclaw` (`/Users/jleechan/project_jleechanclaw/jleechanclaw`)
+- `worldarchitect.ai` (`/Users/jleechan/projects/worldarchitect.ai`)
+- AO reference (`/Users/jleechan/projects_reference/agent-orchestrator`)
 
 ## Method
 
 Literal file-level sweep completed before scoring:
 
 - `mctrl`: 25 tracked files
-- `smartclaw`: 188 tracked files
+- `jleechanclaw`: 188 tracked files
 - `worldarchitect.ai`: 4,136 tracked files
 
 All tracked paths were read for coverage (`rg --files` + full read pass), then key capability claims were verified against implementation files.
@@ -33,7 +33,7 @@ All tracked paths were read for coverage (`rg --files` + full read pass), then k
    - Current stack: partial session persistence and heartbeat tracking, but no AO-grade archive/restore path.
 3. Lifecycle reaction completeness:
    - AO: `packages/core/src/lifecycle-manager.ts`
-   - Current stack has lifecycle logic (`smartclaw/src/orchestration/lifecycle_reactions.py`) but still narrower on parity behaviors.
+   - Current stack has lifecycle logic (`jleechanclaw/src/orchestration/lifecycle_reactions.py`) but still narrower on parity behaviors.
 4. Integrated preflight + operator UX around orchestration commands:
    - AO has consolidated checks and CLI surface; Python stack has scattered checks and command-specific validation.
 
@@ -87,7 +87,7 @@ Dependency wiring:
 
 After reading the latest design docs and bead table:
 
-1. I agree with `smartclaw/roadmap/CONVERGENCE_ENGINE_DESIGN.md` on the minimal-stack direction:
+1. I agree with `jleechanclaw/roadmap/CONVERGENCE_ENGINE_DESIGN.md` on the minimal-stack direction:
    - Outer-ralph LLM orchestrator + deterministic tools/plugins is the right baseline.
 2. I do not fully agree with `mctrl/roadmap/ORCHESTRATION_DESIGN.md` where it still states AO control-plane authority as locked direction.
    - That statement conflicts with the newer convergence design.

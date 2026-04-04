@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # install-github-intake.sh — Install the GitHub Intake Daemon
 #
-# macOS: installs launchd plist (ai.smartclaw.github-intake)
+# macOS: installs launchd plist (ai.openclaw.github-intake)
 # Linux: installs systemd user service + timer
 #
 # Usage: ./scripts/install-github-intake.sh [--uninstall]
@@ -9,12 +9,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-LABEL="ai.smartclaw.github-intake"
+LABEL="ai.openclaw.github-intake"
 UNINSTALL="${1:-}"
 
 # Ensure logs and state dirs exist
-mkdir -p "$HOME/.smartclaw/logs"
-mkdir -p "$HOME/.smartclaw/state"
+mkdir -p "$HOME/.openclaw/logs"
+mkdir -p "$HOME/.openclaw/state"
 
 if [[ "$(uname)" == "Darwin" ]]; then
   # ── macOS: launchd ──
@@ -42,7 +42,7 @@ if [[ "$(uname)" == "Darwin" ]]; then
   # Load
   launchctl bootstrap "gui/$(id -u)" "$PLIST_DST"
   echo "  Installed and started."
-  echo "  Logs: ~/.smartclaw/logs/github-intake.log"
+  echo "  Logs: ~/.openclaw/logs/github-intake.log"
   echo "  NOTE: Starts in DRY_RUN mode. Set INTAKE_DRY_RUN=0 in plist to enable live dispatch."
 
 else

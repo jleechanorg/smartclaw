@@ -24,7 +24,7 @@ from typing import Any
 
 
 DEFAULT_URL = "http://127.0.0.1:18789"
-DEFAULT_CONFIG = Path.home() / ".smartclaw" / "openclaw.json"
+DEFAULT_CONFIG = Path.home() / ".openclaw" / "openclaw.json"
 
 
 @dataclass

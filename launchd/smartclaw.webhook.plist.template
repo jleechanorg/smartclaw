@@ -14,38 +14,33 @@
         <key>WEBHOOK_HOST</key>
         <string>0.0.0.0</string>
         <key>WEBHOOK_DB_PATH</key>
-        <string>@HOME@/.smartclaw/webhook_queue.db</string>
+        <string>@HOME@/.openclaw/webhook_queue.db</string>
         <key>WEBHOOK_LOG_DIR</key>
-        <string>@HOME@/.smartclaw/logs</string>
+        <string>@HOME@/.openclaw/logs</string>
         <key>PATH</key>
         <string>@HOME@/bin:@HOME@/.nvm/versions/node/v22.22.0/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
-        <key>PYTHONPATH</key>
-        <string>@REPO_DIR@/src</string>
         <key>GITHUB_WEBHOOK_SECRET</key>
         <!-- @WEBHOOK_SECRET@ replaced by install-launchagents.sh at install time -->
         <string>@WEBHOOK_SECRET@</string>
         <!-- Email escalation alerts — only add keys when configured; empty strings cause LaunchAgent issues -->
-        <!-- NOTIFY_EMAIL_TO, SMTP_USER, SMTP_PASSWORD omitted — set in openclaw.json, read by orchestration.webhook -->
+        <!-- NOTIFY_EMAIL_TO, SMTP_USER, SMTP_PASSWORD omitted — set in openclaw.json, read by webhook_daemon -->
     </dict>
     <key>KeepAlive</key>
     <true/>
     <key>Label</key>
-    <string>ai.smartclaw.webhook</string>
+    <string>ai.openclaw.webhook</string>
     <key>ProgramArguments</key>
     <array>
         <!-- @PYTHON_PATH@ replaced by install-launchagents.sh at install time -->
         <string>@PYTHON_PATH@</string>
-        <string>-m</string>
-        <string>orchestration.webhook</string>
+        <string>@REPO_DIR@/src/orchestration/webhook_daemon.py</string>
     </array>
-    <key>WorkingDirectory</key>
-    <string>@REPO_DIR@</string>
     <key>RunAtLoad</key>
     <true/>
     <key>StandardErrorPath</key>
-    <string>@HOME@/.smartclaw/logs/webhook.err.log</string>
+    <string>@HOME@/.openclaw/logs/webhook_daemon.err.log</string>
     <key>StandardOutPath</key>
-    <string>@HOME@/.smartclaw/logs/webhook.log</string>
+    <string>@HOME@/.openclaw/logs/webhook_daemon.log</string>
     <key>ThrottleInterval</key>
     <integer>30</integer>
 </dict>

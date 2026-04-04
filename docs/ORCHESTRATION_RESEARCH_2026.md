@@ -2,7 +2,7 @@
 
 Research on multi-agent AI orchestration patterns, LLM-driven vs deterministic orchestration,
 nested agent loops, and competitive landscape analysis. Conducted to validate the
-smartclaw orchestration design doc (`roadmap/ORCHESTRATION_DESIGN.md`).
+jleechanclaw orchestration design doc (`roadmap/ORCHESTRATION_DESIGN.md`).
 
 ---
 
@@ -146,7 +146,7 @@ Steve Yegge's Go-based multi-agent workspace manager. Core concepts:
 - GUPP ("must run work on hook") is rigid compared to reaction-based approaches
 
 ### Rejection Assessment
-The smartclaw rejection of Gastown is defensible. The key distinction:
+The jleechanclaw rejection of Gastown is defensible. The key distinction:
 - Gastown's coordination layer (hooks, convoys, rigs) is deterministic Go code, not LLM-native
 - AO covers session lifecycle, worktrees, multi-agent config, and web dashboard
 - AO's session metadata + worktree model covers Gastown's "persistent work state" concept
@@ -166,7 +166,7 @@ Anthropic released Agent Teams on February 5, 2026 alongside Opus 4.6:
 - FIFO merge queue with 4-tier conflict resolution
 - Split panes require tmux or iTerm2
 
-**Risk for smartclaw design:** Agent Teams may eventually subsume what ai_orch does,
+**Risk for jleechanclaw design:** Agent Teams may eventually subsume what ai_orch does,
 making that layer redundant. Worth monitoring.
 
 ### Community Frameworks
@@ -191,7 +191,7 @@ Temporal for AI Agents: https://temporal.io/blog/of-course-you-can-build-dynamic
 
 ---
 
-## 6. Risks Identified for smartclaw Architecture
+## 6. Risks Identified for jleechanclaw Architecture
 
 ### ai_orch Layer Redundancy
 AO has its own tmux runtime plugin. ai_orch has 78 releases of battle-tested tmux management.
@@ -257,7 +257,7 @@ No single winner — depends on optimization target.
 
 Source: https://rywalker.com/research/autonomous-agentic-engineering-tools
 
-### Why agent-orchestrator Wins for smartclaw
+### Why agent-orchestrator Wins for jleechanclaw
 
 1. **Only production-proven reaction engine** as declarative config (CI failure → auto-fix → escalate)
 2. **Real production data** at scale (not just benchmarks)

@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>ai.smartclaw.monitor-agent</string>
+  <string>ai.openclaw.monitor-agent</string>
 
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
     <string>-lc</string>
-    <string>@HOME@/.smartclaw/monitor-agent.sh</string>
+    <string>/Users/jleechan/.openclaw/monitor-agent.sh</string>
   </array>
 
   <key>EnvironmentVariables</key>
@@ -19,7 +19,7 @@
   </dict>
 
   <key>StartInterval</key>
-  <integer>600</integer>
+  <integer>1800</integer>
 
   <key>RunAtLoad</key>
   <true/>

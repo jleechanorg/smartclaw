@@ -36,13 +36,13 @@ Use this skill when you need to verify that evidence or test files in a PR are c
 
 ```bash
 # Find evidence files
-EVIDENCE_FILES=$(gh pr view 123 --repo jleechanorg/smartclaw --json files | jq -r '.files[].path' | grep -E "^evidence|testing_" | tr '\n' ',')
+EVIDENCE_FILES=$(gh pr view 123 --repo jleechanorg/jleechanclaw --json files | jq -r '.files[].path' | grep -E "^evidence|testing_" | tr '\n' ',')
 
 # Review with codex
 codex review --files "$EVIDENCE_FILES"
 
 # Post result
-gh pr comment 123 --repo jleechanorg/smartclaw --body "**PASS** — evidence review: agent self-reviewed ✅, CR reviewed ✅, codex passed ✅"
+gh pr comment 123 --repo jleechanorg/jleechanclaw --body "**PASS** — evidence review: agent self-reviewed ✅, CR reviewed ✅, codex passed ✅"
 ```
 
 ## Requirements

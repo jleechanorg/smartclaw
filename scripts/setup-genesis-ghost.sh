@@ -3,7 +3,7 @@ set -euo pipefail
 
 REPOS=(
   "$HOME/projects/worldarchitect.ai"
-  "$HOME/project_smartclaw/smartclaw"
+  "$HOME/project_jleechanclaw/jleechanclaw"
   "$HOME/project_worldaiclaw/worldai_claw"
 )
 

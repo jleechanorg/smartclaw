@@ -3,13 +3,12 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>ai.smartclaw.schedule.bug-hunt-9am</string>
+    <string>ai.openclaw.schedule.bug-hunt-9am</string>
     
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>-lc</string>
-        <string>@HOME@/project_smartclaw/smartclaw/scripts/bug-hunt-daily.sh</string>
+        <string>/Users/jleechan/project_jleechanclaw/jleechanclaw/scripts/bug-hunt-daily.sh</string>
     </array>
     
     <key>RunAtLoad</key>
@@ -60,13 +59,13 @@
     </array>
     
     <key>StandardOutPath</key>
-    <string>${HOME}/.smartclaw/logs/bug-hunt-daily.log</string>
+    <string>/Users/jleechan/.openclaw/logs/bug-hunt-daily.log</string>
     
     <key>StandardErrorPath</key>
-    <string>${HOME}/.smartclaw/logs/bug-hunt-daily.error.log</string>
+    <string>/Users/jleechan/.openclaw/logs/bug-hunt-daily.error.log</string>
     
     <key>WorkingDirectory</key>
-    <string>${HOME}/project_smartclaw/smartclaw</string>
+    <string>/Users/jleechan/project_jleechanclaw/jleechanclaw</string>
     
     <key>ProcessType</key>
     <string>Background</string>

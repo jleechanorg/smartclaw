@@ -1,5 +1,5 @@
 ---
-description: Alias for /evidence_review — smartclaw PR green conditions check (pytest, CI, CodeRabbit, beads)
+description: Alias for /evidence_review — jleechanclaw PR green conditions check (pytest, CI, CodeRabbit, beads)
 type: orchestration
 execution_mode: immediate
 ---

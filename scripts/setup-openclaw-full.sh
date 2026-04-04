@@ -36,34 +36,34 @@ echo "  ✓ python3 found: $(python3 --version)"
 echo "  ✓ git found: $(git --version)"
 echo
 
-# Step 2: Detect if this repo should be placed in ~/.smartclaw/workspace/
+# Step 2: Detect if this repo should be placed in ~/.openclaw/workspace/
 echo "[2/4] Detecting installation location..."
 
-# Check if we're already in ~/.smartclaw/workspace/openclaw
-if [[ "$REPO_ROOT" == "$HOME/.smartclaw/workspace/openclaw" ]]; then
-    echo "  ✓ Already in ~/.smartclaw/workspace/openclaw"
+# Check if we're already in ~/.openclaw/workspace/openclaw
+if [[ "$REPO_ROOT" == "$HOME/.openclaw/workspace/openclaw" ]]; then
+    echo "  ✓ Already in ~/.openclaw/workspace/openclaw"
     OPENCLAW_REPO="$REPO_ROOT"
-elif [[ -d "$HOME/.smartclaw/workspace/openclaw" ]]; then
-    echo "  ✓ Found existing ~/.smartclaw/workspace/openclaw"
-    OPENCLAW_REPO="$HOME/.smartclaw/workspace/openclaw"
+elif [[ -d "$HOME/.openclaw/workspace/openclaw" ]]; then
+    echo "  ✓ Found existing ~/.openclaw/workspace/openclaw"
+    OPENCLAW_REPO="$HOME/.openclaw/workspace/openclaw"
     echo "  ! Using existing installation, will copy scripts there"
 else
-    echo "  → Creating ~/.smartclaw/workspace/openclaw"
-    mkdir -p "$HOME/.smartclaw/workspace"
+    echo "  → Creating ~/.openclaw/workspace/openclaw"
+    mkdir -p "$HOME/.openclaw/workspace"
 
     # Ask user if they want to move or copy
-    read -p "  Copy (c) or Move (m) this repo to ~/.smartclaw/workspace/openclaw? [c/m]: " choice
+    read -p "  Copy (c) or Move (m) this repo to ~/.openclaw/workspace/openclaw? [c/m]: " choice
     case "$choice" in
         m|M)
             echo "  → Moving repository..."
-            mv "$REPO_ROOT" "$HOME/.smartclaw/workspace/openclaw"
-            OPENCLAW_REPO="$HOME/.smartclaw/workspace/openclaw"
+            mv "$REPO_ROOT" "$HOME/.openclaw/workspace/openclaw"
+            OPENCLAW_REPO="$HOME/.openclaw/workspace/openclaw"
             cd "$OPENCLAW_REPO"
             ;;
         c|C|*)
             echo "  → Copying repository..."
-            cp -R "$REPO_ROOT" "$HOME/.smartclaw/workspace/openclaw"
-            OPENCLAW_REPO="$HOME/.smartclaw/workspace/openclaw"
+            cp -R "$REPO_ROOT" "$HOME/.openclaw/workspace/openclaw"
+            OPENCLAW_REPO="$HOME/.openclaw/workspace/openclaw"
             ;;
     esac
 fi
@@ -97,7 +97,7 @@ echo
 echo "OpenClaw is now configured with automated backups:"
 echo "  • Launchd: Every 4 hours"
 echo "  • System crontab: not used for OpenClaw backup automation"
-echo "  • Backups: $OPENCLAW_REPO/.smartclaw-backups/"
+echo "  • Backups: $OPENCLAW_REPO/.openclaw-backups/"
 echo
 echo "To test the backup:"
 echo "  cd $OPENCLAW_REPO"

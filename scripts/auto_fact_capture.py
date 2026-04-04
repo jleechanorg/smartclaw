@@ -9,7 +9,7 @@ Usage (called by openclaw hook):
     python3 scripts/auto_fact_capture.py --session-file /path/to/session.jsonl
 
 Usage (manual test):
-    python3 scripts/auto_fact_capture.py --session-file ~/.smartclaw/agents/main/sessions/abc.jsonl
+    python3 scripts/auto_fact_capture.py --session-file ~/.openclaw/agents/main/sessions/abc.jsonl
 """
 from __future__ import annotations
 
@@ -109,7 +109,7 @@ def _extract_facts_groq(conversation: str, groq_api_key: str, groq_model: str) -
 def capture(session_file: str, user_id: str = "jleechan", dry_run: bool = False) -> int:
     """Main entry point. Returns number of facts stored."""
     # Load Groq config from openclaw.json
-    cfg_path = Path.home() / ".smartclaw" / "openclaw.json"
+    cfg_path = Path.home() / ".openclaw" / "openclaw.json"
     cfg = json.loads(cfg_path.read_text())
     llm_cfg = cfg["plugins"]["entries"]["openclaw-mem0"]["config"]["oss"]["llm"]["config"]
     groq_api_key = os.path.expandvars(llm_cfg.get("api_key", ""))

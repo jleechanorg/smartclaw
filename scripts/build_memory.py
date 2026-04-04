@@ -4,7 +4,7 @@
 Three stages run in sequence:
   1. collect  — gather raw commits, PRs, beads from configured repos
   2. synthesize — call ai_orch (claude haiku) to produce structured summaries per week
-  3. write    — write weekly .md files to ~/.smartclaw/memory/ and update SOUL.md/MEMORY.md
+  3. write    — write weekly .md files to ~/.openclaw/memory/ and update SOUL.md/MEMORY.md
 
 Run all stages (default):
   python scripts/build_memory.py --days 14
@@ -30,12 +30,12 @@ from pathlib import Path
 
 DEFAULT_REPOS: dict[str, str] = {
     "worldarchitect.ai": "~/projects/worldarchitect.ai",
-    "smartclaw": "~/project_smartclaw/smartclaw",
+    "jleechanclaw": "~/project_jleechanclaw/jleechanclaw",
     "worldai_claw": "~/project_worldaiclaw/worldai_claw",
 }
-MEMORY_DIR = Path("~/.smartclaw/memory").expanduser()
-SOUL_PATH = Path("~/.smartclaw/SOUL.md").expanduser()
-MEMORY_MD_PATH = Path("~/.smartclaw/MEMORY.md").expanduser()  # root mirrors workspace; write to root (canonical)
+MEMORY_DIR = Path("~/.openclaw/memory").expanduser()
+SOUL_PATH = Path("~/.openclaw/workspace/SOUL.md").expanduser()
+MEMORY_MD_PATH = Path("~/.openclaw/workspace/MEMORY.md").expanduser()
 
 COLLECT_OUTPUT = Path("/tmp/build_memory_collect.json")
 SYNTHESIZE_OUTPUT = Path("/tmp/build_memory_synthesize.json")
@@ -405,8 +405,6 @@ def update_soul_md(soul_path: Path, patterns: str, dry_run: bool) -> None:
         print(f"  [dry-run] would update {soul_path} Learned Patterns section")
         print(f"    preview: {patterns[:120].replace(chr(10), ' ')}")
         return
-    # Resolve symlinks to use a canonical path (for existence checks and logging)
-    soul_path = soul_path.resolve()
     if soul_path.exists():
         text = soul_path.read_text(encoding="utf-8")
     else:
@@ -425,8 +423,6 @@ def update_memory_md(memory_path: Path, status: str, dry_run: bool) -> None:
         print(f"  [dry-run] would update {memory_path} Project Status section")
         print(f"    preview: {status[:120].replace(chr(10), ' ')}")
         return
-    # Resolve symlinks to use a canonical path (for existence checks and logging)
-    memory_path = memory_path.resolve()
     if memory_path.exists():
         text = memory_path.read_text(encoding="utf-8")
     else:

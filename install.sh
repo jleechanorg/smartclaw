@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# install.sh — One-shot setup for ~/.smartclaw/ (jleechanorg/smartclaw)
+# install.sh — One-shot setup for ~/.openclaw/ (jleechanorg/jleechanclaw)
 #
 # Usage (post-clone):
-#   bash ~/.smartclaw/install.sh
+#   bash ~/.openclaw/install.sh
 #
 # What it does:
 #   1. Recreates symlinks and copies config files needed at runtime
 #   2. Installs all LaunchAgents / systemd units (gateway, monitor, startup-check, etc.)
 #
 # Prerequisites:
-#   - openclaw.json must exist at ~/.smartclaw/openclaw.json with real tokens hardcoded
-#     (create/update this local runtime file directly; it is gitignored)
+#   - openclaw.json must exist at ~/.openclaw/openclaw.json with real tokens hardcoded
+#     (copy from openclaw.json.redacted and fill in secrets — never commit that file)
 #   - openclaw CLI must be in PATH
 
 set -euo pipefail
@@ -41,8 +41,8 @@ fi
 # --- 2. Verify openclaw.json has real tokens ---
 if [[ ! -f "$REPO_ROOT/openclaw.json" ]]; then
   echo ""
-  echo "ERROR: ~/.smartclaw/openclaw.json not found."
-  echo "  Create openclaw.json with real tokens before running install."
+  echo "ERROR: ~/.openclaw/openclaw.json not found."
+  echo "  Copy openclaw.json.redacted and fill in real tokens before running install."
   exit 1
 fi
 
@@ -95,6 +95,6 @@ echo "--- Installing services ---"
 echo ""
 echo "=== Install complete ==="
 echo ""
-echo "Gateway token and all secrets are read directly from ~/.smartclaw/openclaw.json."
+echo "Gateway token and all secrets are read directly from ~/.openclaw/openclaw.json."
 echo "Do NOT add tokens to plists or environment variables — openclaw.json is the"
 echo "single source of truth."

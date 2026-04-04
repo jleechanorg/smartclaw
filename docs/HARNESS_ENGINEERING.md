@@ -38,7 +38,7 @@ Reference: [OpenAI: Harness Engineering](https://openai.com/index/harness-engine
 
 These are the "scaffolding" — agents read them directly and operate within
 their constraints. Changes here take effect immediately because the repo
-root IS `~/.smartclaw/`.
+root IS `~/.openclaw/`.
 
 ### Layer 2: Deterministic Feedback Loops (agent-orchestrator)
 

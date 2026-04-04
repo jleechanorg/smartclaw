@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install and start a launchd-managed Symphony daemon for smartclaw."""
+"""Install and start a launchd-managed Symphony daemon for jleechanclaw."""
 
 from __future__ import annotations
 
@@ -107,7 +107,7 @@ def main() -> None:
     runtime_root = Path(
         os.environ.get(
             "SYMPHONY_DAEMON_RUNTIME",
-            str(Path.home() / "Library" / "Application Support" / "smartclaw" / "symphony_daemon"),
+            str(Path.home() / "Library" / "Application Support" / "jleechanclaw" / "symphony_daemon"),
         )
     ).expanduser().resolve()
 

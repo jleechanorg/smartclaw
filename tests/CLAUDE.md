@@ -5,7 +5,7 @@ This directory contains unit and integration tests that use mocks, stubs, and mo
 ## How to Run
 
 ```bash
-cd ${HOME}/project_smartclaw/mctrl
+cd /Users/jleechan/project_jleechanclaw/mctrl
 python -m pytest tests/ -v --tb=short
 ```
 
@@ -38,7 +38,7 @@ Those are proved in `testing_llm/`.
 
 ## OpenClaw Config: This Repo IS the Live Config
 
-**This repo is checked out at `~/.smartclaw/` — edits here are live immediately.**
+**This repo is checked out at `~/.openclaw/` — edits here are live immediately.**
 
 | File | Purpose |
 |---|---|
@@ -48,6 +48,6 @@ Those are proved in `testing_llm/`.
 
 **After editing, restart the gateway to pick up config changes:**
 ```bash
-launchctl stop gui/$UID/ai.smartclaw.gateway
-launchctl start gui/$UID/ai.smartclaw.gateway
+launchctl stop gui/$UID/ai.openclaw.gateway
+launchctl start gui/$UID/ai.openclaw.gateway
 ```

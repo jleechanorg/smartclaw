@@ -3,21 +3,19 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>ai.smartclaw.health-check</string>
+  <string>ai.openclaw.health-check</string>
 
   <key>ProgramArguments</key>
   <array>
-    <string>/bin/bash</string>
-    <string>-lc</string>
-    <string>@HOME@/.smartclaw/health-check.sh</string>
+    <string>/Users/jleechan/.openclaw/health-check.sh</string>
   </array>
 
   <key>EnvironmentVariables</key>
   <dict>
     <key>HOME</key>
-    <string>@HOME@</string>
+    <string>/Users/jleechan</string>
     <key>PATH</key>
-    <string>@HOME@/.nvm/versions/node/current/bin:@HOME@/.nvm/versions/node/v22.22.0/bin:@HOME@/Library/pnpm:@HOME@/.bun/bin:@HOME@/.local/bin:@HOME@/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <string>/Users/jleechan/.nvm/versions/node/current/bin:/Users/jleechan/.nvm/versions/node/v22.22.0/bin:/Users/jleechan/Library/pnpm:/Users/jleechan/.bun/bin:/Users/jleechan/.local/bin:/Users/jleechan/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>OPENCLAW_HEALTH_CURL_TIMEOUT</key>
     <string>8</string>
     <key>OPENCLAW_POST_ACTION_WAIT_SECONDS</key>
@@ -33,8 +31,8 @@
   <true/>
 
   <key>StandardOutPath</key>
-  <string>@HOME@/.smartclaw/logs/health-check.log</string>
+  <string>/Users/jleechan/.openclaw/logs/health-check.log</string>
   <key>StandardErrorPath</key>
-  <string>@HOME@/.smartclaw/logs/health-check.log</string>
+  <string>/Users/jleechan/.openclaw/logs/health-check.log</string>
 </dict>
 </plist>

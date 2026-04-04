@@ -3,7 +3,7 @@
 <plist version="1.0">
   <dict>
     <key>Label</key>
-    <string>com.smartclaw.backup</string>
+    <string>com.openclaw.backup</string>
 
     <key>ProgramArguments</key>
     <array>

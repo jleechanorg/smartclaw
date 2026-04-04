@@ -1,6 +1,6 @@
 {
   "pr": 300,
-  "repo": "jleechanorg/smartclaw",
+  "repo": "jleechanorg/jleechanclaw",
   "branch": "mvp/retire-ao-duplicates",
   "title": "chore: deprecate 12 orchestration modules duplicated by agent-orchestrator",
   "verdict": "PASS",
@@ -13,7 +13,7 @@
       "passed": 27,
       "failed": 0,
       "mocks_used": false,
-      "description": "Real integration tests exercising actual smartclaw + AO code with real file I/O, real GitHub API calls, real ao CLI subprocess calls"
+      "description": "Real integration tests exercising actual jleechanclaw + AO code with real file I/O, real GitHub API calls, real ao CLI subprocess calls"
     },
     "unit_integration_tests": {
       "file": "test_ao_integration.py + test_session_reaper.py",
