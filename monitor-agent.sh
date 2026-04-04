@@ -7,11 +7,17 @@ LOG_FILE="$HOME/.smartclaw/logs/monitor-agent.log"
 LOG_DIR="$(dirname "$LOG_FILE")"
 LOCK_DIR="$HOME/.smartclaw/locks/monitor-agent.lock"
 LOCK_PID_FILE="$LOCK_DIR/pid"
+
+# Centralized gateway plist path (can be overridden via env)
+GATEWAY_PLIST="${OPENCLAW_MONITOR_GATEWAY_PLIST_PATH:-$HOME/Library/LaunchAgents/com.openclaw.gateway.plist}"
 LOCK_STALE_SECONDS="${OPENCLAW_MONITOR_LOCK_STALE_SECONDS:-7200}"
 
 export PATH="$HOME/.nvm/versions/node/current/bin:$HOME/Library/pnpm:$HOME/.bun/bin:$HOME/.local/bin:$HOME/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 OPENCLAW_BIN="$(command -v openclaw || true)"
+
+# Apply gateway plist env vars early so all probes (not just doctor) use them.
+apply_openclaw_env_from_gateway_launchd
 ALERT_SLACK_TARGET="${OPENCLAW_MONITOR_SLACK_TARGET:-C0AP8LRKM9N}"
 # On failures, send the full monitor report to the doctor/failures channel.
 FAILURE_SLACK_TARGET="${OPENCLAW_MONITOR_FAILURE_SLACK_TARGET:-${SLACK_CHANNEL_ID}}"
@@ -132,7 +138,7 @@ resolve_doctor_sh_path() {
 # then false-fails Slack/memory probes while /health stays OK. Mirror gateway plist into the
 # environment for doctor only (respect env if already set; no-op on non-macOS or missing plist).
 apply_openclaw_env_from_gateway_launchd() {
-  local plist="${OPENCLAW_MONITOR_GATEWAY_PLIST_PATH:-$HOME/Library/LaunchAgents/com.openclaw.gateway.plist}"
+  local plist="$GATEWAY_PLIST"
   [ -f "$plist" ] || return 0
   [ -x /usr/libexec/PlistBuddy ] || return 0
   local val
@@ -149,7 +155,6 @@ apply_openclaw_env_from_gateway_launchd() {
 run_monitor_doctor_sh() {
   (
     export OPENCLAW_DOCTOR_SKIP_INFERENCE=1
-    apply_openclaw_env_from_gateway_launchd
     bash "$DOCTOR_SH_PATH"
   ) 2>&1
 }
@@ -380,7 +385,7 @@ TOKEN_PROBE_RC=0
 TOKEN_PROBE_SUMMARY="token probes not run"
 
 run_token_probes() {
-  local cfg="$HOME/.smartclaw/openclaw.json"
+  local cfg="${OPENCLAW_CONFIG_PATH:-$HOME/.smartclaw/openclaw.json}"
   local timeout=10
   local inference_timeout=20  # minimax probe does inference, needs longer than auth-only probes
 
@@ -906,9 +911,9 @@ PHASE1_REMEDIATION_ACTIONS=()
 if [ "$PHASE1_REMEDIATION_ENABLED" = "1" ]; then
   if [ "$HTTP_GATEWAY_RC" -ne 0 ]; then
     # SAFE: use launchctl directly — never 'gateway restart/install' which may regenerate plist and wipe real secrets
-    launchctl unload "$HOME/Library/LaunchAgents/com.openclaw.gateway.plist" >> "$LOG_FILE" 2>&1 || true
+    launchctl unload "$GATEWAY_PLIST" >> "$LOG_FILE" 2>&1 || true
     sleep 1
-    if launchctl load "$HOME/Library/LaunchAgents/com.openclaw.gateway.plist" >> "$LOG_FILE" 2>&1; then
+    if launchctl load "$GATEWAY_PLIST" >> "$LOG_FILE" 2>&1; then
       PHASE1_REMEDIATION_ACTIONS+=("gateway_restart_ok")
     else
       PHASE1_REMEDIATION_ACTIONS+=("gateway_restart_failed")

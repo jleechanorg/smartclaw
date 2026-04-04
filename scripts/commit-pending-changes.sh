@@ -205,6 +205,7 @@ slack_post() {
     -d "$payload" | jq -e '.ok == true' > /dev/null 2>&1
 }
 
+# TODO: wire slack_upload into the commit or PR flow when Slack snippet posting is needed.
 slack_upload() {
   # Upload a text file as a Slack snippet
   local content="$1" title="${2:-commit-pending output}"
@@ -271,8 +272,12 @@ Do NOT make arbitrary changes beyond the specific failing function."
       --project smartclaw \
       --task "$ao_task" \
       --model minimax/MiniMax-M2.7 \
-      2>&1)" && log "AO FALLBACK: agent spawned successfully" \
-      || log "AO FALLBACK: spawn returned non-zero — check AO session for outcome"
+      2>&1)"
+    if [ $? -eq 0 ]; then
+      log "AO FALLBACK: agent spawned successfully"
+    else
+      log "AO FALLBACK: spawn returned non-zero — check AO session for outcome"
+    fi
     log "AO FALLBACK: see AO dashboard for agent status"
   else
     log "AO FALLBACK: ao binary not available — logging error for manual review"
@@ -283,11 +288,6 @@ Do NOT make arbitrary changes beyond the specific failing function."
 }
 
 # ── Git helpers ───────────────────────────────────────────────────────────────
-
-has_changes() {
-  cd "$REPO" || return 1
-  [[ -n "$(git status --porcelain)" ]]
-}
 
 tracked_changes() {
   cd "$REPO" || return 1
@@ -394,7 +394,7 @@ do_commit_and_pr() {
   fi
 
   log "Committing: $commit_msg"
-  log "Files: $file_count changed"
+  log "Files: $changed_count"
   local commit_output
   commit_output="$(git commit -m "$commit_msg" 2>&1)" || {
     log "ERROR: git commit failed: $(echo "$commit_output" | tail -3)"
