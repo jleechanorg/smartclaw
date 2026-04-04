@@ -69,7 +69,7 @@ while true; do
   elif [[ "$first" == "cd" ]]; then
     # Shift off "cd" + the path token (if any) + the connector token (if any).
     # What remains is the command after the first cd chain.
-    local idx=1
+    idx=1
     # Skip path token(s) until we hit a connector or run out of tokens.
     while [[ $idx -lt ${#tokens[@]} ]] && [[ "${tokens[$idx]}" != "&&" && "${tokens[$idx]}" != ";" ]]; do
       ((idx++))
