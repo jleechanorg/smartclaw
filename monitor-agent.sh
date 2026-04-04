@@ -16,8 +16,7 @@ export PATH="$HOME/.nvm/versions/node/current/bin:$HOME/Library/pnpm:$HOME/.bun/
 
 OPENCLAW_BIN="$(command -v openclaw || true)"
 
-# Apply gateway plist env vars early so all probes (not just doctor) use them.
-apply_openclaw_env_from_gateway_launchd
+# Gateway plist env vars are applied after mkdir (see below) so all probes use them.
 ALERT_SLACK_TARGET="${OPENCLAW_MONITOR_SLACK_TARGET:-C0AP8LRKM9N}"
 # On failures, send the full monitor report to the doctor/failures channel.
 FAILURE_SLACK_TARGET="${OPENCLAW_MONITOR_FAILURE_SLACK_TARGET:-${SLACK_CHANNEL_ID}}"
@@ -133,10 +132,10 @@ resolve_doctor_sh_path() {
   return 1
 }
 
-# When the gateway LaunchAgent uses OPENCLAW_STATE_DIR / OPENCLAW_CONFIG_PATH (e.g. prod
-# profile), the default openclaw CLI still reads ~/.smartclaw unless these are set — doctor.sh
-# then false-fails Slack/memory probes while /health stays OK. Mirror gateway plist into the
-# environment for doctor only (respect env if already set; no-op on non-macOS or missing plist).
+# When the gateway LaunchAgent uses OPENCLAW_STATE_DIR / OPENCLAW_CONFIG_PATH, the openclaw
+# CLI may still read ~/.smartclaw unless these are set — probes then false-fail. Mirror gateway
+# plist env vars into the environment (respect env if already set; no-op on non-macOS or
+# missing plist).
 apply_openclaw_env_from_gateway_launchd() {
   local plist="$GATEWAY_PLIST"
   [ -f "$plist" ] || return 0
@@ -165,6 +164,8 @@ if [ -z "$OPENCLAW_BIN" ]; then
 fi
 
 mkdir -p "$(dirname "$LOCK_DIR")" 2>/dev/null || true
+# Mirror gateway plist env vars so all probes (not just doctor) use the correct config paths.
+apply_openclaw_env_from_gateway_launchd
 
 lock_mtime_epoch() {
   if stat -f %m "$LOCK_DIR" >/dev/null 2>&1; then
