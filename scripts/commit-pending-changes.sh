@@ -522,8 +522,11 @@ fi
 
 # Execute commit + PR
 # Return codes: 0=success with tracked work, 1=failure, 2=no-work (skip/idempotent)
+# Temporarily disable errexit so we can capture the exit code instead of exiting immediately.
+set +e
 do_commit_and_pr
 result=$?
+set -e
 
 if [[ "$result" == "1" ]]; then
   log "ERROR: do_commit_and_pr failed — running AO fallback"

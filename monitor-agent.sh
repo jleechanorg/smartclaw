@@ -132,7 +132,7 @@ resolve_doctor_sh_path() {
 # then false-fails Slack/memory probes while /health stays OK. Mirror gateway plist into the
 # environment for doctor only (respect env if already set; no-op on non-macOS or missing plist).
 apply_openclaw_env_from_gateway_launchd() {
-  local plist="${OPENCLAW_MONITOR_GATEWAY_PLIST_PATH:-$HOME/Library/LaunchAgents/ai.smartclaw.gateway.plist}"
+  local plist="${OPENCLAW_MONITOR_GATEWAY_PLIST_PATH:-$HOME/Library/LaunchAgents/com.openclaw.gateway.plist}"
   [ -f "$plist" ] || return 0
   [ -x /usr/libexec/PlistBuddy ] || return 0
   local val
@@ -906,9 +906,9 @@ PHASE1_REMEDIATION_ACTIONS=()
 if [ "$PHASE1_REMEDIATION_ENABLED" = "1" ]; then
   if [ "$HTTP_GATEWAY_RC" -ne 0 ]; then
     # SAFE: use launchctl directly — never 'gateway restart/install' which may regenerate plist and wipe real secrets
-    launchctl unload "$HOME/Library/LaunchAgents/ai.smartclaw.gateway.plist" >> "$LOG_FILE" 2>&1 || true
+    launchctl unload "$HOME/Library/LaunchAgents/com.openclaw.gateway.plist" >> "$LOG_FILE" 2>&1 || true
     sleep 1
-    if launchctl load "$HOME/Library/LaunchAgents/ai.smartclaw.gateway.plist" >> "$LOG_FILE" 2>&1; then
+    if launchctl load "$HOME/Library/LaunchAgents/com.openclaw.gateway.plist" >> "$LOG_FILE" 2>&1; then
       PHASE1_REMEDIATION_ACTIONS+=("gateway_restart_ok")
     else
       PHASE1_REMEDIATION_ACTIONS+=("gateway_restart_failed")

@@ -84,6 +84,17 @@ if [[ "$PROD_ONLY" -eq 0 ]]; then
   echo "Staging gateway healthy: $STAGING_HEALTH"
 
   echo ""
+  echo "Syncing REPO_DIR → STAGING_DIR (REPO_DIR is authoritative)..."
+  rsync -a --delete \
+    --exclude='logs/' \
+    --exclude='sessions/' \
+    --exclude='agents/' \
+    --exclude='extensions/' \
+    --exclude='.git' \
+    "$REPO_DIR/" "$STAGING_DIR/" || die "rsync REPO_DIR → STAGING_DIR failed"
+  echo "Staging dir synced from REPO_DIR"
+
+  echo ""
   echo "Running staging canary..."
   bash "$SCRIPT_DIR/staging-canary.sh" --port "$STAGING_PORT" || die "Staging canary FAILED"
 
@@ -122,15 +133,16 @@ fi
 
 section "Stage 3: Sync Config to Production"
 
-echo "Syncing validated config from staging → prod..."
+echo "Syncing validated config from REPO_DIR → prod..."
+# REPO_DIR is authoritative — staging canary already validated it.
+# Using REPO_DIR (not STAGING_DIR) ensures deployed tree matches what was pushed.
 
-# Copy the main config (the one the staging gateway just validated)
-cp "$STAGING_DIR/openclaw.json" "$PROD_DIR/openclaw.json"
+cp "$REPO_DIR/openclaw.json" "$PROD_DIR/openclaw.json"
 echo "  openclaw.json synced"
 
 # Ensure symlinks are current for shared resources
 for target in SOUL.md TOOLS.md HEARTBEAT.md extensions agents credentials lcm.db; do
-  src="$STAGING_DIR/$target"
+  src="$REPO_DIR/$target"
   dst="$PROD_DIR/$target"
   if [[ -e "$src" ]] && [[ ! -L "$dst" ]]; then
     ln -sf "$src" "$dst"

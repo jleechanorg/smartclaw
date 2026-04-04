@@ -560,7 +560,7 @@ if [[ "$OS" == "macos" ]]; then
   mkdir -p "$HOME/.smartclaw/logs" "$PROD_DIR/logs"
   # Verify the new plist installs successfully BEFORE tearing down the old gateway.
   # install_plist now propagates failure — if it fails we leave the old gateway running.
-  if install_plist "$REPO_DIR/launchd/com.smartclaw.gateway.plist"; then
+  if install_plist "$REPO_DIR/launchd/com.openclaw.gateway.plist"; then
     # Migration succeeded — now safely tear down the legacy gateway.
     launchctl bootout "gui/$(id -u)/ai.smartclaw.gateway" 2>/dev/null || true
     # Remove the old plist so launchd doesn't re-load it on reboot.

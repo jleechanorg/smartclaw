@@ -461,7 +461,7 @@ projects:
       Add tests and a runnable local dev setup.
 
       '
-  smartclaw:
+  smartclaw-prototype:
     name: smartclaw prototype
     repo: jleechanorg/smartclaw
     path: ~/repos/smartclaw
