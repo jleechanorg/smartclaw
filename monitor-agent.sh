@@ -917,7 +917,7 @@ if [ "$PHASE1_REMEDIATION_ENABLED" = "1" ]; then
   fi
 
   if [ "$PROBE_REQUEST_RC" -ne 0 ] || [ "$GATEWAY_PROBE_RC" -ne 0 ]; then
-    if launchctl kickstart -k "gui/$(id -u)/ai.smartclaw.gateway" >> "$LOG_FILE" 2>&1; then
+    if launchctl kickstart -k "gui/$(id -u)/com.smartclaw.gateway" >> "$LOG_FILE" 2>&1; then
       PHASE1_REMEDIATION_ACTIONS+=("launchctl_kickstart_gateway_ok")
     else
       PHASE1_REMEDIATION_ACTIONS+=("launchctl_kickstart_gateway_failed")

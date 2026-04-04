@@ -172,7 +172,7 @@ MCP_MAIL_BOT_TOKEN="$(resolve_mcp_mail_token)"
 
 slack_post() {
   local text="$1"
-  local token as_user
+  local token
 
   if [[ "$SLACK_AS_USER" == "0" ]]; then
     token="${SLACK_USER_TOKEN:-}"
@@ -236,9 +236,10 @@ run_ao_fallback() {
   log "AO FALLBACK: spawning AO agent to diagnose failure"
 
   # Build a concise context summary
-  local git_status git_diff untracked
+  local git_status git_diff
   git_status="$(cd "$REPO" && git status --short 2>/dev/null || echo "git unavailable")"
-  untracked="$(echo "$git_status" | grep '^??' | wc -l | tr -d ' ' || echo '?')"
+  local untracked
+  untracked="$(echo "$git_status" | grep '^??' | wc -l | tr -d ' ' || echo '0')"
   git_diff="$(cd "$REPO" && git diff --stat HEAD 2>/dev/null | tail -1 || echo 'none')"
 
   local ao_task="Diagnose and fix the commit-pending-changes.sh failure in smartclaw.
@@ -247,6 +248,8 @@ Error summary: $error_summary
 
 Git status (first 20 lines):
 $(echo "$git_status" | head -20)
+
+Untracked file count: $untracked
 
 Git diff stat: $git_diff
 
@@ -317,17 +320,17 @@ do_commit_and_pr() {
 
   # Check for tracked changes
   changed_files="$(tracked_changes | sort -u | grep -v '^$')" || true
-  untracked_count="$(echo "$(untracked_files | wc -l | tr -d ' ')" 2>/dev/null || echo '0')"
+  untracked_count="$(untracked_files | wc -l | tr -d ' ' 2>/dev/null || echo '0')"
 
   if [[ -z "$changed_files" && "$untracked_count" == "0" ]]; then
     log "No changes detected — nothing to commit"
-    return 0   # not an error — exit 0 without updating last_run_ts
+    return 2   # no-work: caller preserves last_run_ts and backoff state
   fi
 
   if [[ -z "$changed_files" && "$untracked_count" != "0" ]]; then
     log "Only untracked files present — warning but not committing"
     warn_untracked "$untracked_count"
-    return 0   # not an error — exit 0 without updating last_run_ts
+    return 2   # no-work: caller preserves last_run_ts and backoff state
   fi
 
   # ── Switch to feature branch FIRST, then stage ─────────────────────────────

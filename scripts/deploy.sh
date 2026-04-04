@@ -144,8 +144,10 @@ echo "  openclaw.json synced"
 for target in SOUL.md TOOLS.md HEARTBEAT.md extensions agents credentials lcm.db; do
   src="$REPO_DIR/$target"
   dst="$PROD_DIR/$target"
-  if [[ -e "$src" ]] && [[ ! -L "$dst" ]]; then
-    ln -sf "$src" "$dst"
+  if [[ -e "$src" ]]; then
+    # Remove any existing symlink or stale real directory before recreating symlink
+    [[ -L "$dst" || -e "$dst" ]] && rm -rf "$dst"
+    ln -s "$src" "$dst"
     echo "  symlinked $target"
   fi
 done
