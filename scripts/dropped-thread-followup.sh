@@ -150,6 +150,23 @@ now_sec     = __import__('time').time()
 agent_texts = [m.get("text", "") for m in messages if m.get("user") == AGENT_ID]
 agent_text  = " ".join(agent_texts).lower()
 
+# Basic temporal ordering (Slack ts are numeric strings)
+def ts_float(m):
+    try:
+        return float(m.get("ts", 0) or 0)
+    except Exception:
+        return 0.0
+
+agent_msgs_list = [m for m in messages if m.get("user") == AGENT_ID]
+user_msgs_list = [m for m in messages if m.get("user") and m.get("user") != AGENT_ID]
+last_agent = max(agent_msgs_list, key=ts_float) if agent_msgs_list else None
+last_user = max(user_msgs_list, key=ts_float) if user_msgs_list else None
+last_agent_ts = ts_float(last_agent) if last_agent else 0.0
+last_user_ts = ts_float(last_user) if last_user else 0.0
+last_user_text = (last_user.get("text", "").lower() if last_user else "")
+user_after_agent = bool(last_user_ts and (last_user_ts > last_agent_ts))
+minutes_since_last_user = ((now_sec - last_user_ts) / 60.0) if last_user_ts else 999.0
+
 # Admission phrases — agent explicitly said it didn't act
 ADMISSION_PHRASES = [
     "did not execute", "not execute", "only sent an acknowledgment",
@@ -186,8 +203,24 @@ if user_msgs == 0:
     print(json.dumps({"admitted": False, "action_needed": False, "reason": "no user asks", "kind": "none"}))
     sys.exit(0)
 
+# User followed up after the last agent reply and has waited long enough.
+# This catches "new ask in old thread" cases that were previously missed.
+ACTION_VERBS = [
+    "fix", "update", "check", "verify", "merge", "drive", "make sure", "follow up",
+    "please", "retry", "status", "why", "can you", "do ", "run ", "ship", "review",
+]
+looks_actionable = any(v in last_user_text for v in ACTION_VERBS) or ("<@" in last_user_text)
+if user_after_agent and minutes_since_last_user >= 5 and looks_actionable:
+    print(json.dumps({
+        "admitted": admitted,
+        "action_needed": True,
+        "reason": f"user follow-up pending ({minutes_since_last_user:.0f}m) after last agent reply",
+        "kind": "followup-pending",
+    }))
+    sys.exit(0)
+
 # Agent replied recently AND completed work → not a drop
-if hours_old < 0.5 and has_result:
+if hours_old < 0.5 and has_result and not user_after_agent:
     print(json.dumps({"admitted": False, "action_needed": False, "reason": "recent agent reply with result", "kind": "none"}))
     sys.exit(0)
 

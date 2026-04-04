@@ -21,7 +21,8 @@ LOG_DIR="${AOPR_LOG_DIR:-${HOME}/.smartclaw/logs}"
 STATE_FILE="${AOPR_STATE_FILE:-$HOME/.smartclaw/logs/ao-progress-state.json}"
 REPORT_INTERVAL_SECS="${AOPR_INTERVAL_SECS:-1800}"   # 30 min
 SLACK_CHANNEL="${AOPR_SLACK_CHANNEL:-C0ALSKLU9KM}"   # #agent-orchestrator
-SLACK_THREAD_TS="${AOPR_SLACK_THREAD_TS:-1774878189.108959}"  # original thread
+# Root thread for progress replies (#agent-orchestrator) — update when starting a new AO thread
+SLACK_THREAD_TS="${AOPR_SLACK_THREAD_TS:-1775197044.035089}"
 AO_DIR="${AO_DIR:-$HOME/project_agento/agent-orchestrator}"
 AO_BIN="${AO_BIN:-ao}"
 
@@ -74,8 +75,12 @@ with urllib.request.urlopen(req) as resp:
 # ── GH token ─────────────────────────────────────────────────────────────────
 resolve_token() {
   local tok=""
-  # Try openclaw config first
-  tok="$(cat "$HOME/.smartclaw/openclaw.json" 2>/dev/null | jq -r 'try .skills.entries["gh-issues"].apiKey catch empty' 2>/dev/null)" || tok=""
+  # Try openclaw config(s) for embedded gh token (prod may use ~/.smartclaw_prod)
+  for cfg in "$HOME/.smartclaw/openclaw.json" "$HOME/.smartclaw_prod/openclaw.prod.json"; do
+    [[ -f "$cfg" ]] || continue
+    tok="$(jq -r 'try .skills.entries["gh-issues"].apiKey catch empty' "$cfg" 2>/dev/null)" || tok=""
+    [[ -n "$tok" && "$tok" != "null" ]] && break
+  done
   # Skip if null or empty
   if [[ -z "$tok" || "$tok" == "null" ]]; then
     tok="${GH_TOKEN:-}"
@@ -229,13 +234,11 @@ get_session_info() {
         --argjson now "$(date +%s)" \
         'setpath([$name]; {last_sha: $sha, last_report: $now})')" || true
     elif [[ -n "$current_sha" ]]; then
-      # No new commits since last report, keep old sha in state
-      if [[ -n "$last_sha" ]]; then
-        current_state="$(echo "$current_state" | jq \
-          --arg name "$session_name" \
-          --argjson now "$(date +%s)" \
-          "setpath([\$name]; {last_sha: \$name as \$n | (.\$n // {}), last_report: \$now})" 2>/dev/null)" || true
-      fi
+      # Same HEAD as last report — refresh last_report only, preserve last_sha
+      current_state="$(echo "$current_state" | jq \
+        --arg name "$session_name" \
+        --argjson now "$(date +%s)" \
+        '.[$name] |= (. // {}) + {last_report: $now}' 2>/dev/null)" || true
     fi
 
     # Classify session health

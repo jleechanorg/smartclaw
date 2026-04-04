@@ -527,13 +527,37 @@ else
     WEBHOOK_INSTALLED=0
 fi
 
-# --- gateway ---
-# Token is hardcoded in ~/.smartclaw/openclaw.json — the gateway reads it directly.
+# --- production directory setup ---
+# ~/.smartclaw/ = staging (repo checkout), ~/.smartclaw_prod/ = production (separate dir)
+PROD_DIR="$HOME/.smartclaw_prod"
+if [[ ! -d "$PROD_DIR" ]]; then
+  echo "  Creating production directory: $PROD_DIR"
+  mkdir -p "$PROD_DIR/logs"
+  # Seed prod config from staging if it doesn't exist
+  if [[ -f "$HOME/.smartclaw/openclaw.json" ]] && [[ ! -f "$PROD_DIR/openclaw.json" ]]; then
+    cp "$HOME/.smartclaw/openclaw.json" "$PROD_DIR/openclaw.json"
+    echo "  Seeded $PROD_DIR/openclaw.json from staging"
+  fi
+  # Symlink shared resources
+  for target in SOUL.md TOOLS.md HEARTBEAT.md extensions agents credentials lcm.db; do
+    src="$HOME/.smartclaw/$target"
+    dst="$PROD_DIR/$target"
+    if [[ -e "$src" ]] && [[ ! -e "$dst" ]]; then
+      ln -sf "$src" "$dst"
+    fi
+  done
+  echo "  ✓ Production directory initialized"
+else
+  mkdir -p "$PROD_DIR/logs"
+fi
+
+# --- gateway (production) ---
+# Production gateway reads from ~/.smartclaw_prod/openclaw.json.
 # Do NOT inject tokens into plists; openclaw.json is the single source of truth.
 if [[ "$OS" == "macos" ]]; then
-  # com.smartclaw.gateway: KeepAlive plist, logs to ~/.smartclaw/logs/gateway.log
+  # com.smartclaw.gateway: KeepAlive plist, logs to ~/.smartclaw_prod/logs/gateway.log
   # OPENCLAW_BIN is already validated at lines 389-394 (exit 1 if missing) — no redundant check needed.
-  mkdir -p "$HOME/.smartclaw/logs"
+  mkdir -p "$HOME/.smartclaw/logs" "$PROD_DIR/logs"
   # Verify the new plist installs successfully BEFORE tearing down the old gateway.
   # install_plist now propagates failure — if it fails we leave the old gateway running.
   if install_plist "$REPO_DIR/launchd/com.smartclaw.gateway.plist"; then
@@ -558,6 +582,20 @@ Environment=MISSION_CONTROL_BOARD_ID=aa68f729-d5e0-4d44-8c99-51bcebc0b8bc"
   install_systemd_service "openclaw-gateway" \
     "$(command -v openclaw) gateway run --port 18789 --bind loopback" \
     "simple" "$GATEWAY_ENV" "gateway"
+fi
+
+# --- staging gateway ---
+# ~/.smartclaw/ IS the staging environment. Staging gateway runs on port 18810
+# using openclaw.json from ~/.smartclaw/. Production uses ~/.smartclaw_prod/.
+if [[ "$OS" == "macos" ]]; then
+  # Remove the auto-generated plist from staging-gateway.sh (now managed by installer)
+  if [[ -f "$HOME/.smartclaw/ai.smartclaw.staging.plist" ]]; then
+    launchctl bootout "gui/$(id -u)/ai.smartclaw.staging" 2>/dev/null || true
+    rm -f "$LAUNCHD_DIR/ai.smartclaw.staging.plist"
+  fi
+  install_plist "$REPO_DIR/launchd/ai.smartclaw.staging.plist"
+else
+  echo "  • skipping staging gateway on Linux (not yet implemented)"
 fi
 
 # --- startup check ---

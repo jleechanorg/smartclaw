@@ -152,6 +152,7 @@ declare -a JOB_SCRIPTS=(
   "$REPO_ROOT/scripts/harness-analyzer.sh"
   "$REPO_ROOT/scripts/gmail-daily-recap.sh"
   "$REPO_ROOT/scripts/composio-upstream-reminder.sh"
+  "$REPO_ROOT/scripts/commit-pending-changes.sh"
 )
 for script in "${JOB_SCRIPTS[@]}"; do
   if [[ ! -f "$script" ]]; then

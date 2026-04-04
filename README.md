@@ -484,7 +484,7 @@ Changes to `~/.smartclaw/` (live gateway config) go through a 3-stage safety pip
 
 1. **Staging branch** — PRs target `staging` (not `main`); `~/.smartclaw-staging/` is a git worktree
 2. **Canary** — `scripts/staging-canary.sh --port 18790` runs 6 health checks against staging gateway
-3. **CI gate** — `.github/workflows/staging-canary-gate.yml` runs on every PR (checks 2/6 portable; 4 require local gateway)
+3. **CI gate** — `.github/workflows/staging-canary-gate.yml` runs on every PR (checks 2/6 portable). **Stage 3b** — `.github/workflows/staging-canary-full.yml` runs the full 6/6 canary on a **self-hosted runner** (optional; see `.github/SELFHOSTED_TEST.md`)
 
 **Quick start for config changes:**
 
@@ -509,7 +509,7 @@ bash scripts/staging-promote.sh
 |------|-------|
 | Config schema validation | CI + local |
 | SDK protocol version | CI + local |
-| Gateway health, Slack connectivity, native module ABI, heartbeat | Local only (`scripts/staging-canary.sh --port 18790`) |
+| Gateway health, Slack connectivity, native module ABI, heartbeat | Self-hosted CI (`staging-canary-full.yml`) or manual (`staging-canary.sh --port 18810` / `18790`) |
 
 **Full reference**: [`docs/STAGING_PIPELINE.md`](docs/STAGING_PIPELINE.md) (HTML: [`docs/STAGING_PIPELINE.html`](docs/STAGING_PIPELINE.html))
 

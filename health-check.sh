@@ -95,7 +95,7 @@ install_gateway() {
   log "plist missing or bootstrap failed; regenerating via install-launchagents.sh..."
   local LAUNCHD_SCRIPT="$HOME/.smartclaw/scripts/install-launchagents.sh"
   if [ -f "$LAUNCHD_SCRIPT" ] && [ -x "$LAUNCHD_SCRIPT" ]; then
-    if command_ok bash "$LAUNCHD_SCRIPT" >> "$LOG_FILE" 2>&1; then
+    if command_ok bash "$LAUNCHD_SCRIPT" 2>&1 | tee -a "$LOG_FILE"; then
       # Re-check plist after regeneration
       if [ -f "$plist" ] && command_ok launchctl bootstrap "gui/$(id -u)" "$plist"; then
         log "plist regenerated and gateway service loaded successfully."

@@ -53,6 +53,24 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Resolve PR head SHA
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -o pipefail
+          if ! SHA=$(gh api "repos/${{ github.repository }}/pulls/${PR_NUM}" --jq '.head.sha' 2>&1); then
+            echo "error=gh_api_failed" >> "$GITHUB_OUTPUT"
+            echo "skeptic-gate: gh api failed: $SHA" >&2
+            exit 1
+          fi
+          if [ -z "$SHA" ]; then
+            echo "error=empty_sha" >> "$GITHUB_OUTPUT"
+            echo "skeptic-gate: gh api returned empty SHA for PR $PR_NUM" >&2
+            exit 1
+          fi
+          echo "PR_HEAD_SHA=$SHA" >> "$GITHUB_ENV"
+          echo "sha_resolved=true" >> "$GITHUB_OUTPUT"
+
       - name: Write skeptic script
         run: |
           cat > run-skeptic.mjs << 'ENDSCRIPT'
@@ -183,8 +201,8 @@ jobs:
                 },
                 body: JSON.stringify({
                   model: anthropicBase.includes('minimax') ? 'MiniMax-M2.7' : 'claude-sonnet-4-6',
-                  max_tokens: 4000,
-                  thinking: anthropicBase.includes('minimax') ? undefined : undefined,
+                  max_tokens: 8000,
+                  thinking: anthropicBase.includes('minimax') ? null : undefined,
                   system: skepticPrompt,
                   messages: [{ role: 'user', content: '=== FULL PR DIFF FOLLOWS ===\n\n' + diff + '\n\n=== END PR DIFF ===' }],
                 }),
@@ -229,11 +247,20 @@ jobs:
             output = anthropicOut;
             console.log('SKEPTIC_RAW_OUTPUT_LENGTH=' + output.length);
             console.log('SKEPTIC_RAW_OUTPUT_PREVIEW=' + output.slice(0, 200));
-            // Multiline ^ — verdict on first line. Use \\b so "VERDICT: FAIL - reason" and
-            // "VERDICT: PASS — notes" match; avoid matching FAIL/PASS inside prompt boilerplate.
-            if (/^VERDICT[:\s]+FAIL\b/im.test(output)) {
+            // Do not use /m on the full blob. Models may prefix analysis and wrap VERDICT in
+            // markdown (e.g. **VERDICT: PASS**) — find the first "VERDICT:" on a line and parse from there.
+            function firstVerdictLine(text) {
+              for (const line of text.split(/\r?\n/)) {
+                const t = line.trim();
+                const idx = t.search(/\bVERDICT\s*:/i);
+                if (idx !== -1) return t.slice(idx);
+              }
+              return '';
+            }
+            const verdictLine = firstVerdictLine(output);
+            if (/^VERDICT[:\s]+FAIL\b/i.test(verdictLine)) {
               verdict = 'FAIL';
-            } else if (/^VERDICT[:\s]+PASS\b/im.test(output)) {
+            } else if (/^VERDICT[:\s]+PASS\b/i.test(verdictLine)) {
               verdict = 'PASS';
             } else {
               // Model returned unparseable output (no VERDICT: PASS or FAIL found).
@@ -279,11 +306,24 @@ jobs:
       - name: Skeptic gate summary
         if: always()
         run: |
+          # Read VERDICT from skeptic-output.txt (written by run-skeptic.mjs in same job).
+          # Use the first "VERDICT: PASS" or "VERDICT: FAIL" line found in the output.
+          # GITHUB_OUTPUT is step-scoped so we cannot read run_skeptic step's output vars.
+          VERDICT="UNKNOWN"
+          if [ -f skeptic-output.txt ]; then
+            if grep -qi "^VERDICT:[[:space:]]*FAIL\b" skeptic-output.txt; then
+              VERDICT="FAIL"
+            elif grep -qi "^VERDICT:[[:space:]]*PASS\b" skeptic-output.txt; then
+              VERDICT="PASS"
+            elif grep -qi "^VERDICT:[[:space:]]*SKIPPED\b" skeptic-output.txt; then
+              VERDICT="SKIPPED"
+            fi
+          fi
           {
             echo "## Skeptic Gate"
             echo ""
-            echo "- **PR** #$PR_NUM @ \`$PR_HEAD_SHA\`"
-            echo "- **Verdict (from step)** ${{ steps.run_skeptic.outcome }}"
+            echo "- **PR** #$PR_NUM @ \`${PR_HEAD_SHA:-unknown}\`"
+            echo "- **Verdict:** $VERDICT"
             echo ""
             if [ -f skeptic-output.txt ]; then
               echo "### Output (truncated)"
@@ -297,13 +337,13 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
         env:
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_HEAD_SHA: ${{ env.PR_HEAD_SHA || github.sha }}
 
       - name: Post skeptic findings as PR comment
         if: always()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_HEAD_SHA: ${{ env.PR_HEAD_SHA || github.sha }}
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.event.repository.name }}
         run: >
