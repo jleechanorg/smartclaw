@@ -5,7 +5,6 @@
 set -euo pipefail
 
 # Config
-SOURCE_REPO="jleechanorg/jleechanclaw"
 TEST_REPO="jleechanorg/jleechanclaw-review-test"
 STATE_DIR="$HOME/.openclaw/state"
 SLICE_INDEX_FILE="$STATE_DIR/stress_test_slice_index"
@@ -65,7 +64,7 @@ setup_test_branch() {
     # Copy source files
     local base_dir="$HOME/.openclaw"
     find "$base_dir/$slice_path" -type f \( -name "*.py" -o -name "*.sh" -o -name "*.yaml" \) 2>/dev/null | while read -r file; do
-        local relative="${file#$base_dir/}"
+        local relative="${file#"$base_dir"/}"
         local dest="$tmp_dir/$relative"
         mkdir -p "$(dirname "$dest")"
         cp "$file" "$dest"
@@ -102,6 +101,8 @@ create_test_pr() {
 }
 
 # Wait for AI reviewers (CodeRabbit, etc)
+# TODO(ai-reviewer-stress-test): implement real polling via gh/GraphQL API for bot review
+#       comments, or gate on TEST_MODE=1 to skip. Currently a no-op stub for dry-run.
 wait_for_reviewers() {
     local pr_url="$1"
     local max_wait=${2:-1800}  # 30 minutes default
