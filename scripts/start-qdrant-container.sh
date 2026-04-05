@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Start the openclaw-mem0-qdrant Docker container, waiting for Docker to be ready.
-# Called by ai.smartclaw.qdrant launchd agent on login.
+# Called by ai.openclaw.qdrant launchd agent on login.
 set -euo pipefail
 
 CONTAINER="openclaw-mem0-qdrant"

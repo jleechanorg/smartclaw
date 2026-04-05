@@ -7,4 +7,10 @@ execution_mode: background
 
 ## ⚡ EXECUTION INSTRUCTIONS FOR CLAUDE
 
-Invoke `/agento_report` — load the skill at `.claude/skills/agento_report.md` and execute it.
+When this command is invoked, delegate to /agento_report by running:
+
+```bash
+~/.claude/scripts/agento-report.sh
+```
+
+Then post summary to Slack #ai-slack-test.

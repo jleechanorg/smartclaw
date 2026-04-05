@@ -1,8 +1,8 @@
 #!/bin/bash
-# sync-check.sh - Check and sync OpenClaw config between smartclaw, openclaw_config, and ~/.smartclaw
+# sync-check.sh - Check and sync OpenClaw config between jleechanclaw, openclaw_config, and ~/.openclaw
 #
 # Usage: ./sync-check.sh [--fix]
-#   --fix: Apply fixes to ~/.smartclaw/workspace/ (openclaw_config canonical location)
+#   --fix: Apply fixes to ~/.openclaw/workspace/ (openclaw_config canonical location)
 #
 # Key policy files tracked in openclaw_config:
 #   Root: AGENTS.md, SOUL.md, TOOLS.md, USER.md, IDENTITY.md, HEARTBEAT.md, CLAUDE.md
@@ -10,7 +10,7 @@
 
 set -e
 
-WORKSPACE_DIR="$HOME/.smartclaw/workspace"
+WORKSPACE_DIR="$HOME/.openclaw/workspace"
 CLAUDE_REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Colors
@@ -61,7 +61,7 @@ SYNC_ISSUES=0
 
 for file in $POLICY_FILES; do
     workspace_file="$WORKSPACE_DIR/$file"
-    home_file="$HOME/.smartclaw/$file"
+    home_file="$HOME/.openclaw/$file"
 
     if [[ ! -f "$workspace_file" ]]; then
         echo -e "${RED}MISSING in workspace: $file${NC}"
@@ -71,11 +71,11 @@ for file in $POLICY_FILES; do
 
     # Check if home differs from workspace
     if [[ -f "$home_file" ]] && ! diff -q "$workspace_file" "$home_file" > /dev/null 2>&1; then
-        echo -e "${YELLOW}DIFF: ~/.smartclaw/$file vs workspace/$file${NC}"
+        echo -e "${YELLOW}DIFF: ~/.openclaw/$file vs workspace/$file${NC}"
 
         if [[ "$1" == "--fix" ]]; then
             cp "$workspace_file" "$home_file"
-            echo -e "  ${GREEN}Fixed: copied workspace -> ~/.smartclaw/${NC}"
+            echo -e "  ${GREEN}Fixed: copied workspace -> ~/.openclaw/${NC}"
         else
             echo -e "  Run with --fix to sync"
         fi
@@ -94,7 +94,7 @@ for agent in $AGENTS; do
     echo "--- $agent ---"
 
     workspace_agent_dir="$WORKSPACE_DIR/openclaw-config/agents/$agent/agent"
-    home_agent_dir="$HOME/.smartclaw/agents/$agent/agent"
+    home_agent_dir="$HOME/.openclaw/agents/$agent/agent"
 
     if [[ ! -d "$home_agent_dir" ]]; then
         echo -e "${RED}  Agent dir not found: $home_agent_dir${NC}"
@@ -145,9 +145,9 @@ else
     echo -e "${GREEN}All policy files in sync${NC}"
 fi
 
-# Note about smartclaw
+# Note about jleechanclaw
 if [[ -d "$CLAUDE_REPO_DIR/src" ]]; then
     echo ""
-    echo "Note: smartclaw contains orchestration code only."
+    echo "Note: jleechanclaw contains orchestration code only."
     echo "Policy files are canonical in openclaw_config (workspace)."
 fi

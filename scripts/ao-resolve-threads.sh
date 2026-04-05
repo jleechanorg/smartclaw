@@ -7,8 +7,8 @@
 #   python -m orchestration.auto_resolve_threads <owner> <repo> <pr-number> [--dry-run]
 #
 # Usage:
-#   python -m orchestration.auto_resolve_threads jleechanorg smartclaw 123
-#   python -m orchestration.auto_resolve_threads jleechanorg smartclaw 123 --dry-run
+#   python -m orchestration.auto_resolve_threads jleechanorg jleechanclaw 123
+#   python -m orchestration.auto_resolve_threads jleechanorg jleechanclaw 123 --dry-run
 #
 # Or use the AO orchestrator directly which integrates this functionality.
 

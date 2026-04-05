@@ -5,7 +5,7 @@ Workflow:
 1) Fetch channel history (and thread replies) via Slack Web API.
 2) Redact obvious secrets/PII.
 3) Write staged markdown artifacts.
-4) Optionally promote staged files into ~/.smartclaw/memory/slack-history.
+4) Optionally promote staged files into ~/.openclaw/memory/slack-history.
 
 This script is intended for periodic launchd use and one-off backfills.
 """
@@ -25,10 +25,10 @@ from pathlib import Path
 from typing import Any
 from urllib import error, parse, request
 
-DEFAULT_CONFIG = Path("~/.smartclaw/openclaw.json").expanduser()
+DEFAULT_CONFIG = Path("~/.openclaw/openclaw.json").expanduser()
 DEFAULT_STAGE_ROOT = Path("/tmp/openclaw-slack-memory-staging")
-DEFAULT_PROMOTE_DIR = Path("~/.smartclaw/memory/slack-history").expanduser()
-DEFAULT_STATE_FILE = Path("~/.smartclaw/memory/slack-sync-state.json").expanduser()
+DEFAULT_PROMOTE_DIR = Path("~/.openclaw/memory/slack-history").expanduser()
+DEFAULT_STATE_FILE = Path("~/.openclaw/memory/slack-sync-state.json").expanduser()
 
 TOKEN_PATTERNS = [
     re.compile(r"xox[baprs]-[A-Za-z0-9-]{20,}"),
@@ -267,11 +267,11 @@ def promote_files(stage_files: list[Path], dest_dir: Path) -> list[Path]:
 def resolve_token(explicit: str | None) -> str:
     if explicit:
         return explicit
-    for key in ("SLACK_BOT_TOKEN", "SLACK_BOT_TOKEN", "SLACK_USER_TOKEN"):
+    for key in ("OPENCLAW_SLACK_BOT_TOKEN", "SLACK_BOT_TOKEN", "SLACK_USER_TOKEN"):
         value = os.environ.get(key)
         if value:
             return value
-    raise RuntimeError("Missing Slack token. Set SLACK_BOT_TOKEN, SLACK_BOT_TOKEN, SLACK_USER_TOKEN, or --token")
+    raise RuntimeError("Missing Slack token. Set OPENCLAW_SLACK_BOT_TOKEN, SLACK_BOT_TOKEN, SLACK_USER_TOKEN, or --token")
 
 
 def main() -> int:

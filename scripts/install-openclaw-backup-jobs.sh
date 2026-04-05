@@ -7,8 +7,8 @@ RUNNER="$SCRIPTS/run-openclaw-backup.sh"
 WATCHDOG="$SCRIPTS/backup-watchdog.sh"
 PLIST_TEMPLATE="$SCRIPTS/openclaw-backup.plist.template"
 LAUNCHD_DIR="$HOME/Library/LaunchAgents"
-PLIST_DST="$LAUNCHD_DIR/com.smartclaw.backup.plist"
-CRON_MARKER="# OpenClaw 4h backup for ~/.smartclaw"
+PLIST_DST="$LAUNCHD_DIR/com.openclaw.backup.plist"
+CRON_MARKER="# OpenClaw 4h backup for ~/.openclaw"
 WATCHDOG_MARKER="# OpenClaw backup watchdog (hourly)"
 DROPBOX_MARKER="# OpenClaw Dropbox backup (4h, offset :10)"
 DROPBOX_BACKUP="$SCRIPTS/dropbox-openclaw-backup.sh"
@@ -41,8 +41,8 @@ if ! launchctl bootstrap gui/$(id -u) "$PLIST_DST" 2>"$BOOTSTRAP_ERR_FILE"; then
   launchctl bootstrap gui/$(id -u) "$PLIST_DST"
 fi
 rm -f "$BOOTSTRAP_ERR_FILE"
-launchctl enable gui/$(id -u)/com.smartclaw.backup
-launchctl kickstart -k gui/$(id -u)/com.smartclaw.backup
+launchctl enable gui/$(id -u)/com.openclaw.backup
+launchctl kickstart -k gui/$(id -u)/com.openclaw.backup
 
 echo "Installed launchd job at $PLIST_DST"
 

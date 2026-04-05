@@ -16,22 +16,22 @@
 ## ✅ What's Configured
 
 ### 1. **Primary Auto-Start: LaunchAgent**
-- **File:** `~/Library/LaunchAgents/ai.smartclaw.gateway.plist`
+- **File:** `~/Library/LaunchAgents/ai.openclaw.gateway.plist`
 - **RunAtLoad:** `true` ← Starts automatically on macOS boot
 - **KeepAlive:** `true` ← Automatically restarts if crashes
 - **Current Status:** Loaded and running (PID: XXXXX)
 
 ### 2. **Startup Verification: LaunchAgent**
-- **File:** `~/Library/LaunchAgents/ai.smartclaw.startup-check.plist`
+- **File:** `~/Library/LaunchAgents/ai.openclaw.startup-check.plist`
 - **Purpose:** Sends WhatsApp confirmation after each login/restart
 - **Sends message to:** `OPENCLAW_WHATSAPP_TARGET`
-- **Logs:** `~/.smartclaw/logs/startup-check.log`
+- **Logs:** `~/.openclaw/logs/startup-check.log`
 
 ### 3. **Health Monitoring: OpenClaw Gateway Cron**
 - **Schedule:** Every 5 minutes
-- **Script:** `~/.smartclaw/health-check.sh`
+- **Script:** `~/.openclaw/health-check.sh`
 - **Purpose:** Monitors gateway health and auto-recovery if needed via OpenClaw gateway cron jobs
-- **Logs:** `~/.smartclaw/logs/health-check.log`
+- **Logs:** `~/.openclaw/logs/health-check.log`
 
 ---
 
@@ -43,8 +43,8 @@ launchctl list | grep openclaw
 ```
 **Expected Output:**
 ```text
-[PID]  0  ai.smartclaw.gateway
-[PID]  0  ai.smartclaw.startup-check
+[PID]  0  ai.openclaw.gateway
+[PID]  0  ai.openclaw.startup-check
 ```
 
 ### Test 2: Check Gateway Status
@@ -81,12 +81,12 @@ openclaw logs --follow
 
 ### View Health Check Results
 ```bash
-tail -f ~/.smartclaw/logs/health-check.log
+tail -f ~/.openclaw/logs/health-check.log
 ```
 
 ### View Startup Check Results
 ```bash
-tail -f ~/.smartclaw/logs/startup-check.log
+tail -f ~/.openclaw/logs/startup-check.log
 ```
 
 ### Check Gateway Cron Configuration
@@ -118,13 +118,13 @@ openclaw gateway stop && sleep 2 && openclaw gateway install
 
 ### Force Reload LaunchAgent
 ```bash
-launchctl unload ~/Library/LaunchAgents/ai.smartclaw.gateway.plist
-launchctl load ~/Library/LaunchAgents/ai.smartclaw.gateway.plist
+launchctl unload ~/Library/LaunchAgents/ai.openclaw.gateway.plist
+launchctl load ~/Library/LaunchAgents/ai.openclaw.gateway.plist
 ```
 
 ### Run Health Check Manually
 ```bash
-~/.smartclaw/health-check.sh
+~/.openclaw/health-check.sh
 ```
 
 ---
@@ -140,12 +140,12 @@ launchctl load ~/Library/LaunchAgents/ai.smartclaw.gateway.plist
 
 2. **If not loaded, load manually:**
    ```bash
-   launchctl load ~/Library/LaunchAgents/ai.smartclaw.gateway.plist
+   launchctl load ~/Library/LaunchAgents/ai.openclaw.gateway.plist
    ```
 
 3. **Check for errors:**
    ```bash
-   tail -50 ~/.smartclaw/logs/gateway.err.log
+   tail -50 ~/.openclaw/logs/gateway.err.log
    ```
 
 ### WhatsApp Disconnected
@@ -171,7 +171,7 @@ launchctl load ~/Library/LaunchAgents/ai.smartclaw.gateway.plist
 
 2. **Test health check manually:**
    ```bash
-   ~/.smartclaw/health-check.sh && echo "Exit code: $?"
+   ~/.openclaw/health-check.sh && echo "Exit code: $?"
    ```
 
 3. **Inspect gateway logs for cron execution details:**
@@ -185,15 +185,15 @@ launchctl load ~/Library/LaunchAgents/ai.smartclaw.gateway.plist
 
 | Component | Location |
 |-----------|----------|
-| **Main Gateway LaunchAgent** | `~/Library/LaunchAgents/ai.smartclaw.gateway.plist` |
-| **Startup Check LaunchAgent** | `~/Library/LaunchAgents/ai.smartclaw.startup-check.plist` |
-| **Health Check Script** | `~/.smartclaw/health-check.sh` |
-| **Startup Check Script** | `~/.smartclaw/startup-check.sh` |
-| **Gateway Logs** | `~/.smartclaw/logs/gateway.log` |
-| **Gateway Error Logs** | `~/.smartclaw/logs/gateway.err.log` |
-| **Health Check Logs** | `~/.smartclaw/logs/health-check.log` |
-| **Startup Check Logs** | `~/.smartclaw/logs/startup-check.log` |
-| **Configuration** | `~/.smartclaw/openclaw.json` |
+| **Main Gateway LaunchAgent** | `~/Library/LaunchAgents/ai.openclaw.gateway.plist` |
+| **Startup Check LaunchAgent** | `~/Library/LaunchAgents/ai.openclaw.startup-check.plist` |
+| **Health Check Script** | `~/.openclaw/health-check.sh` |
+| **Startup Check Script** | `~/.openclaw/startup-check.sh` |
+| **Gateway Logs** | `~/.openclaw/logs/gateway.log` |
+| **Gateway Error Logs** | `~/.openclaw/logs/gateway.err.log` |
+| **Health Check Logs** | `~/.openclaw/logs/health-check.log` |
+| **Startup Check Logs** | `~/.openclaw/logs/startup-check.log` |
+| **Configuration** | `~/.openclaw/openclaw.json` |
 
 ---
 

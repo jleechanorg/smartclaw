@@ -2,57 +2,73 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>Comment</key>
-    <string>Unified AO Manager — manages all agento components via ao-manager.sh.
-Replaces individual plists:
-- com.agentorchestrator.lifecycle-agent-orchestrator  (lifecycle-workers)
-- ai.agento.orchestrators                             (orchestrator tmux sessions)
-- ai.agento.dashboard                                (dashboard — started by first project)
-- ai.agento.notifier                                 (notifier — via ao-manager-notifier.sh)
+	<key>Comment</key>
+	<string>Consolidated Agento Manager - manages all agento processes.
+Replaces 3 separate plists:
+- ai.agento.dashboard.plist
+- ai.agento.backfill.plist
+- ai.agento.notifier.plist</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME</key>
+		<string>@HOME@</string>
+		<key>PATH</key>
+		<string>@NODE_BIN_DIR@:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:@HOME@/bin:/opt/homebrew/bin</string>
+		<key>PYTHONUNBUFFERED</key>
+		<string>1</string>
+		<key>AO_CONFIG_PATH</key>
+		<string>@HOME@/projects_reference/agent-orchestrator/agent-orchestrator.yaml</string>
+		<!-- GITHUB_TOKEN, GH_TOKEN, OPENCLAW_SLACK_BOT_TOKEN omitted — set in openclaw.json or shell environment -->
+	</dict>
+	<key>KeepAlive</key>
+	<true/>
+	<key>Label</key>
+	<string>ai.agento.manager</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>-c</string>
+		<string>source @HOME@/.bashrc
 
-Install: ln -sf ~/.smartclaw/launchd/ai.agento.manager.plist ~/Library/LaunchAgents/
-Or: ./scripts/install-ao-manager.sh</string>
+# Dashboard - starts all project agents
+echo "[agento-manager] Starting dashboard..."
+for p in worldai-pr5938 worldai-pr5933 worldai-pr5961 jleechanclaw-main; do
+    @HOME@/bin/ao start "$p" --no-dashboard 2>/dev/null || true
+done
 
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>HOME</key>
-        <string>@HOME@</string>
-        <key>PATH</key>
-        <string>@NODE_BIN_DIR@:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:@HOME@/bin:/opt/homebrew/bin</string>
-        <key>PYTHONUNBUFFERED</key>
-        <string>1</string>
-        <key>AO_CONFIG_PATH</key>
-        <string>@HOME@/.smartclaw/agent-orchestrator.yaml</string>
-        <key>AO_BIN</key>
-        <string>@HOME@/bin/ao</string>
-        <!-- Tokens read from openclaw.json / shell environment at runtime -->
-    </dict>
+# Backfill - periodic sync
+echo "[agento-manager] Starting backfill worker..."
+while true; do
+    @HOME@/.openclaw/scripts/ao-backfill.sh
+    sleep 900  # 15 minutes
+done &
+BACKFILL_PID=$!
 
-    <key>KeepAlive</key>
-    <true/>
+# Kill backfill loop when this script exits (covers notifier crash or clean exit)
+# First kill any child processes (ao-backfill.sh, sleep), then the subshell
+trap 'pkill -P $BACKFILL_PID 2>/dev/null; kill $BACKFILL_PID 2>/dev/null; wait $BACKFILL_PID 2>/dev/null' EXIT
 
-    <key>Label</key>
-    <string>ai.agento.manager</string>
+# Notifier - event-driven notifications
+echo "[agento-manager] Starting notifier..."
 
-    <key>ProgramArguments</key>
-    <array>
-        <string>@HOMEBREW_BASH@</string>
-        <string>@HOME@/.smartclaw/scripts/ao-manager.sh</string>
-    </array>
-
-    <key>RunAtLoad</key>
-    <true/>
-
-    <key>StandardOutPath</key>
-    <string>@HOME@/.smartclaw/logs/agento-manager.log</string>
-
-    <key>StandardErrorPath</key>
-    <string>@HOME@/.smartclaw/logs/agento-manager.err.log</string>
-
-    <key>WorkingDirectory</key>
-    <string>@HOME@/.smartclaw</string>
-
-    <key>ThrottleInterval</key>
-    <integer>30</integer>
+# Notifier - event-driven notifications (foreground; script exits when it exits)
+# Path to notifier script - adjust if your setup differs
+NOTIFIER_SCRIPT="${AO_NOTIFIER_SCRIPT:-$HOME/.openclaw/scripts/agento-notifier.py}"
+if [[ -f "$NOTIFIER_SCRIPT" ]]; then
+    echo "[agento-manager] Starting notifier from $NOTIFIER_SCRIPT..."
+    @PYTHON3_PATH@ "$NOTIFIER_SCRIPT"
+else
+    echo "[agento-manager] ERROR: Notifier script not found at $NOTIFIER_SCRIPT"
+    exit 1
+fi</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/tmp/agento-manager.err.log</string>
+	<key>StandardOutPath</key>
+	<string>/tmp/agento-manager.log</string>
+	<key>WorkingDirectory</key>
+	<string>@HOME@/projects_reference/agent-orchestrator</string>
 </dict>
 </plist>

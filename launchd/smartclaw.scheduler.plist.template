@@ -5,18 +5,18 @@
 	<key>Comment</key>
 	<string>Consolidated OpenClaw scheduler - reads cron/jobs.json and manages timers internally.
 Replaces 6 separate schedule plists:
-- ai.smartclaw.schedule.backup-4h20.plist
-- ai.smartclaw.schedule.daily-checkin-9am.plist
-- ai.smartclaw.schedule.daily-checkin-12pm.plist
-- ai.smartclaw.schedule.daily-checkin-6pm.plist
-- ai.smartclaw.schedule.genesis-memory-curation-weekly.plist
-- ai.smartclaw.schedule.genesis-pattern-extraction-weekly.plist</string>
+- ai.openclaw.schedule.backup-4h20.plist
+- ai.openclaw.schedule.daily-checkin-9am.plist
+- ai.openclaw.schedule.daily-checkin-12pm.plist
+- ai.openclaw.schedule.daily-checkin-6pm.plist
+- ai.openclaw.schedule.genesis-memory-curation-weekly.plist
+- ai.openclaw.schedule.genesis-pattern-extraction-weekly.plist</string>
 	<key>EnvironmentVariables</key>
 	<dict>
 		<key>HOME</key>
 		<string>@HOME@</string>
 		<key>OPENCLAW_JOBS_PATH</key>
-		<string>@HOME@/.smartclaw/cron/jobs.json</string>
+		<string>@HOME@/.openclaw/cron/jobs.json</string>
 		<key>PATH</key>
 		<string>@HOME@/.nvm/versions/node/v22.22.0/bin:@HOME@/.local/bin:@HOME@/bin:@HOME@/.volta/bin:@HOME@/.asdf/shims:@HOME@/.bun/bin:@HOME@/Library/Application Support/fnm/aliases/default/bin:@HOME@/.fnm/aliases/default/bin:@HOME@/Library/pnpm:@HOME@/.local/share/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
 		<key>PYTHONUNBUFFERED</key>
@@ -27,7 +27,7 @@ Replaces 6 separate schedule plists:
 	<key>KeepAlive</key>
 	<true/>
 	<key>Label</key>
-	<string>ai.smartclaw.scheduler</string>
+	<string>ai.openclaw.scheduler</string>
 	<key>ProgramArguments</key>
 	<array>
 		<string>@HOME@/.nvm/versions/node/v22.22.0/bin/node</string>
@@ -35,14 +35,14 @@ Replaces 6 separate schedule plists:
 		<string>gateway</string>
 		<string>run-scheduler</string>
 		<string>--jobs</string>
-		<string>@HOME@/.smartclaw/cron/jobs.json</string>
+		<string>@HOME@/.openclaw/cron/jobs.json</string>
 	</array>
 	<key>RunAtLoad</key>
 	<true/>
 	<key>StandardErrorPath</key>
-	<string>@HOME@/.smartclaw/logs/scheduler.err.log</string>
+	<string>@HOME@/.openclaw/logs/scheduler.err.log</string>
 	<key>StandardOutPath</key>
-	<string>@HOME@/.smartclaw/logs/scheduler.log</string>
+	<string>@HOME@/.openclaw/logs/scheduler.log</string>
 	<key>ThrottleInterval</key>
 	<integer>30</integer>
 </dict>

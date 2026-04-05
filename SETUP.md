@@ -15,7 +15,7 @@ cd openclaw
 
 This will:
 1. ✅ Check prerequisites (python3, rsync, git)
-2. ✅ Install/copy repo to `~/.smartclaw/workspace/openclaw`
+2. ✅ Install/copy repo to `~/.openclaw/workspace/openclaw`
 3. ✅ Set up automated backups (launchd only)
 4. ✅ Configure backup jobs to run every 4 hours
 
@@ -25,7 +25,7 @@ This will:
 
 The setup script installs an automated backup system that:
 
-- **Backs up** `~/.smartclaw/` directory to `.smartclaw-backups/<timestamp>/`
+- **Backs up** `~/.openclaw/` directory to `.openclaw-backups/<timestamp>/`
 - **Redacts** sensitive data (API keys, tokens, credentials)
 - **Runs** every 4 hours via launchd
 - **Commits** changes to git automatically
@@ -33,9 +33,9 @@ The setup script installs an automated backup system that:
 ### Scheduled Jobs
 
 **Launchd Job:**
-- Service: `com.smartclaw.backup`
+- Service: `com.openclaw.backup`
 - Interval: 14400 seconds (4 hours)
-- Plist: `~/Library/LaunchAgents/com.smartclaw.backup.plist`
+- Plist: `~/Library/LaunchAgents/com.openclaw.backup.plist`
 
 ## Manual Installation
 
@@ -56,8 +56,8 @@ git --version
 ### 2. Clone Repository
 
 ```bash
-mkdir -p ~/.smartclaw/workspace
-cd ~/.smartclaw/workspace
+mkdir -p ~/.openclaw/workspace
+cd ~/.openclaw/workspace
 git clone https://github.com/openclaw/openclaw.git
 cd openclaw
 ```
@@ -75,13 +75,13 @@ This installs launchd jobs for backup automation and removes legacy OpenClaw cro
 ### Test Backup
 
 ```bash
-cd ~/.smartclaw/workspace/openclaw
+cd ~/.openclaw/workspace/openclaw
 ./scripts/run-openclaw-backup.sh
 ```
 
 Check for backup:
 ```bash
-ls -la ~/.smartclaw/workspace/openclaw/.smartclaw-backups/
+ls -la ~/.openclaw/workspace/openclaw/.openclaw-backups/
 ```
 
 ### Check Logs
@@ -106,21 +106,21 @@ openclaw cron list
 
 # Check launchd
 launchctl list | grep openclaw
-launchctl print gui/$(id -u)/com.smartclaw.backup
+launchctl print gui/$(id -u)/com.openclaw.backup
 ```
 
 ## Backup Details
 
 ### What Gets Backed Up
 
-- ✅ All files in `~/.smartclaw/`
+- ✅ All files in `~/.openclaw/`
 - ✅ Configuration files
 - ✅ Workspace projects
 - ✅ Skills and plugins
 
 ### What Gets Excluded
 
-- ❌ `.smartclaw-backups/` (prevents recursion)
+- ❌ `.openclaw-backups/` (prevents recursion)
 - ❌ Binary files (`.sqlite`, `.db`, `.ipynb`, `.log`)
 - ❌ `.DS_Store` files
 - ❌ Sensitive key files (`.pem`, `.key`, `.p12`, etc.)
@@ -140,7 +140,7 @@ See `scripts/backup-openclaw-full.sh` for full redaction patterns.
 
 ### Backup Fails with "File name too long"
 
-This was caused by recursive backup (backing up `.smartclaw-backups/` into itself). Fixed in the current version by excluding `.smartclaw-backups/` directory.
+This was caused by recursive backup (backing up `.openclaw-backups/` into itself). Fixed in the current version by excluding `.openclaw-backups/` directory.
 
 ### Backup Fails with "FileNotFoundError"
 
@@ -150,12 +150,12 @@ Some files (like browser cache) are transient and may disappear during backup. T
 
 ```bash
 # Reload the job
-launchctl bootout gui/$(id -u)/com.smartclaw.backup
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.smartclaw.backup.plist
-launchctl enable gui/$(id -u)/com.smartclaw.backup
+launchctl bootout gui/$(id -u)/com.openclaw.backup
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.openclaw.backup.plist
+launchctl enable gui/$(id -u)/com.openclaw.backup
 
 # Manually trigger
-launchctl kickstart -k gui/$(id -u)/com.smartclaw.backup
+launchctl kickstart -k gui/$(id -u)/com.openclaw.backup
 ```
 
 ### Gateway Cron Job Not Running
@@ -166,7 +166,7 @@ openclaw cron status
 openclaw cron list
 
 # Manually run the backup
-~/.smartclaw/workspace/openclaw/scripts/run-openclaw-backup.sh
+~/.openclaw/workspace/openclaw/scripts/run-openclaw-backup.sh
 ```
 
 ## Migrating to a New Machine
@@ -176,7 +176,7 @@ openclaw cron list
 Your entire OpenClaw setup is already being backed up! To migrate:
 
 1. **Backup Current Machine:**
-   - All backups are in `~/.smartclaw/workspace/openclaw/.smartclaw-backups/`
+   - All backups are in `~/.openclaw/workspace/openclaw/.openclaw-backups/`
    - Optionally push to GitHub (if using git remote)
 
 2. **On New Machine:**
@@ -189,11 +189,11 @@ Your entire OpenClaw setup is already being backed up! To migrate:
    ./scripts/setup-openclaw-full.sh
 
    # Restore your configuration
-   # (Copy your actual ~/.smartclaw/ files from backup if needed)
+   # (Copy your actual ~/.openclaw/ files from backup if needed)
    ```
 
 3. **Restore Data:**
-   - Copy the latest `.smartclaw-backups/<timestamp>/` contents to `~/.smartclaw/`
+   - Copy the latest `.openclaw-backups/<timestamp>/` contents to `~/.openclaw/`
    - Or restore from your Dropbox/cloud backup
 
 ## Additional Scripts

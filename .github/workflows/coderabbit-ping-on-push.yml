@@ -17,7 +17,7 @@ concurrency:
 jobs:
   ping-coderabbit:
     if: github.event.repository.fork == false
-    runs-on: ${{ fromJson(vars.SELF_HOSTED_RUNNER_LABELS || '["ubuntu-latest"]') }}
+    runs-on: ubuntu-latest
     steps:
       - name: Comment on matching open PR
         uses: actions/github-script@v7

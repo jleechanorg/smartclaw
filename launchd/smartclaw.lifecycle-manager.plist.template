@@ -5,7 +5,7 @@
 	<key>Comment</key>
 	<string>Consolidated OpenClaw Lifecycle Manager - manages lifecycle workers for all projects.
 Replaces 2 separate plists:
-- com.agentorchestrator.lifecycle-smartclaw.plist
+- com.agentorchestrator.lifecycle-jleechanclaw.plist
 - com.agentorchestrator.lifecycle-worldarchitect.plist</string>
 	<key>EnvironmentVariables</key>
 	<dict>
@@ -16,12 +16,12 @@ Replaces 2 separate plists:
 		<key>PYTHONUNBUFFERED</key>
 		<string>1</string>
 		<key>AO_LIFECYCLE_PROJECTS</key>
-		<string>smartclaw,worldarchitect</string>
+		<string>jleechanclaw,worldarchitect</string>
 	</dict>
 	<key>KeepAlive</key>
 	<true/>
 	<key>Label</key>
-	<string>ai.smartclaw.lifecycle-manager</string>
+	<string>ai.openclaw.lifecycle-manager</string>
 	<key>ProgramArguments</key>
 	<array>
 		<string>/bin/bash</string>
@@ -29,19 +29,13 @@ Replaces 2 separate plists:
 		<string>source @HOME@/.bashrc
 
 # Lifecycle manager - spawns workers for each configured project
-PROJECTS="${AO_LIFECYCLE_PROJECTS:-smartclaw,worldarchitect}"
+PROJECTS="${AO_LIFECYCLE_PROJECTS:-jleechanclaw,worldarchitect}"
 
 for project in $(echo "$PROJECTS" | tr ',' ' '); do
-    (
-        while true; do
-            echo "[lifecycle-manager] Starting worker for: $project"
-            @NODE_PATH@ @HOME@/bin/ao lifecycle-worker "$project" 2>&1 | while read line; do
-                echo "[lifecycle-$project] $line"
-            done
-            echo "[lifecycle-$project] Worker exited, restarting in 5s..."
-            sleep 5
-        done
-    ) &
+    echo "[lifecycle-manager] Starting worker for: $project"
+    @NODE_PATH@ @HOME@/bin/ao lifecycle-worker "$project" 2>&1 | while read line; do
+        echo "[lifecycle-$project] $line"
+    done &
 done
 
 # Wait for all workers

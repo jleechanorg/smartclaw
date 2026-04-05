@@ -664,13 +664,13 @@ Ask OpenClaw to fix via agento
 | Component | Path | Description |
 |-----------|------|-------------|
 | Bug hunt script | `scripts/bug-hunt-daily.sh` | Main orchestration script |
-| Launchd plist | `launchd/ai.smartclaw.schedule.bug-hunt-9am.plist` | macOS scheduler |
+| Launchd plist | `launchd/ai.openclaw.schedule.bug-hunt-9am.plist` | macOS scheduler |
 | OpenClaw cron | `daily-bug-hunt-9am-pacific` | Gateway cron job |
 | Bug reports | `bug_reports/` | Output directory for bug reports |
 
 ### Repos Scanned
 
-- `jleechanorg/smartclaw`
+- `jleechanorg/jleechanclaw`
 - `jleechanorg/worldarchitect.ai`
 - `jleechanorg/ai_universe`
 - `jleechanorg/beads`

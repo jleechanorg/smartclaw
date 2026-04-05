@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Shared mem0 client — openclaw, Codex, and Claude all use the same qdrant store.
 
-Reads the openclaw-mem0 plugin config from ~/.smartclaw/openclaw.json so
+Reads the openclaw-mem0 plugin config from ~/.openclaw/openclaw.json so
 there is exactly one source of truth for the connection parameters.
 
 Usage from any agent or script:
@@ -54,7 +54,7 @@ def _load_openclaw_mem0_config() -> dict:
     if _MEM0_CONFIG_CACHE is not None:
         return _MEM0_CONFIG_CACHE
 
-    cfg_path = Path.home() / ".smartclaw" / "openclaw.json"
+    cfg_path = Path.home() / ".openclaw" / "openclaw.json"
     cfg = json.loads(cfg_path.read_text())
     oss = cfg["plugins"]["entries"]["openclaw-mem0"]["config"]["oss"]
 

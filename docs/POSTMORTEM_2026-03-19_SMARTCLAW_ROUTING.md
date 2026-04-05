@@ -15,7 +15,7 @@ A delegation flow intended for `jleechanorg/smartclaw` initially produced work i
 
 ## Corrective actions applied
 - Enforced explicit dispatch headers:
-  - `SOURCE_REPO=jleechanorg/smartclaw`
+  - `SOURCE_REPO=jleechanorg/jleechanclaw`
   - `TARGET_REPO=jleechanorg/smartclaw`
 - Added mandatory pre-PR checks:
   - `git remote -v`
