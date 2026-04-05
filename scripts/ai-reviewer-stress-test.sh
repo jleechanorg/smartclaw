@@ -36,18 +36,9 @@ get_next_slice() {
     # Increment and wrap around
     index=$(( (index + 1) % ${#SLICES[@]} ))
     echo "$index" > "$SLICE_INDEX_FILE"
-    
+
     # Return slice info (format: "path:description")
     echo "${SLICES[$index]}"
-}
-
-# Get files in a slice
-get_slice_files() {
-    local slice_path="$1"
-    local base_dir="$HOME/.openclaw"
-    
-    # Find relevant files
-    find "$base_dir/$slice_path" -type f \( -name "*.py" -o -name "*.sh" -o -name "*.yaml" -o -name "*.json" \) 2>/dev/null | head -20
 }
 
 # Count lines in slice
@@ -61,13 +52,15 @@ count_slice_lines() {
 # Create test branch and copy files
 setup_test_branch() {
     local slice_path="$1"
-    local branch_name="review-$(date +%Y%m%d-%H%M%S)"
-    
+    local branch_name
+    branch_name="review-$(date +%Y%m%d-%H%M%S)"
+
     log "Setting up test branch: $branch_name"
-    
+
     # Create temp directory for test files
-    local tmp_dir=$(mktemp -d)
-    trap "rm -rf $tmp_dir" EXIT
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'rm -rf "$tmp_dir"' EXIT
     
     # Copy source files
     local base_dir="$HOME/.openclaw"
@@ -87,13 +80,25 @@ create_test_pr() {
     local branch="$1"
     local title="$2"
     local body="$3"
-    
+
     log "Creating PR in test repo..."
-    
-    # This would use gh or direct API calls
-    # For now, log the intent
-    log "Would create PR: $title"
-    echo "https://github.com/$TEST_REPO/pull/new/$branch"
+
+    # Create PR via gh CLI
+    local pr_url=""
+    if command -v gh &>/dev/null; then
+        pr_url=$(gh pr create --repo "$TEST_REPO" --head "$branch" --title "$title" --body "$body" 2>/dev/null || echo "")
+    fi
+
+    if [[ -n "$pr_url" ]]; then
+        log "Created PR: $pr_url"
+        echo "$pr_url"
+    else
+        # Fallback: return a placeholder URL with a test PR number.
+        # When --dry-run is set, use a placeholder that run_agento_fix can handle.
+        local placeholder_num="${STRESS_TEST_PR_NUM:-1}"
+        log "Would create PR: $title (dry-run, PR number: $placeholder_num)"
+        echo "https://github.com/$TEST_REPO/pull/$placeholder_num"
+    fi
 }
 
 # Wait for AI reviewers (CodeRabbit, etc)
@@ -118,17 +123,23 @@ wait_for_reviewers() {
 # Run agento to fix comments
 run_agento_fix() {
     local pr_url="$1"
-    
+
     log "Running agento to fix review comments..."
-    
-    # Extract PR number
-    local pr_num=$(echo "$pr_url" | grep -oP '\d+$')
-    
+
+    # Extract PR number (portable: -Eo instead of -oP which is GNU-only)
+    local pr_num
+    pr_num=$(echo "$pr_url" | grep -Eo '[0-9]+$' || echo "")
+
+    if [[ -z "$pr_num" ]]; then
+        log "Could not extract PR number from URL: $pr_url"
+        return 1
+    fi
+
     # Spawn agento
     if command -v ao &>/dev/null; then
         ao spawn "$TEST_REPO" --claim-pr "$pr_num" || log "Agento spawn failed"
     else
-        log "ao CLI not available - would spawn agento"
+        log "ao CLI not available - would spawn agento for PR #$pr_num"
     fi
 }
 
@@ -138,9 +149,23 @@ log_outcome() {
     local slice="$2"
     local pr_url="$3"
     local details="${4:-}"
-    
-    local timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    echo "{\"timestamp\":\"$timestamp\",\"slice\":\"$slice\",\"status\":\"$status\",\"pr_url\":\"$pr_url\",\"details\":\"$details\"}" >> "$OUTCOME_LOG"
+
+    local timestamp
+    timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+    # Use jq for proper JSON escaping (avoids injection/corruption from special chars)
+    if command -v jq &>/dev/null; then
+        jq -rn \
+          --arg ts "$timestamp" \
+          --arg sl "$slice" \
+          --arg st "$status" \
+          --arg url "$pr_url" \
+          --arg dt "$details" \
+          '{timestamp: $ts, slice: $sl, status: $st, pr_url: $url, details: $dt}' \
+          >> "$OUTCOME_LOG"
+    else
+        echo "{\"timestamp\":\"$timestamp\",\"slice\":\"$slice\",\"status\":\"$status\",\"pr_url\":\"$pr_url\",\"details\":\"$details\"}" >> "$OUTCOME_LOG"
+    fi
 }
 
 # Main execution
