@@ -16,7 +16,7 @@ LOG_FILE="$HOME/.openclaw/logs/stress_test.log"
 mkdir -p "$(dirname "$LOG_FILE")"
 
 log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE" >&2
 }
 
 # Load slices configuration
