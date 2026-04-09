@@ -243,8 +243,12 @@ validate_sdk_compatibility() {
     return 1
   fi
   local cur_sdk="unknown"
-  [ -f "$HOME/.openclaw/.current-sdk-version" ] \
-    && cur_sdk=$(cat "$HOME/.openclaw/.current-sdk-version" | tr -d '[:space:]')
+  # Migration fallback: read from legacy path if new path doesn't exist
+  if [ -f "$HOME/.openclaw/.current-sdk-version" ]; then
+    cur_sdk=$(tr -d '[:space:]' < "$HOME/.openclaw/.current-sdk-version")
+  elif [ -f "$HOME/.smartclaw/.current-sdk-version" ]; then
+    cur_sdk=$(tr -d '[:space:]' < "$HOME/.smartclaw/.current-sdk-version")
+  fi
   local new_sdk
   new_sdk=$(${HOME}/.nvm/versions/node/v22.22.0/bin/npm view "openclaw@${new_version}" dependencies 2>/dev/null \
     | grep -i agentclientprotocol | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)

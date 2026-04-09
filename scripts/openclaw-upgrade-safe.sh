@@ -62,8 +62,12 @@ if [ -f "$PREFLIGHT" ]; then
   # Extract and eval only the function definition (safe subset)
   # We re-implement inline to avoid sourcing the full preflight
   _cur_sdk="unknown"
-  [ -f "$HOME/.openclaw/.current-sdk-version" ] \
-    && _cur_sdk=$(cat "$HOME/.openclaw/.current-sdk-version" | tr -d '[:space:]')
+  # Migration fallback: read from legacy path if new path doesn't exist
+  if [ -f "$HOME/.openclaw/.current-sdk-version" ]; then
+    _cur_sdk=$(tr -d '[:space:]' < "$HOME/.openclaw/.current-sdk-version")
+  elif [ -f "$HOME/.smartclaw/.current-sdk-version" ]; then
+    _cur_sdk=$(tr -d '[:space:]' < "$HOME/.smartclaw/.current-sdk-version")
+  fi
 
   _new_sdk=$("$GATEWAY_NPM" view "openclaw@${NEW_VERSION}" dependencies 2>/dev/null \
     | grep -i agentclientprotocol | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
