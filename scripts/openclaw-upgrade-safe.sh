@@ -62,12 +62,8 @@ if [ -f "$PREFLIGHT" ]; then
   # Extract and eval only the function definition (safe subset)
   # We re-implement inline to avoid sourcing the full preflight
   _cur_sdk="unknown"
-  # Migration fallback: read from legacy path if new path doesn't exist
-  if [ -f "$HOME/.openclaw/.current-sdk-version" ]; then
-    _cur_sdk=$(tr -d '[:space:]' < "$HOME/.openclaw/.current-sdk-version")
-  elif [ -f "$HOME/.smartclaw/.current-sdk-version" ]; then
-    _cur_sdk=$(tr -d '[:space:]' < "$HOME/.smartclaw/.current-sdk-version")
-  fi
+  [ -f "$HOME/.openclaw/.current-sdk-version" ] \
+    && _cur_sdk=$(cat "$HOME/.openclaw/.current-sdk-version" | tr -d '[:space:]')
 
   _new_sdk=$("$GATEWAY_NPM" view "openclaw@${NEW_VERSION}" dependencies 2>/dev/null \
     | grep -i agentclientprotocol | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
@@ -202,7 +198,8 @@ echo "--- Step 5/5: Rebuild native modules + record baseline ---"
 _baseline_recorded=0
 if [ -d "$BETTER_SQLITE3_DIR/node_modules/better-sqlite3" ]; then
   echo "  Rebuilding better-sqlite3 for new Node..."
-  _rebuild_out=$(cd "$BETTER_SQLITE3_DIR" && "$GATEWAY_NPM" rebuild better-sqlite3 2>&1)
+  _rebuild_out=$(cd "$BETTER_SQLITE3_DIR" \
+    && "$GATEWAY_NPM" rebuild better-sqlite3 2>&1)
   _rebuild_rc=$?
   if [ "$_rebuild_rc" -eq 0 ]; then
     # Verify the rebuilt module actually loads before recording baseline
@@ -225,7 +222,6 @@ fi
 if [ "$_baseline_recorded" -eq 1 ] && [ -x "$GATEWAY_NODE" ]; then
   _modver=$("$GATEWAY_NODE" -e "process.stdout.write(String(process.versions.modules))" 2>/dev/null || echo "unknown")
   if [ "$_modver" != "unknown" ]; then
-    mkdir -p "$HOME/.openclaw"
     echo "$_modver" > "$BASELINE_FILE"
     echo "  Baseline updated: MODULE_VERSION=$_modver → $BASELINE_FILE"
   fi
@@ -233,7 +229,6 @@ fi
 
 # Record new SDK version
 if [ -n "${_new_sdk:-}" ] && [ "$_new_sdk" != "unknown" ]; then
-  mkdir -p "$HOME/.openclaw"
   echo "$_new_sdk" > "$HOME/.openclaw/.current-sdk-version"
   echo "  SDK baseline updated: @agentclientprotocol/sdk=$_new_sdk"
 fi
