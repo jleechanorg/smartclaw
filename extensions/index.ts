@@ -1161,7 +1161,7 @@ const memoryPlugin = {
 
               // If single high-confidence match, delete directly
               if (
-                results.length === 1 ||
+                results.length === 1 &&
                 (results[0].score ?? 0) > 0.9
               ) {
                 await provider.delete(results[0].id);
