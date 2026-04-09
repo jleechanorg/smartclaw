@@ -15,9 +15,9 @@ set -uo pipefail
 
 GATEWAY_NODE="${HOME}/.nvm/versions/node/v22.22.0/bin/node"
 GATEWAY_NPM="${HOME}/.nvm/versions/node/v22.22.0/bin/npm"
-PREFLIGHT="$HOME/.smartclaw/scripts/gateway-preflight.sh"
-BETTER_SQLITE3_DIR="$HOME/.smartclaw/extensions/openclaw-mem0"
-BASELINE_FILE="$HOME/.smartclaw/.gateway-node-version"
+PREFLIGHT="$HOME/.openclaw/scripts/gateway-preflight.sh"
+BETTER_SQLITE3_DIR="$HOME/.openclaw/extensions/openclaw-mem0"
+BASELINE_FILE="$HOME/.openclaw/.gateway-node-version"
 
 NEW_VERSION="${1:-}"
 YES_FLAG=""
@@ -62,8 +62,12 @@ if [ -f "$PREFLIGHT" ]; then
   # Extract and eval only the function definition (safe subset)
   # We re-implement inline to avoid sourcing the full preflight
   _cur_sdk="unknown"
-  [ -f "$HOME/.smartclaw/.current-sdk-version" ] \
-    && _cur_sdk=$(cat "$HOME/.smartclaw/.current-sdk-version" | tr -d '[:space:]')
+  # Migration fallback: read from legacy path if new path doesn't exist
+  if [ -f "$HOME/.openclaw/.current-sdk-version" ]; then
+    _cur_sdk=$(tr -d '[:space:]' < "$HOME/.openclaw/.current-sdk-version")
+  elif [ -f "$HOME/.smartclaw/.current-sdk-version" ]; then
+    _cur_sdk=$(tr -d '[:space:]' < "$HOME/.smartclaw/.current-sdk-version")
+  fi
 
   _new_sdk=$("$GATEWAY_NPM" view "openclaw@${NEW_VERSION}" dependencies 2>/dev/null \
     | grep -i agentclientprotocol | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
@@ -105,34 +109,41 @@ fi
 echo ""
 
 # --- Step 2.5: Staging canary (fail-closed gate) ---
-STAGING_GATEWAY="$HOME/.smartclaw/scripts/staging-gateway.sh"
-STAGING_CANARY="$HOME/.smartclaw/scripts/staging-canary.sh"
+STAGING_PORT="${OPENCLAW_STAGING_PORT:-18810}"
+STAGING_PLIST="$HOME/Library/LaunchAgents/ai.openclaw.staging.plist"
+STAGING_CANARY="$HOME/.openclaw/scripts/staging-canary.sh"
 SKIP_STAGING="${SKIP_STAGING:-}"
 if [ "$SKIP_STAGING" = "1" ]; then
   echo "--- Step 2.5/5: Staging canary (SKIPPED — SKIP_STAGING=1) ---"
   echo "  WARNING: Staging validation bypassed by explicit override."
   echo ""
-elif [ ! -x "$STAGING_GATEWAY" ] || [ ! -x "$STAGING_CANARY" ]; then
+elif [ ! -x "$STAGING_CANARY" ]; then
   echo "--- Step 2.5/5: Staging canary FAILED ---"
-  echo "  FATAL: Staging scripts not found or not executable:"
-  [ ! -x "$STAGING_GATEWAY" ] && echo "    missing: $STAGING_GATEWAY"
+  echo "  FATAL: Staging canary script not found or not executable:"
   [ ! -x "$STAGING_CANARY" ] && echo "    missing: $STAGING_CANARY"
   echo "  Install staging scripts or set SKIP_STAGING=1 to bypass (not recommended)."
   exit 1
 else
   echo "--- Step 2.5/5: Staging canary test ---"
-  echo "  Starting staging gateway (port 18790) for pre-upgrade validation..."
-  bash "$STAGING_GATEWAY" start
-  _staging_start_rc=$?
-  if [ "$_staging_start_rc" -ne 0 ]; then
-    echo "  FATAL: Staging gateway failed to start (exit $_staging_start_rc)"
+  _staging_health="$(curl -sf --max-time 8 "http://127.0.0.1:${STAGING_PORT}/health" 2>/dev/null || true)"
+  if [ -z "$_staging_health" ]; then
+    echo "  Staging gateway not responding on port ${STAGING_PORT} — restarting launch agent..."
+    launchctl enable "gui/$(id -u)/ai.openclaw.staging" 2>/dev/null || true
+    launchctl kickstart -k "gui/$(id -u)/ai.openclaw.staging" 2>/dev/null || \
+      launchctl bootstrap "gui/$(id -u)" "$STAGING_PLIST" 2>/dev/null || true
+    echo "  Waiting for staging gateway to initialize..."
+    sleep 35
+    _staging_health="$(curl -sf --max-time 8 "http://127.0.0.1:${STAGING_PORT}/health" 2>/dev/null || true)"
+  fi
+  if [ -z "$_staging_health" ]; then
+    echo "  FATAL: Staging gateway failed to start on port ${STAGING_PORT}"
     echo "  Cannot validate upgrade without staging. Set SKIP_STAGING=1 to bypass (not recommended)."
     exit 1
   fi
-  echo "  Running 6-point canary against staging..."
-  bash "$STAGING_CANARY" --port 18790
+  echo "  Staging gateway healthy: $_staging_health"
+  echo "  Running canary against staging on port ${STAGING_PORT}..."
+  bash "$STAGING_CANARY" --port "$STAGING_PORT"
   _canary_rc=$?
-  bash "$STAGING_GATEWAY" stop
   if [ "$_canary_rc" -ne 0 ]; then
     echo ""
     echo "STAGING CANARY FAILED (exit $_canary_rc) — aborting upgrade."
@@ -169,9 +180,9 @@ echo ""
 
 # --- Step 5a: Backup openclaw.json ---
 echo "--- Step 5/5: Backup + upgrade ---"
-_backup="$HOME/.smartclaw/openclaw.json.pre-upgrade-$(date +%s)"
-if [ -f "$HOME/.smartclaw/openclaw.json" ]; then
-  cp "$HOME/.smartclaw/openclaw.json" "$_backup"
+_backup="$HOME/.openclaw/openclaw.json.pre-upgrade-$(date +%s)"
+if [ -f "$HOME/.openclaw/openclaw.json" ]; then
+  cp "$HOME/.openclaw/openclaw.json" "$_backup"
   echo "  Backed up openclaw.json → $(basename "$_backup")"
 fi
 
@@ -191,8 +202,7 @@ echo "--- Step 5/5: Rebuild native modules + record baseline ---"
 _baseline_recorded=0
 if [ -d "$BETTER_SQLITE3_DIR/node_modules/better-sqlite3" ]; then
   echo "  Rebuilding better-sqlite3 for new Node..."
-  _rebuild_out=$(cd "$BETTER_SQLITE3_DIR" \
-    && "$GATEWAY_NPM" rebuild better-sqlite3 2>&1)
+  _rebuild_out=$(cd "$BETTER_SQLITE3_DIR" && "$GATEWAY_NPM" rebuild better-sqlite3 2>&1)
   _rebuild_rc=$?
   if [ "$_rebuild_rc" -eq 0 ]; then
     # Verify the rebuilt module actually loads before recording baseline
@@ -215,6 +225,7 @@ fi
 if [ "$_baseline_recorded" -eq 1 ] && [ -x "$GATEWAY_NODE" ]; then
   _modver=$("$GATEWAY_NODE" -e "process.stdout.write(String(process.versions.modules))" 2>/dev/null || echo "unknown")
   if [ "$_modver" != "unknown" ]; then
+    mkdir -p "$HOME/.openclaw"
     echo "$_modver" > "$BASELINE_FILE"
     echo "  Baseline updated: MODULE_VERSION=$_modver → $BASELINE_FILE"
   fi
@@ -222,11 +233,12 @@ fi
 
 # Record new SDK version
 if [ -n "${_new_sdk:-}" ] && [ "$_new_sdk" != "unknown" ]; then
-  echo "$_new_sdk" > "$HOME/.smartclaw/.current-sdk-version"
+  mkdir -p "$HOME/.openclaw"
+  echo "$_new_sdk" > "$HOME/.openclaw/.current-sdk-version"
   echo "  SDK baseline updated: @agentclientprotocol/sdk=$_new_sdk"
 fi
 echo ""
 
 echo "=== Upgrade complete: openclaw@${NEW_VERSION} ==="
 echo "Run 'openclaw gateway status' to verify the gateway is healthy."
-echo "Check logs: tail -f ~/.smartclaw/logs/gateway.log"
+echo "Check logs: tail -f ~/.openclaw/logs/gateway.log"

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# staging-gateway.sh — Start/stop/status for OpenClaw staging gateway (port 18790)
+# staging-gateway.sh — Start/stop/status for SmartClaw staging gateway (port 18810)
 # Production runs on 18789; staging is isolated for pre-deploy validation.
 set -euo pipefail
 
-STAGING_PORT="${OPENCLAW_STAGING_PORT:-18790}"
+STAGING_PORT="${OPENCLAW_STAGING_PORT:-18810}"
 STAGING_DIR="${HOME}/.smartclaw/staging"
 STAGING_CONFIG="${STAGING_DIR}/openclaw.json"
 STAGING_PID_FILE="${STAGING_DIR}/.gateway.pid"

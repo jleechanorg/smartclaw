@@ -195,13 +195,13 @@ fi
 # 6. Check native modules
 echo -n "[6] Native modules: "
 NODE=$(${HOME}/.nvm/versions/node/v22.22.0/bin/node --version 2>/dev/null || echo "missing")
-if [ -f "$HOME/.smartclaw/extensions/openclaw-mem0/node_modules/better-sqlite3/build/Release/better_sqlite3.node" ]; then
-  if ${HOME}/.nvm/versions/node/v22.22.0/bin/node -e "require('$HOME/.smartclaw/extensions/openclaw-mem0/node_modules/better-sqlite3')" 2>/dev/null; then
+if [ -f "$HOME/.openclaw/extensions/openclaw-mem0/node_modules/better-sqlite3/build/Release/better_sqlite3.node" ]; then
+  if ${HOME}/.nvm/versions/node/v22.22.0/bin/node -e "require('$HOME/.openclaw/extensions/openclaw-mem0/node_modules/better-sqlite3')" 2>/dev/null; then
     echo "OK (Node $NODE)"
   else
     echo "MISMATCH (needs rebuild)"
     if [ "$FIX_MODE" = "--fix" ]; then
-      cd "$HOME/.smartclaw/extensions/openclaw-mem0"
+      cd "$HOME/.openclaw/extensions/openclaw-mem0"
       rm -rf node_modules/better-sqlite3/build node_modules/better-sqlite3/prebuilds
       ${HOME}/.nvm/versions/node/v22.22.0/bin/npx node-gyp rebuild --directory=node_modules/better-sqlite3 2>/dev/null
       echo "  FIX: Rebuilt better-sqlite3"
@@ -225,7 +225,7 @@ else
   _sdk_ver=$(${HOME}/.nvm/versions/node/v22.22.0/bin/npm view "openclaw@${_oc_ver}" dependencies 2>/dev/null \
     | grep -i agentclientprotocol | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
   if [ -n "${_sdk_ver:-}" ]; then
-    echo "$_sdk_ver" > "$HOME/.smartclaw/.current-sdk-version"
+    echo "$_sdk_ver" > "$HOME/.openclaw/.current-sdk-version"
     echo "  OK: openclaw=$_oc_ver, @agentclientprotocol/sdk=$_sdk_ver (stored .current-sdk-version)"
   else
     echo "  WARN: openclaw=$_oc_ver but could not resolve @agentclientprotocol/sdk version"
@@ -243,8 +243,12 @@ validate_sdk_compatibility() {
     return 1
   fi
   local cur_sdk="unknown"
-  [ -f "$HOME/.smartclaw/.current-sdk-version" ] \
-    && cur_sdk=$(cat "$HOME/.smartclaw/.current-sdk-version" | tr -d '[:space:]')
+  # Migration fallback: read from legacy path if new path doesn't exist
+  if [ -f "$HOME/.openclaw/.current-sdk-version" ]; then
+    cur_sdk=$(tr -d '[:space:]' < "$HOME/.openclaw/.current-sdk-version")
+  elif [ -f "$HOME/.smartclaw/.current-sdk-version" ]; then
+    cur_sdk=$(tr -d '[:space:]' < "$HOME/.smartclaw/.current-sdk-version")
+  fi
   local new_sdk
   new_sdk=$(${HOME}/.nvm/versions/node/v22.22.0/bin/npm view "openclaw@${new_version}" dependencies 2>/dev/null \
     | grep -i agentclientprotocol | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
@@ -323,7 +327,7 @@ else:
 # 9. NODE_MODULE_VERSION baseline tracking
 # Gateway plist uses nvm Node 22 (MODULE_VERSION 127); mismatch causes silent mem0 failures
 GATEWAY_NODE_BIN="${HOME}/.nvm/versions/node/v22.22.0/bin/node"
-MODVER_BASELINE="$HOME/.smartclaw/.gateway-node-version"
+MODVER_BASELINE="$HOME/.openclaw/.gateway-node-version"
 echo "[9] NODE_MODULE_VERSION baseline:"
 if [ -x "$GATEWAY_NODE_BIN" ]; then
   _cur_modver=$("$GATEWAY_NODE_BIN" -e "process.stdout.write(String(process.versions.modules))" 2>/dev/null || echo "unknown")
@@ -334,12 +338,12 @@ if [ -x "$GATEWAY_NODE_BIN" ]; then
       echo "        better-sqlite3 compiled for wrong Node version — mem0 will fail silently"
       if [ "$FIX_MODE" = "--fix" ]; then
         echo "  FIX: Rebuilding better-sqlite3 for MODULE_VERSION $_cur_modver..."
-        _rebuild_out=$(cd "$HOME/.smartclaw/extensions/openclaw-mem0" \
+        _rebuild_out=$(cd "$HOME/.openclaw/extensions/openclaw-mem0" \
           && ${HOME}/.nvm/versions/node/v22.22.0/bin/npm rebuild better-sqlite3 2>&1)
         _rebuild_rc=$?
         if [ "$_rebuild_rc" -eq 0 ]; then
           # Verify the rebuilt module actually loads before updating baseline
-          if ${HOME}/.nvm/versions/node/v22.22.0/bin/node -e "require('$HOME/.smartclaw/extensions/openclaw-mem0/node_modules/better-sqlite3')" 2>/dev/null; then
+          if ${HOME}/.nvm/versions/node/v22.22.0/bin/node -e "require('$HOME/.openclaw/extensions/openclaw-mem0/node_modules/better-sqlite3')" 2>/dev/null; then
             echo "$_cur_modver" > "$MODVER_BASELINE"
             echo "  FIX: Rebuild OK — baseline updated to $_cur_modver"
           else
@@ -353,7 +357,7 @@ if [ -x "$GATEWAY_NODE_BIN" ]; then
         fi
       else
         echo "  Run with --fix to auto-rebuild, or:"
-        echo "    npm rebuild better-sqlite3 --prefix ~/.smartclaw/extensions/openclaw-mem0"
+        echo "    npm rebuild better-sqlite3 --prefix ~/.openclaw/extensions/openclaw-mem0"
         ERRORS=$((ERRORS + 1))
       fi
     else
