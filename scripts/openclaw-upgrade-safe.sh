@@ -105,6 +105,7 @@ fi
 echo ""
 
 # --- Step 2.5: Staging canary (fail-closed gate) ---
+STAGING_PORT="${OPENCLAW_STAGING_PORT:-18810}"
 STAGING_GATEWAY="$HOME/.smartclaw/scripts/staging-gateway.sh"
 STAGING_CANARY="$HOME/.smartclaw/scripts/staging-canary.sh"
 SKIP_STAGING="${SKIP_STAGING:-}"
@@ -121,7 +122,7 @@ elif [ ! -x "$STAGING_GATEWAY" ] || [ ! -x "$STAGING_CANARY" ]; then
   exit 1
 else
   echo "--- Step 2.5/5: Staging canary test ---"
-  echo "  Starting staging gateway (port 18790) for pre-upgrade validation..."
+  echo "  Starting staging gateway (port ${STAGING_PORT}) for pre-upgrade validation..."
   bash "$STAGING_GATEWAY" start
   _staging_start_rc=$?
   if [ "$_staging_start_rc" -ne 0 ]; then
@@ -130,7 +131,7 @@ else
     exit 1
   fi
   echo "  Running 6-point canary against staging..."
-  bash "$STAGING_CANARY" --port 18790
+  bash "$STAGING_CANARY" --port ${STAGING_PORT}
   _canary_rc=$?
   bash "$STAGING_GATEWAY" stop
   if [ "$_canary_rc" -ne 0 ]; then
