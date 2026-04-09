@@ -201,26 +201,21 @@ echo ""
 echo "--- Step 5/5: Rebuild native modules + record baseline ---"
 _baseline_recorded=0
 if [ -d "$BETTER_SQLITE3_DIR/node_modules/better-sqlite3" ]; then
-  if [ ! -d "$BETTER_SQLITE3_DIR" ]; then
-    echo "  ERROR: Extension directory missing: $BETTER_SQLITE3_DIR"
-    echo "  SKIP: Cannot rebuild - extension not installed"
-  else
-    echo "  Rebuilding better-sqlite3 for new Node..."
-    _rebuild_out=$(cd "$BETTER_SQLITE3_DIR" && "$GATEWAY_NPM" rebuild better-sqlite3 2>&1)
-    _rebuild_rc=$?
-    if [ "$_rebuild_rc" -eq 0 ]; then
-      # Verify the rebuilt module actually loads before recording baseline
-      if "$GATEWAY_NODE" -e "require('$BETTER_SQLITE3_DIR/node_modules/better-sqlite3')" 2>/dev/null; then
-        echo "  Rebuild OK"
-        _baseline_recorded=1
-      else
-        echo "  WARN: Rebuild succeeded but module still fails to load — not updating baseline"
-        echo "  Run mem0-native-module-watchdog.sh --fix to investigate"
-      fi
+  echo "  Rebuilding better-sqlite3 for new Node..."
+  _rebuild_out=$(cd "$BETTER_SQLITE3_DIR" && "$GATEWAY_NPM" rebuild better-sqlite3 2>&1)
+  _rebuild_rc=$?
+  if [ "$_rebuild_rc" -eq 0 ]; then
+    # Verify the rebuilt module actually loads before recording baseline
+    if "$GATEWAY_NODE" -e "require('$BETTER_SQLITE3_DIR/node_modules/better-sqlite3')" 2>/dev/null; then
+      echo "  Rebuild OK"
+      _baseline_recorded=1
     else
-      echo "  WARN: Rebuild failed (exit $_rebuild_rc) — run mem0-native-module-watchdog.sh --fix manually"
-      echo "  Not updating baseline after failed rebuild."
+      echo "  WARN: Rebuild succeeded but module still fails to load — not updating baseline"
+      echo "  Run mem0-native-module-watchdog.sh --fix to investigate"
     fi
+  else
+    echo "  WARN: Rebuild failed (exit $_rebuild_rc) — run mem0-native-module-watchdog.sh --fix manually"
+    echo "  Not updating baseline after failed rebuild."
   fi
 else
   echo "  SKIP: better-sqlite3 not found at $BETTER_SQLITE3_DIR/node_modules/better-sqlite3"
@@ -230,6 +225,7 @@ fi
 if [ "$_baseline_recorded" -eq 1 ] && [ -x "$GATEWAY_NODE" ]; then
   _modver=$("$GATEWAY_NODE" -e "process.stdout.write(String(process.versions.modules))" 2>/dev/null || echo "unknown")
   if [ "$_modver" != "unknown" ]; then
+    mkdir -p "$HOME/.openclaw"
     echo "$_modver" > "$BASELINE_FILE"
     echo "  Baseline updated: MODULE_VERSION=$_modver → $BASELINE_FILE"
   fi
