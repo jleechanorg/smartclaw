@@ -225,7 +225,7 @@ else
   _sdk_ver=$(${HOME}/.nvm/versions/node/v22.22.0/bin/npm view "openclaw@${_oc_ver}" dependencies 2>/dev/null \
     | grep -i agentclientprotocol | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
   if [ -n "${_sdk_ver:-}" ]; then
-    echo "$_sdk_ver" > "$HOME/.smartclaw/.current-sdk-version"
+    echo "$_sdk_ver" > "$HOME/.openclaw/.current-sdk-version"
     echo "  OK: openclaw=$_oc_ver, @agentclientprotocol/sdk=$_sdk_ver (stored .current-sdk-version)"
   else
     echo "  WARN: openclaw=$_oc_ver but could not resolve @agentclientprotocol/sdk version"
@@ -243,8 +243,8 @@ validate_sdk_compatibility() {
     return 1
   fi
   local cur_sdk="unknown"
-  [ -f "$HOME/.smartclaw/.current-sdk-version" ] \
-    && cur_sdk=$(cat "$HOME/.smartclaw/.current-sdk-version" | tr -d '[:space:]')
+  [ -f "$HOME/.openclaw/.current-sdk-version" ] \
+    && cur_sdk=$(cat "$HOME/.openclaw/.current-sdk-version" | tr -d '[:space:]')
   local new_sdk
   new_sdk=$(${HOME}/.nvm/versions/node/v22.22.0/bin/npm view "openclaw@${new_version}" dependencies 2>/dev/null \
     | grep -i agentclientprotocol | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
