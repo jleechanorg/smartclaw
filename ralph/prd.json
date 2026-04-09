@@ -1,0 +1,19 @@
+{
+  "goal": "Make mem0 retrieval pass the hard 50-question suite for Slack-backed memory facts.",
+  "userStories": [
+    {
+      "id": "M50-1",
+      "title": "Build isolated mem0 import + query harness",
+      "priority": "high",
+      "passes": false,
+      "verifyCommand": "test -x scripts/mem0_50q_run.sh && scripts/mem0_50q_run.sh --mode dry-run >/tmp/mem0_50q_dryrun.log 2>&1"
+    },
+    {
+      "id": "M50-2",
+      "title": "Run persistent backfill and evaluate 50Q",
+      "priority": "high",
+      "passes": false,
+      "verifyCommand": "scripts/mem0_50q_run.sh --mode run >/tmp/mem0_50q_run.log 2>&1 && python3 scripts/mem0_50q_score.py /tmp/openclaw-mem0-fastpath/latest-50q/qa-50.json /tmp/openclaw-mem0-fastpath/latest-50q/expected-50.json >/tmp/mem0_50q_score.log 2>&1 && python3 - <<'PY'\nimport json\ns=json.load(open('/tmp/openclaw-mem0-fastpath/latest-50q/score.json'))\nassert s['pass_rate'] >= 0.96, s\nPY"
+    }
+  ]
+}

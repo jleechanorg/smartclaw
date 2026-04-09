@@ -2,12 +2,12 @@
 # Backup qdrant_storage/ to Dropbox so it survives WAL corruption or Docker loss.
 # Run nightly via cron or launchd. Keeps last 7 daily backups.
 #
-# Source: ~/.smartclaw/scripts/backup-qdrant-to-dropbox.sh
+# Source: ~/.openclaw/scripts/backup-qdrant-to-dropbox.sh
 # Dest:   ~/Dropbox/local/qdrant-backups/YYYY-MM-DD/
 
 set -euo pipefail
 
-SRC="${HOME}/.smartclaw/qdrant_storage"
+SRC="${HOME}/.openclaw/qdrant_storage"
 DEST_ROOT="${HOME}/Dropbox/local/qdrant-backups"
 DATE=$(date +%Y-%m-%d)
 DEST="${DEST_ROOT}/${DATE}"

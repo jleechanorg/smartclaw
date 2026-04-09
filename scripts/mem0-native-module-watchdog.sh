@@ -14,11 +14,11 @@
 #   2 — baseline file missing AND better-sqlite3 fails to load (ABI mismatch — run --fix)
 set -uo pipefail
 
-GATEWAY_NODE="${HOME}/.nvm/versions/node/v22.22.0/bin/node"
-GATEWAY_NPM="${HOME}/.nvm/versions/node/v22.22.0/bin/npm"
-BETTER_SQLITE3_DIR="$HOME/.smartclaw/extensions/openclaw-mem0"
-BASELINE_FILE="$HOME/.smartclaw/.gateway-node-version"
-LOG_FILE="$HOME/.smartclaw/logs/mem0-watchdog.log"
+GATEWAY_NODE="/Users/jleechan/.nvm/versions/node/v22.22.0/bin/node"
+GATEWAY_NPM="/Users/jleechan/.nvm/versions/node/v22.22.0/bin/npm"
+BETTER_SQLITE3_DIR="$HOME/.openclaw/extensions/openclaw-mem0"
+BASELINE_FILE="$HOME/.openclaw/.gateway-node-version"
+LOG_FILE="$HOME/.openclaw/logs/mem0-watchdog.log"
 FIX_MODE="${1:-}"
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 
@@ -104,7 +104,7 @@ _log "WARN: better-sqlite3 may be compiled for wrong Node — mem0 recall/captur
 
 if [ "$FIX_MODE" != "--fix" ]; then
   _log "INFO: Run with --fix to auto-rebuild better-sqlite3, or:"
-  _log "INFO:   npm rebuild better-sqlite3 --prefix ~/.smartclaw/extensions/openclaw-mem0"
+  _log "INFO:   npm rebuild better-sqlite3 --prefix ~/.openclaw/extensions/openclaw-mem0"
   exit 1
 fi
 
@@ -136,9 +136,9 @@ if [ "$REBUILD_EXIT" -eq 0 ]; then
   echo "$CURRENT_MODVER" > "$BASELINE_FILE"
   _log "FIX: Rebuild OK — baseline updated to MODULE_VERSION=$CURRENT_MODVER"
   _log "FIX: Restarting openclaw gateway to load rebuilt module..."
-  launchctl kickstart -k "gui/$(id -u)/ai.smartclaw.gateway" >/dev/null 2>&1 \
+  launchctl kickstart -k "gui/$(id -u)/ai.openclaw.gateway" >/dev/null 2>&1 \
     && _log "FIX: Gateway restarted via launchctl kickstart" \
-    || _log "WARN: Gateway restart failed — reload manually: launchctl kickstart -k gui/$(id -u)/ai.smartclaw.gateway"
+    || _log "WARN: Gateway restart failed — reload manually: launchctl kickstart -k gui/$(id -u)/ai.openclaw.gateway"
   exit 0
 else
   _log "ERROR: Rebuild failed (exit $REBUILD_EXIT)"

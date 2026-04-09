@@ -31,8 +31,11 @@ fi
 if [[ -n "${AO_MONITOR_PROJECT:-}" ]]; then
   export AO_MONITOR_PROJECT
 fi
-if [[ -n "${AO_MONITOR_LOG_DIR:-}" ]]; then
-  export AO_MONITOR_LOG_DIR
+if [[ -n "${AO_MONITOR_LOG:-}" ]]; then
+  export AO_MONITOR_LOG
+fi
+if [[ -n "${AO_MONITOR_CHANNEL:-}" ]]; then
+  export AO_MONITOR_CHANNEL
 fi
 
-exec ${HOME}/.smartclaw/scripts/ao7green-pr-monitor.sh "$@"
+exec "${HOME}/.openclaw/scripts/ao7green-pr-monitor.sh" "$@"

@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "lastGood": {
+    "openai-codex": "openai-codex:default"
+  },
+  "profiles": {
+    "openai-codex:default": {
+      "provider": "openai-codex",
+      "mode": null,
+      "hasApiKey": false,
+      "hasAccessToken": false,
+      "hasRefreshToken": false
+    }
+  },
+  "usageStatsKeys": [
+    "openai-codex:default"
+  ]
+}

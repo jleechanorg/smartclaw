@@ -11,8 +11,8 @@
 #
 set -euo pipefail
 
-# Canonical openclaw home — always use ~/.smartclaw, resolved at runtime
-OPENCLAW_HOME="$(python3 -c 'import os; print(os.path.expanduser("~/.smartclaw"))')"
+# Canonical openclaw home — always use ~/.openclaw, resolved at runtime
+OPENCLAW_HOME="$(python3 -c 'import os; print(os.path.expanduser("~/.openclaw"))')"
 LAUNCHD_DIR="$HOME/Library/LaunchAgents"
 PLIST_TEMPLATE="$OPENCLAW_HOME/launchd/ai.agento-manager.plist.template"
 PLIST_NAME="ai.agento.manager.plist"
@@ -43,7 +43,7 @@ _install() {
     exit 1
   }
 
-  mkdir -p "$LAUNCHD_DIR" "$HOME/.smartclaw/logs"
+  mkdir -p "$LAUNCHD_DIR" "$HOME/.openclaw/logs"
 
   # Stop existing manager if running
   launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
@@ -69,7 +69,7 @@ _install() {
   echo "  launchctl print gui/\$(id -u)/$LABEL"
   echo ""
   echo "Logs:"
-  echo "  tail -f ~/.smartclaw/logs/agento-manager.log   # launchd stdout/stderr"
+  echo "  tail -f ~/.openclaw/logs/agento-manager.log   # launchd stdout/stderr"
   echo "  tail -f /tmp/ao-manager.log                   # ao-manager internal log"
   echo ""
   echo "Manager commands:"

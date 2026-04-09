@@ -2,7 +2,7 @@
 # Raise ao doctor's lifecycle-worker budget from hardcoded 3 to a configurable max.
 #
 # Upstream jleechanorg/agent-orchestrator warns when total_count > 3. Multi-project
-# harnesses (smartclaw + agent-orchestrator + several product repos) legitimately
+# harnesses (jleechanclaw + agent-orchestrator + several product repos) legitimately
 # run more workers — one per project. This patch replaces that check with:
 #   AO_DOCTOR_MAX_LIFECYCLE_WORKERS (default 8)
 #

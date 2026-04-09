@@ -4,7 +4,7 @@
 # launchd loses track of the service (e.g., after repeated rapid exits).
 #
 # Usage: add to crontab:
-#   */2 * * * * ${HOME}/.smartclaw/scripts/lifecycle-watchdog.sh
+#   */2 * * * * /Users/jleechan/.openclaw/scripts/lifecycle-watchdog.sh
 
 set -euo pipefail
 

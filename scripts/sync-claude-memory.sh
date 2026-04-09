@@ -2,7 +2,7 @@
 # sync-claude-memory.sh — Aggregate Claude Code memory files into OpenClaw context
 set -euo pipefail
 
-MEMORY_INDEX="$HOME/.smartclaw/workspace/claude-memory-context.md"
+MEMORY_INDEX="$HOME/.openclaw/workspace/claude-memory-context.md"
 CLAUDE_PROJECTS_DIR="$HOME/.claude/projects"
 TIMESTAMP=$(date '+%Y-%m-%dT%H:%M:%S%z')
 

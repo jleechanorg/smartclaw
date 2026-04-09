@@ -5,14 +5,14 @@
 
 set -euo pipefail
 
-# Configuration
-BUG_REPORTS_DIR="${HOME}/.openclaw/logs/bug_reports"
+# Configuration - output bug reports to /tmp to avoid polluting the repo
+# with large agent outputs; script itself stays in scripts/
+BUG_REPORTS_DIR="/tmp/openclaw/bug_reports"
 REPOS=("jleechanorg/jleechanclaw" "jleechanorg/worldarchitect.ai" "jleechanorg/ai_universe" "jleechanorg/beads")
 DAYS_LOOKBACK=2
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 REPORT_FILE="${BUG_REPORTS_DIR}/bug-hunt-${TIMESTAMP}.md"
 
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -92,7 +92,7 @@ done
 AGENTS=("claude" "codex" "cursor" "minimax" "gemini")
 AGENT_PIDS=()
 
-# Spawn agents in parallel (using ao spawn)
+# Spawn agents in parallel (direct CLI invocation — ao spawn has no --task flag)
 log_info "Spawning bug hunt agents..."
 
 for AGENT in "${AGENTS[@]}"; do
@@ -129,16 +129,35 @@ Return findings as structured JSON only (do not create files):
 
     # Output file for this agent's findings
     OUTPUT_FILE="${BUG_REPORTS_DIR}/bug-hunt-${AGENT}-${TIMESTAMP}.json"
-    
-    # Spawn agent in background (non-blocking)
+    ERR_FILE="${BUG_REPORTS_DIR}/bug-hunt-${AGENT}-${TIMESTAMP}.err"
+
+    # Spawn agent in background (non-blocking) via direct CLI.
+    # Exit code and empty-output are both treated as agent failure below.
     (
-        # Use ao spawn if available, otherwise fall back to manual clone
-        if command -v ao &> /dev/null; then
-            # Redirect stderr separately so JSON stdout stays clean
-            ao spawn "bug-hunt-${AGENT}" --agent "$AGENT" --task "$TASK_PROMPT" > "$OUTPUT_FILE" 2>>"${BUG_REPORTS_DIR}/bug-hunt-${AGENT}-${TIMESTAMP}.err" || true
-        else
-            log_warn "ao CLI not found, skipping $AGENT agent spawn"
-        fi
+        case "$AGENT" in
+            claude)
+                claude --dangerously-skip-permissions "$TASK_PROMPT" > "$OUTPUT_FILE" 2>>"$ERR_FILE"
+                ;;
+            codex)
+                # Codex has connectivity issues (CA certificates); fall back to claude
+                claude --dangerously-skip-permissions "$TASK_PROMPT" > "$OUTPUT_FILE" 2>>"$ERR_FILE"
+                ;;
+            gemini)
+                gemini --approval-mode yolo "$TASK_PROMPT" > "$OUTPUT_FILE" 2>>"$ERR_FILE"
+                ;;
+            cursor)
+                cursor-agent --print "$TASK_PROMPT" > "$OUTPUT_FILE" 2>>"$ERR_FILE"
+                ;;
+            minimax)
+                ANTHROPIC_API_KEY="${MINIMAX_API_KEY:-}" \
+                ANTHROPIC_BASE_URL="https://api.minimax.io/anthropic" \
+                ANTHROPIC_MODEL="MiniMax-M2.5" \
+                claude --dangerously-skip-permissions "$TASK_PROMPT" > "$OUTPUT_FILE" 2>>"$ERR_FILE"
+                ;;
+            *)
+                echo "Unknown agent: $AGENT" >> "$ERR_FILE"
+                ;;
+        esac
     ) &
     
     # Store PIDs for wait
@@ -155,18 +174,156 @@ for PID in "${AGENT_PIDS[@]}"; do
     kill "$TIMEOUT_PID" 2>/dev/null || true
 done
 
-# Count bugs by parsing JSON output files from this run
+# Count bugs by parsing JSON output files from this run.
+# Track agent failures separately so a clean-sweep is only reported when agents actually ran.
+AGENT_FAILURES=0
 ACTUAL_BUGS=0
 for AGENT in "${AGENTS[@]}"; do
     OUTPUT_FILE="${BUG_REPORTS_DIR}/bug-hunt-${AGENT}-${TIMESTAMP}.json"
-    if [ -f "$OUTPUT_FILE" ]; then
-        # Parse JSON array length (count of bugs found by this agent)
-        AGENT_BUGS=$(jq 'if type == "array" then length else 0 end' "$OUTPUT_FILE" 2>/dev/null || echo "0")
-        ACTUAL_BUGS=$((ACTUAL_BUGS + AGENT_BUGS))
+    ERR_FILE="${BUG_REPORTS_DIR}/bug-hunt-${AGENT}-${TIMESTAMP}.err"
+
+    if [ ! -f "$OUTPUT_FILE" ]; then
+        log_warn "$AGENT produced no output file — agent failed"
+        AGENT_FAILURES=$((AGENT_FAILURES + 1))
+        continue
     fi
+
+    # Empty file = agent produced nothing (crashed, timeout, connection error)
+    if [ ! -s "$OUTPUT_FILE" ]; then
+        log_warn "$AGENT output file is empty (0 bytes) — agent failed; see $ERR_FILE"
+        AGENT_FAILURES=$((AGENT_FAILURES + 1))
+        continue
+    fi
+
+    # Validate JSON — non-JSON output (API errors, plain text) must not be silently zero'd
+    if ! jq empty "$OUTPUT_FILE" 2>/dev/null; then
+        log_warn "$OUTPUT_FILE is not valid JSON — skipping (possible API error)"
+        AGENT_FAILURES=$((AGENT_FAILURES + 1))
+        continue
+    fi
+    # Top-level array, or wrapped object with a findings array (common LLM shape).
+    # Use `else empty end` (not `else 0 end`) so unrecognized shapes produce no output,
+    # making AGENT_BUGS empty and caught by the fail-closed case below.
+    AGENT_BUGS=$(
+        jq '
+            if type == "array" then length
+            elif type == "object" and (.findings | type == "array") then (.findings | length)
+            else empty end
+        ' "$OUTPUT_FILE" 2>/dev/null
+    )
+    # Empty = unrecognized shape or jq error — fail closed, do not count as zero
+    case "${AGENT_BUGS}" in
+        '') log_warn "could not parse bug count from $OUTPUT_FILE — skipping"; continue ;;
+        *[!0-9]*) log_warn "unexpected bug count '${AGENT_BUGS}' from $OUTPUT_FILE — skipping"; continue ;;
+    esac
+    ACTUAL_BUGS=$((ACTUAL_BUGS + AGENT_BUGS))
 done
 
+# Fail-closed: if ALL agents failed, this is NOT a clean sweep
+ALL_AGENTS_FAILED=0
+if [ "$AGENT_FAILURES" -eq "${#AGENTS[@]}" ]; then
+    log_error "All bug hunt agents failed — 0 bugs recorded is NOT a clean sweep"
+    ALL_AGENTS_FAILED=1
+fi
+
+# Create fix PRs for bugs found (after agents complete)
+FIX_PR_COUNT=0
+if [ "${ACTUAL_BUGS:-0}" -gt 0 ] 2>/dev/null; then
+    log_info "Creating fix PRs for $ACTUAL_BUGS bugs..."
+
+    # Collect all findings from all agents
+    ALL_FINDINGS="[]"
+    for AGENT in "${AGENTS[@]}"; do
+        OUTPUT_FILE="${BUG_REPORTS_DIR}/bug-hunt-${AGENT}-${TIMESTAMP}.json"
+        if [ -f "$OUTPUT_FILE" ] && jq empty "$OUTPUT_FILE" 2>/dev/null; then
+            AGENT_FINDINGS=$(
+                jq 'if type == "array" then . elif type == "object" and (.findings | type == "array") then .findings else [] end' \
+                    "$OUTPUT_FILE" 2>/dev/null
+            )
+            ALL_FINDINGS=$(echo "$ALL_FINDINGS" | jq --argjson new "$AGENT_FINDINGS" '. + $new' 2>/dev/null)
+        fi
+    done
+
+    # Deduplicate by repo+file+line+description
+    UNIQUE_FINDINGS=$(echo "$ALL_FINDINGS" | jq 'unique_by("\(.repo)\(.\pr)\(.\file)\(.\line)\(.\description)")' 2>/dev/null)
+
+    # For each unique bug, spawn a fix agent
+    FIX_BRANCH_NAME="fix/bug-hunt-$(date +%Y%m%d)"
+
+    while IFS= read -r finding; do
+        repo=$(echo "$finding" | jq -r '.repo // empty')
+        pr=$(echo "$finding" | jq -r '.pr // empty')
+        file=$(echo "$finding" | jq -r '.file // empty')
+        line=$(echo "$finding" | jq -r '.line // empty')
+        severity=$(echo "$finding" | jq -r '.severity // 3')
+        description=$(echo "$finding" | jq -r '.description // empty')
+        suggested_fix=$(echo "$finding" | jq -r '.suggested_fix // empty')
+
+        # Only fix P1/P2 bugs
+        if [ "$severity" -gt 2 ] 2>/dev/null; then
+            log_info "Skipping severity-$severity bug (only fixing P1/P2): $repo PR#$pr $file:$line"
+            continue
+        fi
+
+        FIX_TASK="Fix Bug from Bug Hunt:
+
+Bug found in $repo PR #$pr:
+- File: $file
+- Line: $line
+- Severity: $severity (P1/P2)
+- Description: $description
+- Suggested Fix: $suggested_fix
+
+Your job:
+1. Clone/checkout $repo if not already present
+2. Create branch: $FIX_BRANCH_NAME-<short-hash-of-finding>
+3. Apply the fix to $file around line $line
+4. Write a test that reproduces the bug and verifies the fix
+5. Commit with message: 'fix: patch $file:$line - <one-line-description>'
+6. Push branch to origin
+7. Create PR titled '[bug-hunt] fix: <brief description>' targeting main
+8. In the PR body, reference: 'Found in bug hunt — $repo PR #$pr'
+
+Return the PR URL as your final output."
+
+        FIX_LOG="${BUG_REPORTS_DIR}/bug-hunt-fix-$(date +%s)-${RANDOM}.log"
+        ANTHROPIC_API_KEY="${MINIMAX_API_KEY:-}" \
+            ANTHROPIC_BASE_URL="https://api.minimax.io/anthropic" \
+            ANTHROPIC_MODEL="MiniMax-M2.5" \
+            claude --dangerously-skip-permissions "$FIX_TASK" >> "$FIX_LOG" 2>&1 &
+        FIX_AGENT_PID=$!
+        (
+          sleep 300
+          kill $FIX_AGENT_PID 2>/dev/null || true
+        ) &
+        watchdog_pid=$!
+        wait $FIX_AGENT_PID 2>/dev/null || true
+        kill $watchdog_pid 2>/dev/null || true
+        wait $watchdog_pid 2>/dev/null || true
+        FIX_PR_COUNT=$((FIX_PR_COUNT + 1))
+    done < <(echo "$UNIQUE_FINDINGS" | jq -r '.[] | @json' 2>/dev/null)
+fi
+
 # Append findings and totals to report file
+FIX_PR_INFO=""
+if [ "${FIX_PR_COUNT:-0}" -gt 0 ]; then
+    FIX_PR_INFO="- Fix PRs created: $FIX_PR_COUNT"
+fi
+
+# Build failure warning block (included in report and Slack when agents failed)
+FAILURE_WARNING=""
+if [ "${ALL_AGENTS_FAILED:-0}" -eq 1 ]; then
+    FAILURE_WARNING="
+
+:warning: *ALL bug hunt agents failed to run.* 0 bugs recorded — this is NOT a clean sweep.
+Check error logs in $BUG_REPORTS_DIR/*.err for details."
+elif [ "${AGENT_FAILURES:-0}" -gt 0 ]; then
+    FAILURE_WARNING="
+
+:warning: ${AGENT_FAILURES}/${#AGENTS[@]} agents failed — bug count may be incomplete.
+Check error logs in $BUG_REPORTS_DIR/*.err for details."
+fi
+
 cat >> "$REPORT_FILE" << EOF
 ## PR Findings
 
@@ -176,7 +333,16 @@ $(echo -e "$FINDINGS")
 
 - PRs reviewed: $TOTAL_PRS
 - Bugs found: $ACTUAL_BUGS
+- Agent failures: ${AGENT_FAILURES:-0}/${#AGENTS[@]}${FIX_PR_INFO:+$'\n'$FIX_PR_INFO}
 EOF
+
+# Only ping @openclaw when there is at least one counted finding (see gh #242).
+OPENCLAW_BUG_ESCALATION=""
+if [ "${ACTUAL_BUGS:-0}" -gt 0 ] 2>/dev/null; then
+    OPENCLAW_BUG_ESCALATION="
+
+@openclaw Please fix these bugs using agento"
+fi
 
 # Create Slack message
 SLACK_MESSAGE="*Daily Bug Hunt Report - ${TIMESTAMP}*
@@ -190,10 +356,10 @@ $(echo -e "$FINDINGS")
 
 *Results:*
 - PRs reviewed: $TOTAL_PRS
-- Bugs found: $ACTUAL_BUGS
-
-*Reports:* $REPORT_FILE
-$([ "$ACTUAL_BUGS" -gt 0 ] && echo "" && echo "@openclaw Please fix these bugs using agento" || true)"
+- Bugs found: $ACTUAL_BUGS${FIX_PR_INFO:+, Fix PRs created: $FIX_PR_COUNT}
+- Agent failures: ${AGENT_FAILURES:-0}/${#AGENTS[@]}
+${FAILURE_WARNING}
+*Reports:* $REPORT_FILE${OPENCLAW_BUG_ESCALATION}"
 
 # Post to Slack using user token (so OpenClaw gateway will react to @openclaw mentions)
 SLACK_POSTED=0

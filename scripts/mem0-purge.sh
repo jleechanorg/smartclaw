@@ -28,12 +28,12 @@
 # REQUIREMENTS:
 #   - Python 3 with mem0 package (pip install mem0ai)
 #   - Qdrant running on localhost:6333
-#   - mem0_config.py at ~/.smartclaw/.claude/hooks/ (Python path set automatically)
+#   - mem0_config.py at ~/.openclaw/.claude/hooks/ (Python path set automatically)
 
 set -euo pipefail
 
 # --- Config ------------------------------------------------------------------
-MEM0_HOOKS_DIR="${HOME}/.smartclaw/.claude/hooks"
+MEM0_HOOKS_DIR="${HOME}/.openclaw/.claude/hooks"
 
 # Derive Qdrant URL and collection from the same mem0_config.py that mem0 uses.
 # This ensures deletion and verification target the same store.

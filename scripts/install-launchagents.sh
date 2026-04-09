@@ -7,7 +7,9 @@
 #   - ai.openclaw.gateway             (openclaw gateway, port 18789, via openclaw CLI)
 #   - ai.openclaw.webhook             (webhook daemon, port 19888, GitHub webhook ingress)
 #   - ai.openclaw.startup-check       (startup verification on login)
+#   - ai.openclaw.staging            (staging gateway, port 18810, if plist exists in repo)
 #   - ai.openclaw.monitor-agent       (periodic health monitoring, hourly)
+#   - ai.openclaw.antig-cmux-loop    (steer Antigravity terminal via cmux, every 10 min)
 #   - ai.openclaw.mission-control     (MC backend, port 9010)
 #   - ai.openclaw.mission-control-frontend (MC frontend, port 3000)
 #
@@ -26,7 +28,9 @@ esac
 echo "Detected OS: $OS"
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-CONFIG_DIR="$REPO_DIR/openclaw-config"
+# All plists and scripts tracked in the repo live at the repo root
+# (openclaw-config/ was removed in 4e57fa88 — repo IS ~/.openclaw now).
+CONFIG_DIR="$REPO_DIR"
 LAUNCHD_DIR="$HOME/Library/LaunchAgents"
 SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
 OPENCLAW_HOME="$HOME/.openclaw"
@@ -147,6 +151,9 @@ _safe_install() {
 install_startup_check_script() {
   install -d "$OPENCLAW_HOME"
   mkdir -p "$OPENCLAW_HOME/logs" "$OPENCLAW_HOME/logs/scheduled-jobs"
+  # ai.openclaw.startup-check.plist logs to ~/Library/Logs/openclaw/ — must exist
+  # before launchd bootstrap or some macOS versions return EIO for the job.
+  mkdir -p "$HOME/Library/Logs/openclaw"
   if [[ -f "$CONFIG_DIR/startup-check.sh" ]] && [[ "$(realpath "$CONFIG_DIR/startup-check.sh" 2>/dev/null)" != "$(realpath "$OPENCLAW_HOME/startup-check.sh" 2>/dev/null)" ]]; then
     install -m 755 "$CONFIG_DIR/startup-check.sh" "$OPENCLAW_HOME/startup-check.sh"
   else
@@ -157,28 +164,100 @@ install_startup_check_script() {
   echo "  ✓ run-scheduled-job.sh installed"
 }
 
-detect_python_with_mem0() {
-  # ORCH-k78 fix: Find python with mem0/qdrant-client installed
-  # Prefer homebrew python, fallback to any python3 with required packages
-  local python_path
+ensure_staging_config_file() {
+  local staging_cfg="$OPENCLAW_HOME/openclaw.staging.json"
+  local main_cfg="$OPENCLAW_HOME/openclaw.json"
+  python3 - "$staging_cfg" "$main_cfg" <<'PY'
+import json
+import pathlib
+import secrets
+import sys
 
-  # Try homebrew python first
-  if /opt/homebrew/bin/python3 -c "import mem0; import qdrant_client" 2>/dev/null; then
-    python_path="/opt/homebrew/bin/python3"
-  # Try system python3 if homebrew doesn't have the packages
-  elif /usr/bin/python3 -c "import mem0; import qdrant_client" 2>/dev/null; then
-    python_path="/usr/bin/python3"
-  else
-    # Fallback to whatever python3 is available - let it fail at runtime
-    python_path="$(which python3 2>/dev/null || echo "/opt/homebrew/bin/python3")"
-  fi
+staging_path = pathlib.Path(sys.argv[1])
+main_path = pathlib.Path(sys.argv[2])
 
-  echo "$python_path"
+def load_json(path: pathlib.Path):
+    try:
+        return json.loads(path.read_text())
+    except Exception:
+        return {}
+
+existing = load_json(staging_path)
+main_cfg = load_json(main_path)
+
+token = (
+    existing.get("gateway", {}).get("auth", {}).get("token")
+    or existing.get("gateway", {}).get("remote", {}).get("token")
+    or main_cfg.get("gateway", {}).get("auth", {}).get("token")
+    or secrets.token_hex(32)
+)
+
+staging_cfg = {
+    "gateway": {
+        "mode": "local",
+        "auth": {"mode": "token", "token": token},
+        "remote": {"token": token},
+    },
+    "plugins": existing.get("plugins", {}) if isinstance(existing.get("plugins"), dict) else {},
+    "channels": {
+        "slack": {"enabled": False},
+        "discord": {"enabled": False},
+        "telegram": {"enabled": False},
+    },
+    "agents": {
+        "defaults": {
+            "model": {"primary": "minimax-portal/MiniMax-M2.7", "fallbacks": []},
+            "maxConcurrent": 10,
+            "subagents": {"maxConcurrent": 10},
+            "timeoutSeconds": 600,
+        }
+    },
 }
 
-# Detect python path once at script start
-PYTHON_PATH_FOR_LAUNCHD="$(detect_python_with_mem0)"
-echo "Using Python with mem0: $PYTHON_PATH_FOR_LAUNCHD"
+staging_path.parent.mkdir(parents=True, exist_ok=True)
+staging_path.write_text(json.dumps(staging_cfg, indent=2) + "\n")
+PY
+  chmod 600 "$staging_cfg" 2>/dev/null || true
+  echo "  ✓ ensured staging config: $staging_cfg (slack disabled)"
+}
+
+detect_python_with_mem0() {
+  # ORCH-k78 fix: Find a Python interpreter with mem0/qdrant-client.
+  # Never prefer macOS system Python (/usr/bin/python3) for launchd services.
+  local python_path candidate
+
+  # Prefer Homebrew Python when it has required packages.
+  if /opt/homebrew/bin/python3 -c "import mem0; import qdrant_client" 2>/dev/null; then
+    python_path="/opt/homebrew/bin/python3"
+    echo "$python_path"
+    return 0
+  fi
+
+  # Fall back to whichever python3 is on PATH if it has required packages.
+  candidate="$(command -v python3 2>/dev/null || true)"
+  # ORCH-k78: explicitly skip /usr/bin/python3 — never use macOS system Python for mem0.
+  if [[ -n "$candidate" && "$candidate" != "/usr/bin/python3" ]] && \
+     "$candidate" -c "import mem0; import qdrant_client" 2>/dev/null; then
+    python_path="$candidate"
+    echo "$python_path"
+    return 0
+  fi
+
+  # No suitable interpreter found — abort so the caller can prompt for installation.
+  echo "ERROR: detect_python_with_mem0: no Python with mem0+qdrant-client found." >&2
+  echo "Install mem0: pip install mem0 qdrant-client" >&2
+  return 1
+}
+
+# Detect python path once at script start; abort if no suitable interpreter found.
+# Only needed on macOS — Linux systemd units use PATH resolution.
+if [[ "$OS" == "macos" ]]; then
+  PYTHON_PATH_FOR_LAUNCHD="$(detect_python_with_mem0)" || {
+    echo "ERROR: install-launchagents.sh requires a Python with mem0 and qdrant-client." >&2
+    exit 1
+  }
+  echo "Using Python with mem0: $PYTHON_PATH_FOR_LAUNCHD"
+fi
 
 detect_node_bin_dir() {
   # Prefer nvm current symlink; fallback to resolved path of node binary
@@ -324,33 +403,136 @@ EOF
   echo "  ✓ ${unit_name}.timer installed"
 }
 
+# Detect whether openclaw binary is in launchd's PATH (launchd doesn't inherit shell env).
+# Returns the dir + ":" if non-standard, else empty string.
+# NOTE: Duplicated from install-openclaw-scheduled-jobs.sh (same logic, independent scripts).
+# Both may run standalone and must each compute OPENCLAW_EXTRA_PATH independently.
+_detect_openclaw_extra_path() {
+  local bin_path bin_dir
+  bin_path="$(command -v openclaw 2>/dev/null || true)"
+  [[ -z "$bin_path" ]] && echo "" && return
+  bin_dir="$(dirname "$bin_path")"
+  case ":$HOME/.bun/bin:$HOME/.local/bin:$HOME/bin:$HOME/Library/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:" in
+    *":${bin_dir}:"*) echo "" ;;
+    *)                echo "${bin_dir}:" ;;
+  esac
+}
+
+OPENCLAW_EXTRA_PATH="$(_detect_openclaw_extra_path)"
+
+# Resolve openclaw binary path. Uses command -v (which checks PATH) as primary;
+# explicit paths as fallbacks for machines where openclaw lives outside PATH.
+_openclaw_resolve() {
+  local candidate
+  # 1. PATH lookup
+  candidate="$(command -v openclaw 2>/dev/null || true)"
+  if [[ -n "$candidate" && -x "$candidate" ]]; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+  # 2. Explicitly check nvm/pnpm/bun/Homebrew locations (startup-check.sh compatible)
+  for candidate in \
+    "$HOME/.nvm/versions/node/current/bin/openclaw" \
+    "$HOME/.nvm/versions/node/v22.22.0/bin/openclaw" \
+    "$HOME/Library/pnpm/openclaw" \
+    "$HOME/.bun/bin/openclaw" \
+    "/opt/homebrew/bin/openclaw" \
+    "/usr/local/bin/openclaw"; do
+    if [[ -x "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  # 3. Not found
+  return 1
+}
+
+OPENCLAW_BIN="$(_openclaw_resolve || true)"
+
+# Validate early — OPENCLAW_BIN is substituted into plist templates via sed;
+# an empty value produces a broken plist (empty ProgramArguments).
+if [[ -z "$OPENCLAW_BIN" ]] || [[ ! -x "$OPENCLAW_BIN" ]]; then
+  echo "ERROR: openclaw binary not found or not executable." >&2
+  echo "  Resolved: '${OPENCLAW_BIN:-<empty>}'" >&2
+  echo "  Check PATH, or install openclaw before running this script." >&2
+  exit 1
+fi
+
+# Detect bash binary for launchd plists that use bash -l -c.
+# Prefer Homebrew bash (newer, consistent with @HOMEBREW_BASH@ used in ao-manager plist).
+if [[ -x /opt/homebrew/bin/bash ]]; then
+  HOMEBREW_BASH="/opt/homebrew/bin/bash"
+elif [[ -x /usr/local/bin/bash ]]; then
+  HOMEBREW_BASH="/usr/local/bin/bash"
+else
+  HOMEBREW_BASH="/bin/bash"
+fi
+
 install_plist() {
   local src="$1"
-  local label
-  label=$(basename "$src" .plist)
+  local base label
+  base="$(basename "$src")"
+  case "$base" in
+    *.plist.template) label="${base%.plist.template}" ;;
+    *.plist)          label="${base%.plist}" ;;
+    *)                label="$base" ;;
+  esac
   local dst="$LAUNCHD_DIR/$label.plist"
 
-  mkdir -p "$LAUNCHD_DIR"
+  # AO dashboard lives in agent-orchestrator repo
+  AO_DASHBOARD_DIR="${AO_DASHBOARD_DIR:-${HOME}/projects_reference/agent-orchestrator/packages/web}"
+
+  mkdir -p "$LAUNCHD_DIR" "$HOME/.openclaw/logs" "$HOME/.openclaw/logs/scheduled-jobs"
   sed \
     -e "s|PLACEHOLDER_MC_TOKEN|$(_esc_sed "$MC_TOKEN")|g" \
     -e "s|@HOME@|$(_esc_sed "$HOME")|g" \
+    -e "s|@REPO_ROOT@|$(_esc_sed "$REPO_DIR")|g" \
     -e "s|@PYTHON_PATH@|$(_esc_sed "$PYTHON_PATH_FOR_LAUNCHD")|g" \
     -e "s|@PYTHON3_PATH@|$(_esc_sed "$PYTHON_PATH_FOR_LAUNCHD")|g" \
     -e "s|@NODE_BIN_DIR@|$(_esc_sed "$NODE_BIN_DIR_FOR_LAUNCHD")|g" \
     -e "s|@NODE_PATH@|$(_esc_sed "$NODE_PATH_FOR_LAUNCHD")|g" \
+    -e "s|@AO_DASHBOARD_DIR@|$(_esc_sed "$AO_DASHBOARD_DIR")|g" \
+    -e "s|@OPENCLAW_EXTRA_PATH@|$(_esc_sed "$OPENCLAW_EXTRA_PATH")|g" \
+    -e "s|@OPENCLAW_BIN@|$(_esc_sed "$OPENCLAW_BIN")|g" \
+    -e "s|@HOMEBREW_BASH@|$(_esc_sed "$HOMEBREW_BASH")|g" \
     "$src" > "$dst"
 
-  if ! launchctl bootstrap "gui/$(id -u)" "$dst" 2>/dev/null; then
-    launchctl bootout "gui/$(id -u)" "$dst" 2>/dev/null || true
-    launchctl bootstrap "gui/$(id -u)" "$dst"
+  # Unregister any existing job with this label first. Re-running install when the
+  # service is already loaded causes `launchctl bootstrap` to fail with EIO (exit 5).
+  # Boot-out by label is reliable; boot-out by plist path alone can fail when not loaded.
+  launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
+  # KeepAlive jobs (e.g. gateway) need a moment to exit before bootstrap can reload.
+  sleep 0.35
+
+  local result=0
+  local attempt=1
+  local max_attempts=3
+  while [[ "$attempt" -le "$max_attempts" ]]; do
+    if launchctl bootstrap "gui/$(id -u)" "$dst"; then
+      result=0
+      break
+    fi
+    result=$?
+    if [[ "$attempt" -lt "$max_attempts" ]]; then
+      sleep 0.5
+      launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
+      sleep 0.35
+    fi
+    attempt=$((attempt + 1))
+  done
+  if [[ $result -eq 0 ]]; then
+    echo "  ✓ $label loaded"
+  else
+    echo "  ✗ $label FAILED to load (exit $result)" >&2
+    return $result
   fi
-  echo "  ✓ $label loaded"
 }
 
 echo "Installing services ($OS)..."
 
 # --- qdrant (mem0 vector store) ---
 QDRANT_PLIST_TEMPLATE="$REPO_DIR/launchd/ai.openclaw.qdrant.plist.template"
+QDRANT_INSTALLED=0
 # Install the qdrant start script regardless of OS (both paths use it)
 if [[ -f "$QDRANT_PLIST_TEMPLATE" ]]; then
   if docker info >/dev/null 2>&1; then
@@ -372,10 +554,12 @@ if [[ -f "$QDRANT_PLIST_TEMPLATE" ]]; then
     launchctl bootout "gui/$(id -u)" "$dst" 2>/dev/null || true
     launchctl bootstrap "gui/$(id -u)" "$dst"
     echo "  ✓ ai.openclaw.qdrant installed (qdrant on port 6333)"
+    QDRANT_INSTALLED=1
   else
     install_systemd_service "openclaw-qdrant" \
       "/bin/bash $OPENCLAW_HOME/scripts/start-qdrant-container.sh" \
       "oneshot" "" "qdrant"
+    QDRANT_INSTALLED=1
   fi
 else
   echo "  • skipping ai.openclaw.qdrant (template not found: $QDRANT_PLIST_TEMPLATE)"
@@ -421,17 +605,45 @@ else
     WEBHOOK_INSTALLED=0
 fi
 
-# --- gateway ---
-# Token is hardcoded in ~/.openclaw/openclaw.json — the gateway reads it directly.
+# --- production directory setup ---
+# ~/.openclaw/ = staging (repo checkout), ~/.openclaw_prod/ = production (separate dir)
+PROD_DIR="$HOME/.openclaw_prod"
+if [[ ! -d "$PROD_DIR" ]]; then
+  echo "  Creating production directory: $PROD_DIR"
+  mkdir -p "$PROD_DIR/logs"
+  # Seed prod config from staging if it doesn't exist
+  if [[ -f "$HOME/.openclaw/openclaw.json" ]] && [[ ! -f "$PROD_DIR/openclaw.json" ]]; then
+    cp "$HOME/.openclaw/openclaw.json" "$PROD_DIR/openclaw.json"
+    echo "  Seeded $PROD_DIR/openclaw.json from staging"
+  fi
+  # Symlink shared resources
+  for target in SOUL.md TOOLS.md HEARTBEAT.md extensions agents credentials lcm.db; do
+    src="$HOME/.openclaw/$target"
+    dst="$PROD_DIR/$target"
+    if [[ -e "$src" ]] && [[ ! -e "$dst" ]]; then
+      ln -sf "$src" "$dst"
+    fi
+  done
+  echo "  ✓ Production directory initialized"
+else
+  mkdir -p "$PROD_DIR/logs"
+fi
+
+# --- gateway (production) ---
+# Production gateway reads from ~/.openclaw_prod/openclaw.json.
 # Do NOT inject tokens into plists; openclaw.json is the single source of truth.
 if [[ "$OS" == "macos" ]]; then
-  openclaw gateway install --force --port 18789 >/dev/null
-  PLIST="$LAUNCHD_DIR/ai.openclaw.gateway.plist"
-  if [[ -f "$PLIST" ]]; then
-    launchctl bootout "gui/$(id -u)" "$PLIST" 2>/dev/null || true
-    launchctl bootstrap "gui/$(id -u)" "$PLIST"
+  # ai.openclaw.gateway: KeepAlive plist, logs to ~/.openclaw_prod/logs/gateway.log
+  # OPENCLAW_BIN is already validated at lines 389-394 (exit 1 if missing) — no redundant check needed.
+  mkdir -p "$HOME/.openclaw/logs" "$PROD_DIR/logs"
+  # Install canonical gateway plist. Clean up legacy com.openclaw.gateway if present.
+  if install_plist "$REPO_DIR/launchd/ai.openclaw.gateway.plist"; then
+    # Tear down legacy com.openclaw.gateway if it exists (migration from old label).
+    launchctl bootout "gui/$(id -u)/com.openclaw.gateway" 2>/dev/null || true
+    rm -f "$LAUNCHD_DIR/com.openclaw.gateway.plist"
+  else
+    echo "ERROR: gateway plist failed to load." >&2
   fi
-  echo "  ✓ ai.openclaw.gateway installed via openclaw gateway install"
 else
   # Linux: write systemd service for gateway
   GATEWAY_ENV="Environment=OPENCLAW_GATEWAY_PORT=18789
@@ -446,6 +658,25 @@ Environment=MISSION_CONTROL_BOARD_ID=aa68f729-d5e0-4d44-8c99-51bcebc0b8bc"
   install_systemd_service "openclaw-gateway" \
     "$(command -v openclaw) gateway run --port 18789 --bind loopback" \
     "simple" "$GATEWAY_ENV" "gateway"
+fi
+
+# --- staging gateway ---
+# ~/.openclaw/ IS the staging environment. Staging gateway runs on port 18810
+# using openclaw.staging.json from ~/.openclaw/ (separate from prod).
+if [[ "$OS" == "macos" ]]; then
+  ensure_staging_config_file
+  # Remove the auto-generated plist from staging-gateway.sh (now managed by installer)
+  if [[ -f "$HOME/.openclaw/ai.openclaw.staging.plist" ]]; then
+    launchctl bootout "gui/$(id -u)/ai.openclaw.staging" 2>/dev/null || true
+    rm -f "$LAUNCHD_DIR/ai.openclaw.staging.plist"
+  fi
+  if [[ -f "$REPO_DIR/launchd/ai.openclaw.staging.plist" ]]; then
+    install_plist "$REPO_DIR/launchd/ai.openclaw.staging.plist"
+  else
+    echo "  • skipping ai.openclaw.staging (plist not in repo — opt-in)"
+  fi
+else
+  echo "  • skipping staging gateway on Linux (not yet implemented)"
 fi
 
 # --- startup check ---
@@ -476,8 +707,137 @@ else
   MONITOR_AGENT_INSTALLED=1
 fi
 
-# --- scheduled jobs ---
+# --- antig cmux loop (steer Antigravity terminal via cmux every 10 min) ---
 if [[ "$OS" == "macos" ]]; then
+  ANTIG_CMUX_SCRIPT="$REPO_DIR/scripts/antig-cmux-loop.sh"
+  if [[ -f "$ANTIG_CMUX_SCRIPT" ]]; then
+    mkdir -p "$OPENCLAW_HOME/scripts"
+    _antig_dst="$OPENCLAW_HOME/scripts/antig-cmux-loop.sh"
+    if [[ "$(realpath "$ANTIG_CMUX_SCRIPT" 2>/dev/null)" != "$(realpath "$_antig_dst" 2>/dev/null)" ]]; then
+      cp "$ANTIG_CMUX_SCRIPT" "$_antig_dst"
+    fi
+    chmod +x "$_antig_dst"
+    ANTIG_CMUX_PLIST="$REPO_DIR/launchd/ai.openclaw.antig-cmux-loop.plist"
+    if [[ -f "$ANTIG_CMUX_PLIST" ]]; then
+      install_plist "$ANTIG_CMUX_PLIST"
+      echo "  ✓ ai.openclaw.antig-cmux-loop installed"
+    else
+      echo "  • skipping ai.openclaw.antig-cmux-loop (plist not found)"
+    fi
+  else
+    echo "  • skipping ai.openclaw.antig-cmux-loop (script not found: $ANTIG_CMUX_SCRIPT)"
+  fi
+else
+  echo "  • skipping ai.openclaw.antig-cmux-loop (launchd is macOS-only)"
+fi
+
+# --- ao7green-jleechanclaw (drive jleechanclaw PRs to 7-green every 30 min) ---
+if [[ "$OS" == "macos" ]]; then
+  AO7GREEN_JLEECHANCLAW_PLIST="$REPO_DIR/launchd/ai.openclaw.schedule.ao7green-jleechanclaw.plist"
+  AO7GREEN_LAUNCHD_SCRIPT="$REPO_DIR/scripts/ao7green-pr-monitor.launchd.sh"
+  AO7GREEN_MONITOR_SCRIPT="$REPO_DIR/scripts/ao7green-pr-monitor.sh"
+  AO7GREEN_REPLACED_CRON_ID="64f2399d-33f4-4451-be87-05350d2b2590"
+  if [[ -f "$AO7GREEN_JLEECHANCLAW_PLIST" ]]; then
+    if [[ ! -f "$AO7GREEN_LAUNCHD_SCRIPT" || ! -f "$AO7GREEN_MONITOR_SCRIPT" ]]; then
+      echo "  • skipping ao7green-jleechanclaw (monitor scripts missing under $REPO_DIR/scripts)" >&2
+    else
+      mkdir -p "$OPENCLAW_HOME/scripts"
+      _ao7green_launchd_dst="$OPENCLAW_HOME/scripts/ao7green-pr-monitor.launchd.sh"
+      _ao7green_monitor_dst="$OPENCLAW_HOME/scripts/ao7green-pr-monitor.sh"
+      if [[ "$(realpath "$AO7GREEN_LAUNCHD_SCRIPT" 2>/dev/null)" != "$(realpath "$_ao7green_launchd_dst" 2>/dev/null)" ]]; then
+        cp "$AO7GREEN_LAUNCHD_SCRIPT" "$_ao7green_launchd_dst"
+      fi
+      if [[ "$(realpath "$AO7GREEN_MONITOR_SCRIPT" 2>/dev/null)" != "$(realpath "$_ao7green_monitor_dst" 2>/dev/null)" ]]; then
+        cp "$AO7GREEN_MONITOR_SCRIPT" "$_ao7green_monitor_dst"
+      fi
+      chmod +x "$_ao7green_launchd_dst" "$_ao7green_monitor_dst"
+      install_plist "$AO7GREEN_JLEECHANCLAW_PLIST"
+      echo "  ✓ ai.openclaw.schedule.ao7green-jleechanclaw installed"
+      # Disable the replaced gateway cron job directly in jobs.json by ID.
+      # ao7green-jleechanclaw is handled here and is not migrated via
+      # install-openclaw-scheduled-jobs.sh MIGRATED_JOBS.
+      _live_cron_jobs="$OPENCLAW_HOME/cron/jobs.json"
+      if [[ -f "$_live_cron_jobs" ]]; then
+        if command -v jq >/dev/null 2>&1; then
+          # Use flock for atomic read-modify-write if available, else proceed unlocked (best effort)
+          _lock_file="${_live_cron_jobs}.lock"
+          if command -v flock >/dev/null 2>&1; then
+            exec 200>"$_lock_file"
+            flock -x 200
+          fi
+
+          _tmp_jobs_dir="$(dirname "$_live_cron_jobs")"
+          _tmp_jobs="$(mktemp "$_tmp_jobs_dir/jobs.json.tmp.XXXXXX")" || {
+            echo "  ! error: failed to create temporary file for $_live_cron_jobs" >&2
+            [[ -n "${200:-}" ]] && exec 200>&-
+            exit 1
+          }
+
+          if jq --arg id "$AO7GREEN_REPLACED_CRON_ID" '
+            .jobs = ((.jobs // []) | map(if .id == $id then .enabled = false else . end))
+          ' "$_live_cron_jobs" >"$_tmp_jobs"; then
+            mv "$_tmp_jobs" "$_live_cron_jobs"
+            echo "  - disabled gateway cron $AO7GREEN_REPLACED_CRON_ID (ao7green-jleechanclaw now launchd)"
+            _gw_pid="$(pgrep -f 'openclaw.*gateway' | head -n1 || true)"
+            if [[ -n "$_gw_pid" ]]; then
+              kill -HUP "$_gw_pid" 2>/dev/null || true
+            fi
+          else
+            rm -f "$_tmp_jobs"
+            echo "  ! warning: failed to disable gateway cron $AO7GREEN_REPLACED_CRON_ID in $_live_cron_jobs; ao7green-jleechanclaw may run twice until it is disabled manually" >&2
+          fi
+
+          if command -v flock >/dev/null 2>&1; then
+            exec 200>&-
+            rm -f "$_lock_file"
+          fi
+        else
+          echo "  ! warning: jq not installed; could not disable replaced gateway cron $AO7GREEN_REPLACED_CRON_ID in $_live_cron_jobs. ao7green-jleechanclaw may run twice until the cron job is disabled manually." >&2
+        fi
+      fi
+    fi
+  else
+    echo "  • skipping ao7green-jleechanclaw plist not found"
+  fi
+fi
+
+# --- AO dashboard (KeepAlive web UI) ---
+AGENTO_DASHBOARD_INSTALLED=0
+if [[ "$OS" == "macos" ]]; then
+  AGENTO_DASHBOARD_PLIST="$REPO_DIR/launchd/ai.agento.dashboard.plist.template"
+  if [[ -f "$AGENTO_DASHBOARD_PLIST" ]]; then
+    install_plist "$AGENTO_DASHBOARD_PLIST"
+    echo "  ✓ ai.agento.dashboard installed"
+    AGENTO_DASHBOARD_INSTALLED=1
+  else
+    echo "  • skipping ai.agento.dashboard (template not found: $AGENTO_DASHBOARD_PLIST)"
+  fi
+else
+  echo "  • skipping ai.agento.dashboard (Linux not yet implemented)"
+fi
+
+# --- Claude memory sync (background service, every-15-min sync) ---
+# Does not use ai.openclaw.schedule.* naming — it's a persistent background service.
+# launchd is macOS-only; no Linux equivalent (systemd timers handle scheduled jobs).
+if [[ "$OS" == "macos" ]]; then
+  MEMORY_SYNC_PLIST="$REPO_DIR/launchd/ai.openclaw.claude-memory-sync.plist.template"
+  if [[ -f "$MEMORY_SYNC_PLIST" ]]; then
+    install_plist "$MEMORY_SYNC_PLIST"
+    echo "  ✓ ai.openclaw.claude-memory-sync installed"
+  else
+    echo "  • skipping ai.openclaw.claude-memory-sync (template not found)"
+  fi
+else
+  echo "  • skipping ai.openclaw.claude-memory-sync (launchd is macOS-only)"
+fi
+
+# --- scheduled jobs ---
+SCHEDULED_JOBS_INSTALLED=0
+# Skip if called from the central installer (install-openclaw-launchd.sh), which
+# runs install-openclaw-scheduled-jobs.sh directly in Step 2 to avoid double-install.
+if [[ "${CALLED_AS_PART_OF_CENTRAL:-0}" == "1" ]]; then
+  echo "  • skipping nested scheduled-jobs install (central installer handles this in Step 2)"
+elif [[ "$OS" == "macos" ]]; then
   SCHEDULE_INSTALLER="$REPO_DIR/scripts/install-openclaw-scheduled-jobs.sh"
   if [[ -x "$SCHEDULE_INSTALLER" ]]; then
     LOCAL_TZ="$(detect_local_timezone)"
@@ -486,42 +846,35 @@ if [[ "$OS" == "macos" ]]; then
       echo "    set OPENCLAW_ALLOW_NON_PT_SCHEDULE=1 to override"
     else
       "$SCHEDULE_INSTALLER"
+      SCHEDULED_JOBS_INSTALLED=1
     fi
   else
     echo "  • skipping scheduled job migration (installer not found: $SCHEDULE_INSTALLER)"
   fi
 else
   # Linux: install systemd timers for all scheduled jobs
-  # Each timer maps to a run-scheduled-job.sh invocation matching the launchd plists
-  RUNNER="$OPENCLAW_HOME/run-scheduled-job.sh"
-  install_systemd_timer "openclaw-schedule-backup-4h20" \
-    "/bin/bash $RUNNER 882c6964-1deb-4b4b-936d-9edcab83fbda" \
-    "*-*-* 00:20:00 America/Los_Angeles
-*-*-* 04:20:00 America/Los_Angeles
-*-*-* 08:20:00 America/Los_Angeles
-*-*-* 12:20:00 America/Los_Angeles
-*-*-* 16:20:00 America/Los_Angeles
-*-*-* 20:20:00 America/Los_Angeles"
+  # Each timer directly executes the corresponding script in $OPENCLAW_HOME/scripts,
+  # mirroring the macOS launchd scheduled jobs.
+  # ── morning operational jobs ──────────────────────────────────────────────────
+  install_systemd_timer "openclaw-schedule-morning-log-review" \
+    "/bin/bash $OPENCLAW_HOME/scripts/morning-log-review.sh" \
+    "Mon..Fri * 08:00:00 America/Los_Angeles"
 
-  install_systemd_timer "openclaw-schedule-daily-checkin-9am" \
-    "/bin/bash $RUNNER 522e23a7-c7c1-41f2-b117-a3af05661578" \
-    "*-*-* 09:00:00 America/Los_Angeles"
+  install_systemd_timer "openclaw-schedule-docs-drift-review" \
+    "/bin/bash $OPENCLAW_HOME/scripts/docs-drift-review.sh" \
+    "Mon..Fri * 08:15:00 America/Los_Angeles"
 
-  install_systemd_timer "openclaw-schedule-daily-checkin-12pm" \
-    "/bin/bash $RUNNER 7424ea0d-2c8a-4a59-b58e-09b242c6c58e" \
-    "*-*-* 12:00:00 America/Los_Angeles"
+  install_systemd_timer "openclaw-schedule-cron-backup-sync" \
+    "/bin/bash $OPENCLAW_HOME/scripts/cron-backup-sync.sh" \
+    "Mon..Fri * 08:25:00 America/Los_Angeles"
 
-  install_systemd_timer "openclaw-schedule-daily-checkin-6pm" \
-    "/bin/bash $RUNNER 5192e214-2754-49d5-b567-07c7b24cb116" \
-    "*-*-* 18:00:00 America/Los_Angeles"
+  install_systemd_timer "openclaw-schedule-weekly-error-trends" \
+    "/bin/bash $OPENCLAW_HOME/scripts/weekly-error-trends.sh" \
+    "Mon * 09:00:00 America/Los_Angeles"
 
-  install_systemd_timer "openclaw-schedule-genesis-memory-curation-weekly" \
-    "/bin/bash $RUNNER genesis-memory-curation-weekly" \
-    "Sun *-*-* 22:00:00 America/Los_Angeles"
-
-  install_systemd_timer "openclaw-schedule-genesis-pattern-extraction-weekly" \
-    "/bin/bash $RUNNER genesis-pattern-extraction-weekly" \
-    "Sun *-*-* 07:30:00 America/Los_Angeles"
+  install_systemd_timer "openclaw-schedule-daily-research" \
+    "/bin/bash $OPENCLAW_HOME/scripts/daily-openclaw-research.sh" \
+    "Mon..Fri * 18:00:00 America/Los_Angeles"
 fi
 
 # --- Mission Control (macOS only for now) ---
@@ -561,9 +914,24 @@ done
 echo ""
 if [[ "$OS" == "macos" ]]; then
   echo "Verifying launchd labels..."
-  EXPECTED_LABELS=("ai.openclaw.qdrant" "ai.openclaw.gateway" "ai.openclaw.startup-check")
+  EXPECTED_LABELS=("ai.openclaw.gateway" "ai.openclaw.startup-check")
+  [[ "$QDRANT_INSTALLED" -eq 1 ]] && EXPECTED_LABELS+=("ai.openclaw.qdrant")
   [[ "$WEBHOOK_INSTALLED" -eq 1 ]] && EXPECTED_LABELS+=("ai.openclaw.webhook")
   [[ "$MONITOR_AGENT_INSTALLED" -eq 1 ]] && EXPECTED_LABELS+=("ai.openclaw.monitor-agent")
+  [[ "$AGENTO_DASHBOARD_INSTALLED" -eq 1 ]] && EXPECTED_LABELS+=("ai.agento.dashboard")
+
+  # Scheduled job labels — only add if scheduled jobs were actually installed
+  # NOTE: Keep this list in sync with launchd/ai.openclaw.schedule.*.plist.template filenames
+  if [[ "$SCHEDULED_JOBS_INSTALLED" -eq 1 ]]; then
+    for tmpl in "$REPO_DIR"/launchd/ai.openclaw.schedule.*.plist.template; do
+      [[ -f "$tmpl" ]] || continue
+      label="${tmpl%.plist.template}"
+      label="$(basename "$label")"
+      EXPECTED_LABELS+=("$label")
+    done
+  fi
+
+  # Also pick up any plist already in LAUNCHD_DIR (backwards compat)
   for plist in "$LAUNCHD_DIR"/ai.openclaw.schedule.*.plist; do
     [[ -f "$plist" ]] || continue
     EXPECTED_LABELS+=("$(basename "$plist" .plist)")
@@ -576,8 +944,13 @@ if [[ "$OS" == "macos" ]]; then
     if launchctl print "gui/$(id -u)/$label" >/dev/null 2>&1; then
       echo "  ✓ $label registered"
     else
-      echo "  ✗ $label NOT registered"
-      missing=1
+      # AO dashboard often fails bootstrap under load or when Next/npx is slow; doctor treats as optional.
+      if [[ "$label" == "ai.agento.dashboard" ]]; then
+        echo "  ⚠ $label NOT registered (non-fatal — optional service on port 3020)"
+      else
+        echo "  ✗ $label NOT registered"
+        missing=1
+      fi
     fi
   done
 
@@ -591,12 +964,11 @@ else
     "openclaw-gateway.service"
     "openclaw-webhook.service"
     "openclaw-startup-check.service"
-    "openclaw-schedule-backup-4h20.timer"
-    "openclaw-schedule-daily-checkin-9am.timer"
-    "openclaw-schedule-daily-checkin-12pm.timer"
-    "openclaw-schedule-daily-checkin-6pm.timer"
-    "openclaw-schedule-genesis-memory-curation-weekly.timer"
-    "openclaw-schedule-genesis-pattern-extraction-weekly.timer"
+    "openclaw-schedule-morning-log-review.timer"
+    "openclaw-schedule-docs-drift-review.timer"
+    "openclaw-schedule-cron-backup-sync.timer"
+    "openclaw-schedule-weekly-error-trends.timer"
+    "openclaw-schedule-daily-research.timer"
   )
   missing=0
   for unit in "${EXPECTED_UNITS[@]}"; do

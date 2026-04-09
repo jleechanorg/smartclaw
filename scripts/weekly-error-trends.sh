@@ -6,7 +6,7 @@
 
 set -euo pipefail
 
-ROOT="${OPENCLAW_ROOT:-$HOME/.smartclaw}"
+ROOT="${OPENCLAW_ROOT:-$HOME/.openclaw}"
 LOG_DIR="$ROOT/logs"
 OUT_DIR="$ROOT/logs/weekly-error-trends"
 REPORT="$OUT_DIR/report-$(date +%Y%m%d).txt"
@@ -82,14 +82,14 @@ FASTEST_FIXES=""
 [[ "$CAT_SCRIPT" -gt 0 ]] && FASTEST_FIXES="${FASTEST_FIXES}
 4. Script errors: run the script manually with the same PATH to reproduce"
 [[ "$CAT_MEMORY" -gt 0 ]] && FASTEST_FIXES="${FASTEST_FIXES}
-5. Memory/log errors: find large log files with: find ~/.smartclaw/logs -size +100M"
+5. Memory/log errors: find large log files with: find ~/.openclaw/logs -size +100M"
 
 # -- 5. Prevention checklist ----------------------------------------------
 
 PREVENTION_CHECKLIST="
 - Run openclaw doctor weekly -- catches config drift early
 - Verify launchd PATH before installing new plists
-- Keep log directory under 5 GB; prune monthly: find ~/.smartclaw/logs -name '*.log' -mtime +30 -delete
+- Keep log directory under 5 GB; prune monthly: find ~/.openclaw/logs -name '*.log' -mtime +30 -delete
 - Test scripts in a launchd-like environment (stripped PATH) before deploying
 - After any plist change: verify with launchctl print gui/$(id -u)/<label>
 "

@@ -17,6 +17,11 @@
 #
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/../lib/gog-env.sh"
+load_gog_env_from_openclaw "${HOME}/.openclaw/openclaw.json"
+
 TZ="${TZ:-America/Los_Angeles}"; export TZ
 
 # Use gdate (GNU) if available, else BSD date — gdate preferred for cross-platform -v support
@@ -40,7 +45,7 @@ fi
 NOW="$($DATE_CMD '+%Y-%m-%d %H:%M %Z')"
 
 CHANNEL_ID="${SLACK_CHANNEL_ID:-C0AMM2B4319}"
-SLACK_TOKEN="${SLACK_BOT_TOKEN:-${SLACK_BOT_TOKEN:-}}"
+SLACK_TOKEN="${OPENCLAW_SLACK_BOT_TOKEN:-${SLACK_BOT_TOKEN:-}}"
 # Capture parent temp dir so trap can clean the whole tree on any early exit
 _TMP_ROOT="$(mktemp -d)"
 WORK_DIR="$_TMP_ROOT/gmail-recap"
@@ -52,7 +57,7 @@ trap 'rm -rf "$_TMP_ROOT"' EXIT
 
 # Validate prerequisites before any work (fail fast — avoid leaking email metadata on error)
 if [[ -z "$SLACK_TOKEN" ]]; then
-  echo "ERROR: SLACK_BOT_TOKEN not set" >&2
+  echo "ERROR: OPENCLAW_SLACK_BOT_TOKEN not set" >&2
   exit 1
 fi
 

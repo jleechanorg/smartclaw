@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # sync-to-smartclaw.sh
-# Copies general-purpose content from smartclaw to smartclaw,
+# Copies general-purpose content from jleechanclaw to smartclaw,
 # sanitizing jleechan-specific tokens, IDs, and org names.
 #
 # Usage:
@@ -11,7 +11,7 @@
 #   GITHUB_ORG       Target GitHub org (default: jleechanorg)
 #   GITHUB_USER      Your GitHub username (default: jleechan)
 #   GITHUB_REPO      Target repo name (default: smartclaw)
-#   SOURCE_DIR       Path to smartclaw source (default: auto-detect)
+#   SOURCE_DIR       Path to jleechanclaw source (default: auto-detect)
 #   SLACK_CHANNEL_ID Slack channel for notifications (optional; required for Slack notification)
 #   SLACK_BOT_TOKEN  Slack bot token for notifications
 #   DRY_RUN          Set to 1 to skip push/PR/Slack steps
@@ -39,7 +39,7 @@ capture_pr_url() {
 GITHUB_ORG="${GITHUB_ORG:-jleechanorg}"
 GITHUB_USER="${GITHUB_USER:-jleechan}"
 GITHUB_REPO="${GITHUB_REPO:-smartclaw}"
-SOURCE_REPO="jleechanorg/smartclaw"
+SOURCE_REPO="jleechanorg/jleechanclaw"
 SLACK_CHANNEL_ID="${SLACK_CHANNEL_ID:-}"
 DRY_RUN="${DRY_RUN:-}"
 AUTO_GENERATE_MAP="${AUTO_GENERATE_MAP:-1}"
@@ -49,7 +49,7 @@ MAP_PATH="${MAP_PATH:-$SOURCE_DIR/scripts/smartclaw-export-map.tsv}"
 MAP_UPDATER_PATH="${MAP_UPDATER_PATH:-$SOURCE_DIR/scripts/update-smartclaw-export-map.sh}"
 # Always use mktemp — never delete a user-provided directory (TARGET_CLONE_DIR override is ignored)
 TARGET_CLONE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/smartclaw-sync.XXXXXX")
-BRANCH_NAME="feat/sync-from-smartclaw-$(date +%Y%m%d)"
+BRANCH_NAME="feat/sync-from-jleechanclaw-$(date +%Y%m%d)"
 
 # Clean up temp clone on exit
 trap 'rm -rf "$TARGET_CLONE_DIR"' EXIT
@@ -87,19 +87,19 @@ sanitize_file() {
   # Use a template so mktemp is portable (BSD/macOS require it)
   tmp=$(mktemp "${file}.sanitize.XXXXXX")
   sed \
-    -e "s|jleechanorg/smartclaw|${GITHUB_ORG}/${GITHUB_REPO}|g" \
+    -e "s|jleechanorg/jleechanclaw|${GITHUB_ORG}/${GITHUB_REPO}|g" \
     -e "s|jleechanorg|${GITHUB_ORG}|g" \
-    -e "s|smartclaw|${GITHUB_REPO}|g" \
+    -e "s|jleechanclaw|${GITHUB_REPO}|g" \
     -e "s|jleechan|${GITHUB_USER}|g" \
-    -e "s|${SLACK_CHANNEL_ID}|\${SLACK_CHANNEL_ID}|g" \
-    -e "s|${SLACK_CHANNEL_ID}|\${SLACK_CHANNEL_ID}|g" \
-    -e "s|${SLACK_CHANNEL_ID}|\${SLACK_CHANNEL_ID}|g" \
-    -e "s|${SLACK_CHANNEL_ID}|\${SLACK_CHANNEL_ID}|g" \
-    -e "s|SLACK_BOT_TOKEN|SLACK_BOT_TOKEN|g" \
-    -e "s|${GITHUB_USER}|\${GITHUB_USER}|g" \
-    -e "s|${HOME}/|\${HOME}/|g" \
+    -e "s|C0AKALZ4CKW|\${SLACK_CHANNEL_ID}|g" \
+    -e "s|C09GRLXF9GR|\${SLACK_CHANNEL_ID}|g" \
+    -e "s|D0AFTLEJGJU|\${SLACK_CHANNEL_ID}|g" \
+    -e "s|C0AKYEY48GM|\${SLACK_CHANNEL_ID}|g" \
+    -e "s|OPENCLAW_SLACK_BOT_TOKEN|SLACK_BOT_TOKEN|g" \
+    -e "s|jleechan2015|\${GITHUB_USER}|g" \
+    -e "s|/Users/jleechan/|\${HOME}/|g" \
     -e "s|/Users/jleechan\$|\${HOME}|g" \
-    -e "s|\.smartclaw|\.smartclaw|g" \
+    -e "s|\.openclaw|\.smartclaw|g" \
     "$file" > "$tmp"
   mv "$tmp" "$file"
 }
@@ -107,11 +107,11 @@ sanitize_file() {
 # ------------------------------------------------------------
 # 1. Clone source and target repos
 # ------------------------------------------------------------
-log "=== Syncing smartclaw → smartclaw ==="
+log "=== Syncing jleechanclaw → smartclaw ==="
 log "Source: $SOURCE_REPO"
 log "Target: $GITHUB_ORG/$GITHUB_REPO"
 
-# Clone smartclaw source (shallow, for speed)
+# Clone jleechanclaw source (shallow, for speed)
 if [[ ! -d "$SOURCE_DIR/.git" ]]; then
   warn "Source dir $SOURCE_DIR is not a git repo — SOURCE_DIR may be wrong"
 fi
@@ -195,11 +195,11 @@ git add -A
 
 if ! git diff --cached --quiet; then
   git commit -m "$(cat <<'EOF'
-feat: sync portable content from smartclaw
+feat: sync portable content from jleechanclaw
 
 - Export files selected by smartclaw portability audit map
 - Apply standard sanitization (org/user/slack/path token replacement)
-- Keep smartclaw templates aligned with current smartclaw harness docs/scripts
+- Keep smartclaw templates aligned with current jleechanclaw harness docs/scripts
 EOF
 )"
   log "Committed to $BRANCH_NAME"
@@ -227,10 +227,10 @@ git push -u origin "$BRANCH_NAME"
 log "Creating PR on $GITHUB_ORG/$GITHUB_REPO..."
 
 PR_URL=$(capture_pr_url "$GITHUB_ORG" "$GITHUB_REPO" \
-  "[P2] feat: sync general-purpose content from smartclaw" \
+  "[P2] feat: sync general-purpose content from jleechanclaw" \
   "$(cat <<'EOF'
 ## Summary
-Syncs general-purpose, non-personal content from jleechanorg/smartclaw to this repo.
+Syncs general-purpose, non-personal content from jleechanorg/jleechanclaw to this repo.
 
 ## What was synced
 - **Docs**: HARNESS_ENGINEERING, ZERO_TOUCH
@@ -242,13 +242,13 @@ Syncs general-purpose, non-personal content from jleechanorg/smartclaw to this r
 | Pattern | Replacement |
 |---------|-------------|
 | `jleechanorg` | `$GITHUB_ORG` |
-| `smartclaw` | `$GITHUB_REPO` |
-| `jleechanorg/smartclaw` | `$GITHUB_ORG/$GITHUB_REPO` |
+| `jleechanclaw` | `$GITHUB_REPO` |
+| `jleechanorg/jleechanclaw` | `$GITHUB_ORG/$GITHUB_REPO` |
 | `jleechan` | `$GITHUB_USER` |
-| `${SLACK_CHANNEL_ID}`, `${SLACK_CHANNEL_ID}`, etc. | `$SLACK_CHANNEL_ID` |
-| `~/.smartclaw` | `~/.smartclaw` |
-| `${HOME}/` or `/Users/jleechan` | `$HOME/` or `$HOME` |
-| `SLACK_BOT_TOKEN` | `SLACK_BOT_TOKEN` |
+| `C0AKALZ4CKW`, `C09GRLXF9GR`, etc. | `$SLACK_CHANNEL_ID` |
+| `~/.openclaw` | `~/.smartclaw` |
+| `/Users/jleechan/` or `/Users/jleechan` | `$HOME/` or `$HOME` |
+| `OPENCLAW_SLACK_BOT_TOKEN` | `SLACK_BOT_TOKEN` |
 
 ## Testing
 Manual review only — no automated tests on this seed PR.
@@ -265,12 +265,12 @@ log "PR created: $PR_URL"
 # ------------------------------------------------------------
 # 7. Slack notification
 # ------------------------------------------------------------
-if [[ -n "${SLACK_BOT_TOKEN:-}" ]] || [[ -n "${SLACK_BOT_TOKEN:-}" ]]; then
+if [[ -n "${SLACK_BOT_TOKEN:-}" ]] || [[ -n "${OPENCLAW_SLACK_BOT_TOKEN:-}" ]]; then
   if [[ -z "${SLACK_CHANNEL_ID:-}" ]]; then
     warn "SLACK_CHANNEL_ID is empty — set it to notify Slack on PR creation"
   else
-    BOT_TOKEN="${SLACK_BOT_TOKEN:-${SLACK_BOT_TOKEN}}"
-    SLACK_TEXT="[AI Terminal: ao-spawn] smartclaw sync PR ready for HUMAN REVIEW (do not auto-merge): $PR_URL — sanitized content from smartclaw (notify: ${SLACK_CHANNEL_ID:-<set SLACK_CHANNEL_ID>})"
+    BOT_TOKEN="${SLACK_BOT_TOKEN:-${OPENCLAW_SLACK_BOT_TOKEN}}"
+    SLACK_TEXT="[AI Terminal: ao-spawn] smartclaw sync PR ready for HUMAN REVIEW (do not auto-merge): $PR_URL — sanitized content from jleechanclaw (notify: ${SLACK_CHANNEL_ID:-<set SLACK_CHANNEL_ID>})"
     SLACK_RESP=$(curl -s -X POST "https://slack.com/api/chat.postMessage" \
       -H "Authorization: Bearer $BOT_TOKEN" \
       -H "Content-Type: application/json" \

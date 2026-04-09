@@ -1,11 +1,18 @@
 #!/opt/homebrew/bin/bash
 # simplify-daily.sh — runs code simplification across all AO-managed repos
 # using claude --print headlessly with /simplify, then creates a PR.
+
+# Re-exec with Homebrew bash if invoked with bash 3.x (e.g. via launchd plist using /bin/bash).
+# declare -A (associative arrays) requires bash 4+.
+if [[ "${BASH_VERSINFO[0]:-0}" -lt 4 ]]; then
+    exec /opt/homebrew/bin/bash "$0" "$@"
+fi
+
 set -euo pipefail
 
 REPOS_DIR="${HOME}/projects"
 REPOS_DIR_FALLBACK="${HOME}/projects_other"
-REPOS_DIR_AGENT_ORCHESTRATOR="${HOME}/project_agento"
+REPOS_DIR_AGENT_ORCHESTRATOR="/Users/jleechan/project_agento"
 
 # Map: worktree_dir_name -> GitHub repo (owner/repo)
 declare -A GH_REPOS=(

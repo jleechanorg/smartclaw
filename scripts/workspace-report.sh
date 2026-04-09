@@ -1,23 +1,23 @@
 #!/bin/bash
 #
 # Workspace Observability Report
-# Weekly job that audits smartclaw workspace health across all dimensions:
+# Weekly job that audits jleechanclaw workspace health across all dimensions:
 # worktrees, workspace parity, backups, launchd services, sessions, and evidence.
 #
 # Output: structured report written to:
-#   ${OPENCLAW_WORKSPACE_REPORT_OUTDIR:-$HOME/.smartclaw/logs/workspace-report}/YYYY-WW.md
+#   ${OPENCLAW_WORKSPACE_REPORT_OUTDIR:-$HOME/.openclaw/logs/workspace-report}/YYYY-WW.md
 #
 # Slack notification (optional):
 #   Set OPENCLAW_WORKSPACE_REPORT_CHANNEL to a channel ID to post exec summary.
 #
 # Rerunnable: writes dated snapshots; never overwrites the latest report.
-# Versioned: script is in git; config is in ~/.smartclaw/config/workspace-report.json.
+# Versioned: script is in git; config is in ~/.openclaw/config/workspace-report.json.
 #
 set -euo pipefail
 
-REPO_DIR="${OPENCLAW_WORKSPACE_REPORT_REPO_DIR:-$HOME/.smartclaw}"
+REPO_DIR="${OPENCLAW_WORKSPACE_REPORT_REPO_DIR:-$HOME/.openclaw}"
 WORK_DIR="${OPENCLAW_WORKSPACE_REPORT_WORK_DIR:-/tmp/workspace-report-$$}"
-OUT_DIR="${OPENCLAW_WORKSPACE_REPORT_OUTDIR:-$HOME/.smartclaw/logs/workspace-report}"
+OUT_DIR="${OPENCLAW_WORKSPACE_REPORT_OUTDIR:-$HOME/.openclaw/logs/workspace-report}"
 SLACK_CHANNEL="${OPENCLAW_WORKSPACE_REPORT_CHANNEL:-}"
 GITHUB_TOKEN_SOURCE="${GITHUB_TOKEN:-$HOME/.github_token}"
 TZ="${TZ:-America/Los_Angeles}"; export TZ
@@ -113,7 +113,7 @@ section "1. Worktree Inventory"
 WORKTREE_PR_LIST=""
 if GH_TOKEN_VALUE="$(resolve_gh_token)"; then
   export GH_TOKEN="$GH_TOKEN_VALUE"
-  WORKTREE_PR_LIST=$(run_with_timeout 10 gh api repos/jleechanorg/smartclaw/pulls 2>/dev/null || echo "")
+  WORKTREE_PR_LIST=$(run_with_timeout 10 gh api repos/jleechanorg/jleechanclaw/pulls 2>/dev/null || echo "")
 fi
 
 if [[ ! -d "$HOME/.worktrees" ]]; then
@@ -166,7 +166,7 @@ PARITY_FILES=(AGENTS.md SOUL.md TOOLS.md USER.md IDENTITY.md HEARTBEAT.md)
 PARITY_OK=1
 for file in "${PARITY_FILES[@]}"; do
   repo_file="$REPO_DIR/$file"
-  workspace_file="$HOME/.smartclaw/workspace/$file"
+  workspace_file="$HOME/.openclaw/workspace/$file"
   if [[ ! -f "$repo_file" ]]; then
     echo "- \`$file\`: **MISSING in repo**" >> "$SECTIONS_FILE"
     count_issue; ISSUES+=("Policy file $file missing in repo")
@@ -174,7 +174,7 @@ for file in "${PARITY_FILES[@]}"; do
     continue
   fi
   if [[ ! -f "$workspace_file" ]]; then
-    echo "- \`$file\`: **MISSING in ~/.smartclaw/workspace/**" >> "$SECTIONS_FILE"
+    echo "- \`$file\`: **MISSING in ~/.openclaw/workspace/**" >> "$SECTIONS_FILE"
     count_issue; ISSUES+=("Policy file $file missing in workspace")
     PARITY_OK=0
     continue
@@ -199,10 +199,10 @@ fi
 # ---------------------------------------------------------------------------
 section "3. Backup Snapshots"
 
-BACKUP_BASE="$REPO_DIR/.smartclaw-backups"
+BACKUP_BASE="$REPO_DIR/.openclaw-backups"
 if [[ ! -d "$BACKUP_BASE" ]]; then
   echo "No backup directory found at $BACKUP_BASE" >> "$SECTIONS_FILE"
-  count_warn; ISSUES+=("No .smartclaw-backups/ directory found in repo")
+  count_warn; ISSUES+=("No .openclaw-backups/ directory found in repo")
 else
   shopt -s nullglob 2>/dev/null || true
   SNAP_COUNT="$(ls -1d "$BACKUP_BASE"/[0-9]* 2>/dev/null | wc -l | tr -d ' ')"
@@ -224,7 +224,7 @@ else
   shopt -u nullglob 2>/dev/null || true
 
   if [[ "$SNAP_COUNT" -eq 0 ]]; then
-    count_warn; ISSUES+=("No backup snapshots found in .smartclaw-backups/")
+    count_warn; ISSUES+=("No backup snapshots found in .openclaw-backups/")
   elif [[ "$SNAP_COUNT" -lt 3 ]]; then
     count_warn; ISSUES+=("Only $SNAP_COUNT backup snapshot(s) found — may indicate backup job issues")
   else
@@ -233,7 +233,7 @@ else
 fi
 
 # Also check workspace backup consolidation
-WORKSPACE_BACKUP="$HOME/.smartclaw/workspace/openclaw/.smartclaw-backups"
+WORKSPACE_BACKUP="$HOME/.openclaw/workspace/openclaw/.openclaw-backups"
 if [[ -d "$WORKSPACE_BACKUP" ]]; then
   WS_SNAP_COUNT="$(ls -1d "$WORKSPACE_BACKUP"/[0-9]* 2>/dev/null | wc -l | tr -d ' ')"
   if [[ "$WS_SNAP_COUNT" -gt 0 ]]; then
@@ -255,18 +255,18 @@ else
   echo "|---|---|---|" >> "$SECTIONS_FILE"
 
   LAUNCHD_LABELS=(
-    "ai.smartclaw.schedule.morning-log-review"
-    "ai.smartclaw.schedule.docs-drift-review"
-    "ai.smartclaw.schedule.cron-backup-sync"
-    "ai.smartclaw.schedule.weekly-error-trends"
-    "ai.smartclaw.schedule.daily-research"
-    "ai.smartclaw.schedule.harness-analyzer-9am"
-    "ai.smartclaw.schedule.orch-health-weekly"
-    "ai.smartclaw.schedule.bug-hunt-9am"
-    "ai.smartclaw.schedule.workspace-report-weekly"
+    "ai.openclaw.schedule.morning-log-review"
+    "ai.openclaw.schedule.docs-drift-review"
+    "ai.openclaw.schedule.cron-backup-sync"
+    "ai.openclaw.schedule.weekly-error-trends"
+    "ai.openclaw.schedule.daily-research"
+    "ai.openclaw.schedule.harness-analyzer-9am"
+    "ai.openclaw.schedule.orch-health-weekly"
+    "ai.openclaw.schedule.bug-hunt-9am"
+    "ai.openclaw.schedule.workspace-report-weekly"
   )
   LAUNCHD_RUNNING_LABELS=(
-    "com.smartclaw.gateway"
+    "com.openclaw.gateway"
     "ai.agento.dashboard"
   )
 
@@ -379,7 +379,7 @@ if ! GH_TOKEN_VALUE="$(resolve_gh_token)"; then
 else
   export GH_TOKEN="$GH_TOKEN_VALUE"
 
-  PR_LIST=$(run_with_timeout 15 gh api repos/jleechanorg/smartclaw/pulls 2>/dev/null || echo "[]")
+  PR_LIST=$(run_with_timeout 15 gh api repos/jleechanorg/jleechanclaw/pulls 2>/dev/null || echo "[]")
   PR_COUNT=$(echo "$PR_LIST" | jq length 2>/dev/null || echo 0)
   echo "Open PRs: **$PR_COUNT**" >> "$SECTIONS_FILE"
   echo "" >> "$SECTIONS_FILE"
@@ -398,7 +398,7 @@ else
   for num in $(echo "$PR_LIST" | jq -r '.[].number' 2>/dev/null); do
     pr_sha=$(echo "$PR_LIST" | jq -r ".[] | select(.number == $num) | .head.sha" 2>/dev/null || echo "")
     if [[ -z "$pr_sha" ]]; then continue; fi
-    status=$(run_with_timeout 10 gh api "repos/jleechanorg/smartclaw/commits/$pr_sha/status" 2>/dev/null | jq -r ".state" || echo "unknown")
+    status=$(run_with_timeout 10 gh api "repos/jleechanorg/jleechanclaw/commits/$pr_sha/status" 2>/dev/null | jq -r ".state" || echo "unknown")
     if [[ "$status" == "failure" ]]; then
       FAILED_CI="${FAILED_CI}${num} "
     fi
@@ -483,7 +483,7 @@ if [[ -n "$SLACK_CHANNEL" ]]; then
   SLACK_MSG_JSON="$(printf '%s' "$SLACK_TEXT" | jq -Rs .)"
   # shellcheck disable=SC2086
   curl -sS -X POST "https://slack.com/api/chat.postMessage" \
-    -H "Authorization: Bearer ${SLACK_BOT_TOKEN:-}" \
+    -H "Authorization: Bearer ${OPENCLAW_SLACK_BOT_TOKEN:-}" \
     -H "Content-Type: application/json" \
     -d "{\"channel\": \"$SLACK_CHANNEL\", \"text\": $SLACK_MSG_JSON, \"unfurl_links\": false}" \
     > "$WORK_DIR/slack-response.json" 2>&1 || true

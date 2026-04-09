@@ -70,7 +70,7 @@ fi
 
 _esc_sed() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/&/\\&/g; s/|/\\|/g'; }
 
-mkdir -p "$LAUNCHD_DIR" "$HOME/.smartclaw/logs"
+mkdir -p "$LAUNCHD_DIR" "$HOME/.openclaw/logs"
 
 # Install plist with placeholder substitution
 launchctl bootout "gui/$(id -u)" "$LAUNCHD_DIR/$PLIST_NAME" 2>/dev/null || true
@@ -87,8 +87,8 @@ echo "Installing ao lifecycle-worker (agent-orchestrator)..."
 echo "  ✓ $PLIST_NAME installed and loaded"
 echo ""
 echo "Logs:"
-echo "  tail -f ~/.smartclaw/logs/ao-lifecycle-agent-orchestrator.log"
-echo "  tail -f ~/.smartclaw/logs/ao-lifecycle-agent-orchestrator.err.log"
+echo "  tail -f ~/.openclaw/logs/ao-lifecycle-agent-orchestrator.log"
+echo "  tail -f ~/.openclaw/logs/ao-lifecycle-agent-orchestrator.err.log"
 echo ""
 echo "Status:"
 echo "  launchctl list | grep $LABEL"

@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "lastGood": {
+    "openai-codex": "openai-codex:default",
+    "minimax-portal": "minimax-portal:default"
+  },
+  "profiles": {
+    "openai-codex:default": {
+      "provider": "openai-codex",
+      "mode": null,
+      "hasApiKey": false,
+      "hasAccessToken": false,
+      "hasRefreshToken": false
+    },
+    "minimax-portal:default": {
+      "provider": "minimax-portal",
+      "mode": null,
+      "hasApiKey": false,
+      "hasAccessToken": false,
+      "hasRefreshToken": false
+    }
+  },
+  "usageStatsKeys": [
+    "minimax-portal:default",
+    "openai-codex:default"
+  ]
+}

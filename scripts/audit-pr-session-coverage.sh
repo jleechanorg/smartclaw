@@ -4,16 +4,16 @@
 #
 # Env vars:
 #   AUDIT_PROJECTS  — space-separated project IDs (default: all from agent-orchestrator.yaml)
-#   AO_CONFIG_PATH  — path to agent-orchestrator.yaml (default: ~/.smartclaw/agent-orchestrator.yaml)
-#   SLACK_BOT_TOKEN  — bot token for Slack posting
+#   AO_CONFIG_PATH  — path to agent-orchestrator.yaml (default: ~/.openclaw/agent-orchestrator.yaml)
+#   OPENCLAW_SLACK_BOT_TOKEN  — bot token for Slack posting
 #   AUDIT_DRY_RUN   — set to "1" to log actions without spawning/claiming
 
 set -uo pipefail
 
-CONFIG_PATH="${AO_CONFIG_PATH:-$HOME/.smartclaw/agent-orchestrator.yaml}"
-LOG_FILE="${HOME}/.smartclaw/logs/audit-pr-coverage.log"
-SLACK_CHANNEL="${SLACK_CHANNEL_ID}"
-SLACK_TOKEN="${SLACK_BOT_TOKEN:-}"
+CONFIG_PATH="${AO_CONFIG_PATH:-$HOME/.openclaw/agent-orchestrator.yaml}"
+LOG_FILE="${HOME}/.openclaw/logs/audit-pr-coverage.log"
+SLACK_CHANNEL="C0AKALZ4CKW"
+SLACK_TOKEN="${OPENCLAW_SLACK_BOT_TOKEN:-}"
 AUDIT_PROJECTS="${AUDIT_PROJECTS:-}"
 DRY_RUN="${AUDIT_DRY_RUN:-0}"
 
@@ -243,7 +243,7 @@ main() {
       log "WARN: Slack post failed: $response"
     fi
   else
-    log "SKIP: SLACK_BOT_TOKEN not set — no Slack post"
+    log "SKIP: OPENCLAW_SLACK_BOT_TOKEN not set — no Slack post"
   fi
 
   log "DONE audit — healthy=$HEALTHY orphaned=$ORPHANED failed=$FAILED"

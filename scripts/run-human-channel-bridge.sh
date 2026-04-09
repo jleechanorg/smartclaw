@@ -9,8 +9,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-LOG_DIR="${HOME}/.smartclaw/logs/scheduled-jobs"
-STATE_FILE="${HOME}/.smartclaw/state/human_channel_bridge.json"
+LOG_DIR="${HOME}/.openclaw/logs/scheduled-jobs"
+STATE_FILE="${HOME}/.openclaw/state/human_channel_bridge.json"
 
 mkdir -p "$LOG_DIR"
 mkdir -p "$(dirname "$STATE_FILE")"

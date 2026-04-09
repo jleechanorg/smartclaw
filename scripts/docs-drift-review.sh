@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-ROOT="${OPENCLAW_ROOT:-$HOME/.smartclaw}"
+ROOT="${OPENCLAW_ROOT:-$HOME/.openclaw}"
 REPO_DIR="$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null || echo "$ROOT")"
 # Support both naming conventions: docs_audit.sh (underscore) and docs-audit.sh (hyphen)
 DOCS_AUDIT="${REPO_DIR}/scripts/docs_audit.sh"

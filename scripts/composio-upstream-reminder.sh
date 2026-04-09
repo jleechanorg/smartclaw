@@ -2,7 +2,7 @@
 set -euo pipefail
 
 TZ="${TZ:-America/Los_Angeles}"; export TZ
-LOG_DIR="${HOME}/.smartclaw/logs/scheduled-jobs"
+LOG_DIR="${HOME}/.openclaw/logs/scheduled-jobs"
 LOG_FILE="${LOG_DIR}/composio-upstream-reminder.log"
 
 mkdir -p "$LOG_DIR"

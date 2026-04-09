@@ -1,8 +1,77 @@
 #!/usr/bin/env bash
 # Bootstrap: post-clone setup for ~/.openclaw/ (jleechanorg/jleechanclaw)
+# This script is idempotent — safe to re-run on an existing installation.
+# Requirements: bash 4+, jq, launchctl (macOS only for launchd install).
+# Note: bootstrap.sh uses `set -euo pipefail` — the installer call captures
+# output via assignment; `set -e` does not trigger on command substitution exit.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Canonical AO config lives under ~/.openclaw/ (tracked harness root). ~/agent-orchestrator.yaml
+# must point there so the AO CLI and pollers see one source of truth — not a worktree path
+# (orch-2u9d, CLAUDE.md worktree isolation).
+ensure_agent_orchestrator_symlink() {
+    local ao_yaml="$HOME/agent-orchestrator.yaml"
+    local canon_yaml="$HOME/.openclaw/agent-orchestrator.yaml"
+    local repo_yaml="$REPO_ROOT/agent-orchestrator.yaml"
+    # Legacy behavior wrapped symlink creation in `if [ -f "$REPO_YAML" ]; then …`.
+    # We keep that safety (at least one real file must exist) but prefer the canonical
+    # harness path when present (orch-2u9d).
+    if [[ ! -f "$canon_yaml" && ! -f "$repo_yaml" ]]; then
+        if [[ -n "${SYMLINK_FAIL_ON_MISSING:-}" ]]; then
+            echo "ERROR: cannot create ~/agent-orchestrator.yaml: neither $canon_yaml nor $repo_yaml exists" >&2
+            return 1
+        fi
+        echo "Skipping ~/agent-orchestrator.yaml: neither $canon_yaml nor $repo_yaml exists"
+        return 0
+    fi
+    local target
+    if [[ -f "$canon_yaml" ]]; then
+        target="$canon_yaml"
+    else
+        target="$repo_yaml"
+        echo "NOTE: $canon_yaml not found — symlinking to repo copy $repo_yaml"
+    fi
+
+    if [[ -L "$ao_yaml" ]]; then
+        local current expected
+        current="$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$ao_yaml" 2>/dev/null || echo "")"
+        expected="$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$target" 2>/dev/null || echo "")"
+        if [[ -n "$current" && -n "$expected" && "$current" == "$expected" ]]; then
+            echo "Symlink valid: $ao_yaml -> $current"
+        else
+            echo "WARNING: symlink points to stale target ($current), updating to $expected"
+            ln -sf "$target" "$ao_yaml" && echo "Symlink updated: $ao_yaml -> $target"
+        fi
+    elif [[ -f "$ao_yaml" ]]; then
+        echo "WARNING: $ao_yaml exists as a regular file — backing up to $ao_yaml.bak and replacing with symlink"
+        mv "$ao_yaml" "$ao_yaml.bak"
+        ln -s "$target" "$ao_yaml" && echo "Symlink: $ao_yaml -> $target"
+    elif [[ -e "$ao_yaml" ]]; then
+        echo "ERROR: $ao_yaml exists but is not a regular file or symlink; remove or rename it manually" >&2
+        return 1
+    else
+        ln -s "$target" "$ao_yaml" && echo "Symlink: $ao_yaml -> $target"
+    fi
+}
+
+if [[ "${1:-}" == "--symlink-only" ]]; then
+    SYMLINK_FAIL_ON_MISSING=1 ensure_agent_orchestrator_symlink
+    exit $?
+fi
+
+if [[ "${1:-}" == "--eloop-skill-only" ]]; then
+    if [[ -f "$REPO_ROOT/skills/jleechanclaw-eloop.md" ]]; then
+        mkdir -p "$HOME/.openclaw/skills"
+        ln -sf "$REPO_ROOT/skills/jleechanclaw-eloop.md" "$HOME/.openclaw/skills/jleechanclaw-eloop.md"
+        echo "OK: ~/.openclaw/skills/jleechanclaw-eloop.md -> $REPO_ROOT/skills/jleechanclaw-eloop.md"
+    else
+        echo "ERROR: missing $REPO_ROOT/skills/jleechanclaw-eloop.md" >&2
+        exit 1
+    fi
+    exit 0
+fi
 
 echo "=== OpenClaw Bootstrap ==="
 echo "Repo root: $REPO_ROOT"
@@ -12,29 +81,18 @@ if [ -d "$REPO_ROOT/workspace-monitor" ]; then
     ln -sf "$REPO_ROOT/skills" "$REPO_ROOT/workspace-monitor/skills" && echo "Symlink: workspace-monitor/skills -> skills/"
 fi
 
-# Agent Orchestrator config — symlink ~/agent-orchestrator.yaml → repo copy
-AO_YAML="$HOME/agent-orchestrator.yaml"
-REPO_YAML="$REPO_ROOT/agent-orchestrator.yaml"
-if [ -f "$REPO_YAML" ]; then
-    if [ -L "$AO_YAML" ]; then
-        # Verify symlink points to correct target (not stale from repo move).
-        # Use python for realpath — readlink -f is GNU-only and unavailable on macOS.
-        CURRENT_TARGET="$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$AO_YAML" 2>/dev/null || echo "")"
-        EXPECTED_TARGET="$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$REPO_YAML" 2>/dev/null || echo "")"
-        if [ -n "$CURRENT_TARGET" ] && [ -n "$EXPECTED_TARGET" ] && [ "$CURRENT_TARGET" = "$EXPECTED_TARGET" ]; then
-            echo "Symlink valid: $AO_YAML -> $CURRENT_TARGET"
-        else
-            echo "WARNING: symlink points to stale target ($CURRENT_TARGET), updating to $EXPECTED_TARGET"
-            ln -sf "$REPO_YAML" "$AO_YAML" && echo "Symlink updated: ~/agent-orchestrator.yaml -> $REPO_YAML"
-        fi
-    elif [ -f "$AO_YAML" ]; then
-        echo "WARNING: $AO_YAML exists as a regular file — backing up to $AO_YAML.bak and replacing with symlink"
-        mv "$AO_YAML" "$AO_YAML.bak"
-        ln -s "$REPO_YAML" "$AO_YAML" && echo "Symlink: ~/agent-orchestrator.yaml -> $REPO_YAML"
-    else
-        ln -s "$REPO_YAML" "$AO_YAML" && echo "Symlink: ~/agent-orchestrator.yaml -> $REPO_YAML"
-    fi
+# jleechanclaw custom eloop — AO orchestratorRules references ~/.openclaw/skills/jleechanclaw-eloop.md
+if [[ -f "$REPO_ROOT/skills/jleechanclaw-eloop.md" ]]; then
+    mkdir -p "$HOME/.openclaw/skills"
+    ln -sf "$REPO_ROOT/skills/jleechanclaw-eloop.md" "$HOME/.openclaw/skills/jleechanclaw-eloop.md" \
+        && echo "Symlink: ~/.openclaw/skills/jleechanclaw-eloop.md -> $REPO_ROOT/skills/jleechanclaw-eloop.md"
+else
+    echo "WARNING: $REPO_ROOT/skills/jleechanclaw-eloop.md missing — ~/.openclaw/skills/jleechanclaw-eloop.md not created (AO eloop path will be broken)" >&2
 fi
+
+# Agent Orchestrator config — symlink ~/agent-orchestrator.yaml → ~/.openclaw/agent-orchestrator.yaml (canonical)
+unset SYMLINK_FAIL_ON_MISSING
+ensure_agent_orchestrator_symlink
 
 # --- Webhook daemon setup ---
 WEBHOOK_CFG="$HOME/.openclaw/webhook.json"
@@ -60,9 +118,17 @@ else
     echo "GITHUB_WEBHOOK_SECRET already set in webhook.json (skipping)"
 fi
 
-# Install LaunchAgents (includes webhook daemon — idempotent)
-echo "Installing LaunchAgents (webhook daemon + gateway + monitor-agent)..."
-bash "$REPO_ROOT/scripts/install-launchagents.sh" 2>&1 | grep -E "✓|✗|skipping|WARNING" || true
+# Install LaunchAgents + scheduled jobs (central install — idempotent)
+# install-openclaw-launchd.sh calls both install-launchagents.sh and
+# install-openclaw-scheduled-jobs.sh, covering all openclaw launchd services.
+echo "Installing OpenClaw launchd services (core + scheduled jobs)..."
+# Capture installer output, filter to key status lines, warn if no output (install likely silently failed).
+install_out="$(bash "$REPO_ROOT/scripts/install-openclaw-launchd.sh" 2>&1)"
+install_rc=$?
+printf '%s\n' "$install_out" | grep -E "✓|✗|skipping|WARNING" || true
+if [[ $install_rc -ne 0 ]]; then
+  echo "WARNING: install-openclaw-launchd.sh exited with errors. Review output above." >&2
+fi
 
 # --- Install openclaw CLI via npm (prefer Homebrew Node over NVM) ---
 echo ""
@@ -134,10 +200,32 @@ else
     echo "  To register: TAILSCALE_HOST=mac-1.tail5eb762.ts.net bash scripts/bootstrap.sh"
 fi
 
+# gog token restore — re-import from backup if keychain entry is missing or invalid
+echo ""
+echo "=== gog auth check ==="
+# shellcheck source=/dev/null
+source "$REPO_ROOT/lib/gog-env.sh"
+load_gog_env_from_openclaw "${HOME}/.openclaw/openclaw.json"
+if command -v gog &>/dev/null; then
+    _gog_chk="$(gog auth list --check 2>&1)"
+    if echo "$_gog_chk" | grep -q "@" && ! echo "$_gog_chk" | grep -qiE 'invalid_grant|expired or revoked'; then
+        echo "OK: gog token valid."
+    elif [ -f "$REPO_ROOT/credentials/gog-refresh-token.json" ]; then
+        echo "Restoring gog token from backup..."
+        gog auth tokens import "$REPO_ROOT/credentials/gog-refresh-token.json" && echo "OK: gog token restored."
+    else
+        echo "WARNING: No valid gog token. Run:"
+        echo "  GOOGLE_CLOUD_PROJECT=infinite-zephyr-487405-d0 gog auth add jleechan@gmail.com --services=all --remote"
+        echo "Then back up the token:"
+        echo "  gog auth tokens export jleechan@gmail.com --out ~/.openclaw/credentials/gog-refresh-token.json"
+    fi
+else
+    echo "gog not installed. Install with: brew install jleechanorg/tap/gog"
+fi
+
 echo ""
 echo "Next: inject real tokens into openclaw.json"
-echo "  cp openclaw.json.redacted openclaw.json"
-echo "  # then edit openclaw.json with real tokens"
+echo "  # create or edit openclaw.json with real tokens"
 echo ""
 echo "Also set in ~/.bashrc:"
 echo "  export OPENCLAW_AO_HOOK_TOKEN='<token>'   # AO → openclaw notifier webhook token"

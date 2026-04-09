@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ao-manager.sh — Unified AO lifecycle manager.
 #
-# Reads all projects from ~/.smartclaw/agent-orchestrator.yaml and manages:
+# Reads all projects from ~/.openclaw/agent-orchestrator.yaml and manages:
 #   1. lifecycle-workers (one per project, via ao lifecycle-worker)
 #   2. orchestrator tmux sessions (one per project, via ao start --no-dashboard)
 #   3. dashboard (first project only, via ao start)
@@ -19,8 +19,8 @@
 set -uo pipefail
 
 LOG="/tmp/ao-manager.log"
-CONFIG_PATH="${AO_CONFIG_PATH:-$HOME/.smartclaw/agent-orchestrator.yaml}"
-LOG_DIR="${AO_LOG_DIR:-$HOME/.smartclaw/logs}"
+CONFIG_PATH="${AO_CONFIG_PATH:-$HOME/.openclaw/agent-orchestrator.yaml}"
+LOG_DIR="${AO_LOG_DIR:-$HOME/.openclaw/logs}"
 AO_BIN="${AO_BIN:-$HOME/bin/ao}"
 MONITOR_INTERVAL="${AO_MONITOR_INTERVAL:-60}"   # seconds between health checks
 
@@ -146,11 +146,11 @@ start_orchestrator() {
   # are inherited by the orchestrator subprocesses (reactions require these).
   if [[ "$project" == "$FIRST_PROJECT" ]]; then
     logn "starting orchestrator + dashboard for $project..."
-    tmux new-session -d -s "startup-$prefix" -c "$HOME/.smartclaw" \
+    tmux new-session -d -s "startup-$prefix" -c "$HOME/.openclaw" \
       "bash -lc '$AO_BIN start '\''$project'\'''" 2>/dev/null
   else
     logn "starting orchestrator for $project..."
-    tmux new-session -d -s "startup-$prefix" -c "$HOME/.smartclaw" \
+    tmux new-session -d -s "startup-$prefix" -c "$HOME/.openclaw" \
       "bash -lc '$AO_BIN start '\''$project'\'' --no-dashboard'" 2>/dev/null
   fi
   # Give ao a moment to create the real session then check
@@ -168,7 +168,7 @@ start_orchestrator() {
 start_notifier() {
   local notifier_py
   local pidfile="$LOG_DIR/ao-notifier.pid"
-  notifier_py="$HOME/.smartclaw/scripts/agento-notifier.py"
+  notifier_py="$HOME/.openclaw/scripts/agento-notifier.py"
   if [[ ! -f "$notifier_py" ]]; then
     log "Notifier Python script not found at $notifier_py — skipping notifier"
     return 0
@@ -181,7 +181,7 @@ start_notifier() {
   fi
 
   # Use bash -lc so ~/.bashrc is sourced before python3 runs.
-  # This ensures SLACK_BOT_TOKEN etc. are available.
+  # This ensures OPENCLAW_SLACK_BOT_TOKEN etc. are available.
   logn "starting notifier..."
   nohup bash -lc "python3 '$notifier_py'" >> "$LOG_DIR/ao-notifier.log" 2>&1 &
   local pid=$!

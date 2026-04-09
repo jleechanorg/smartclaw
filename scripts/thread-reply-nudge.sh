@@ -11,7 +11,7 @@ mkdir -p "$LOG_DIR"
 #   1. THREAD_REPLY_CHANNEL env var (comma- or space-separated list)
 #   2. All explicit (non-wildcard) channels from openclaw.json
 #   3. OPENCLAW_MONITOR_THREAD_REPLY_CHANNEL env var (legacy single-channel)
-#   4. Hardcoded fallback ${SLACK_CHANNEL_ID}
+#   4. Hardcoded fallback C0AKYEY48GM
 resolve_nudge_channels() {
   # 1. Explicit env var override
   if [[ -n "${THREAD_REPLY_CHANNEL:-}" ]]; then
@@ -20,7 +20,7 @@ resolve_nudge_channels() {
   fi
 
   # 2. Parse openclaw.json
-  local config="${OPENCLAW_CONFIG_FILE:-${HOME}/.smartclaw/openclaw.json}"
+  local config="${OPENCLAW_CONFIG_FILE:-${HOME}/.openclaw/openclaw.json}"
   if [[ -f "$config" ]] && command -v python3 >/dev/null 2>&1; then
     local channels
     channels="$(python3 - "$config" <<'PYEOF' 2>/dev/null
@@ -48,7 +48,7 @@ PYEOF
   fi
 
   # 4. Hardcoded fallback
-  echo "${SLACK_CHANNEL_ID}"
+  echo "C0AKYEY48GM"
 }
 
 # ── Guard: sourcing for tests stops here ──────────────────────────────────────

@@ -4,7 +4,7 @@
 # Usage: ./scripts/install-claude-memory-sync.sh [--uninstall]
 #
 # Installs:
-#   - ai.smartclaw.claude-memory-sync (every-15-min sync of Claude Code memory)
+#   - ai.openclaw.claude-memory-sync (every-15-min sync of Claude Code memory)
 #
 set -euo pipefail
 
@@ -32,7 +32,7 @@ install_plist() {
   fi
 
   mkdir -p "$LAUNCHD_DIR"
-  mkdir -p "$HOME/.smartclaw/logs"
+  mkdir -p "$HOME/.openclaw/logs"
 
   # Normalize OPENCLAW_EXTRA_PATH: ensure trailing colon if non-empty
   local extra_path_prefix=""
@@ -56,7 +56,7 @@ install_plist() {
 echo "=== Claude Memory Sync Service ==="
 echo ""
 
-PLIST_TEMPLATE="$REPO_ROOT/launchd/ai.smartclaw.claude-memory-sync.plist.template"
+PLIST_TEMPLATE="$REPO_ROOT/launchd/ai.openclaw.claude-memory-sync.plist.template"
 if [[ -f "$PLIST_TEMPLATE" ]]; then
   install_plist "$PLIST_TEMPLATE"
 else

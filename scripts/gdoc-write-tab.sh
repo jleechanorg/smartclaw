@@ -19,6 +19,11 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/../lib/gog-env.sh"
+load_gog_env_from_openclaw "${HOME}/.openclaw/openclaw.json"
+
 DOC_ID="${1:-}"
 TAB_ID="${2:-}"
 CONTENT_FILE="${3:-}"

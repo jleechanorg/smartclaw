@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-ROOT="${OPENCLAW_ROOT:-$HOME/.smartclaw}"
+ROOT="${OPENCLAW_ROOT:-$HOME/.openclaw}"
 LOG_DIR="$ROOT/logs"
 OUT_DIR="$ROOT/logs/morning-log-review"
 REPORT="$OUT_DIR/report-$(date +%Y%m%d).txt"

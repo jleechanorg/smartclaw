@@ -12,16 +12,16 @@ DAILY_THRESHOLD=5.00
 
 # Repos to monitor
 REPOS=(
-    "jleechanorg/smartclaw"
+    "jleechanorg/jleechanclaw"
     "jleechanorg/worldai_claw"
     "jleechanorg/worldarchitect.ai"
 )
 
 # Slack channel for alerts
-SLACK_CHANNEL="${SLACK_CHANNEL:-${SLACK_CHANNEL_ID}}"
+SLACK_CHANNEL="${SLACK_CHANNEL:-C09GRLXF9GR}"
 
 # Log file
-LOG_DIR="${LOG_DIR:-$HOME/.smartclaw/logs}"
+LOG_DIR="${LOG_DIR:-$HOME/.openclaw/logs}"
 LOG_FILE="${LOG_DIR}/gh-actions-cost-monitor.log"
 
 # TODAY must match gh api .created_at timezone (always UTC ISO-8601 with Z suffix)
@@ -48,8 +48,8 @@ log_error() {
 
 # Resolve Slack bot token - check env, then source ~/.bashrc once
 resolve_slack_token() {
-    if [[ -n "${SLACK_BOT_TOKEN:-}" ]]; then
-        printf '%s' "$SLACK_BOT_TOKEN"
+    if [[ -n "${OPENCLAW_SLACK_BOT_TOKEN:-}" ]]; then
+        printf '%s' "$OPENCLAW_SLACK_BOT_TOKEN"
         return 0
     fi
     # launchd jobs don't inherit env vars from shell config; source it once
@@ -57,7 +57,7 @@ resolve_slack_token() {
         local token
         token=$(
             set +e
-            bash -c 'source "$HOME/.bashrc" 2>/dev/null; printf "%s" "${SLACK_BOT_TOKEN:-}"'
+            bash -c 'source "$HOME/.bashrc" 2>/dev/null; printf "%s" "${OPENCLAW_SLACK_BOT_TOKEN:-}"'
         )
         if [[ -n "$token" ]]; then
             printf '%s' "$token"
@@ -73,7 +73,7 @@ send_slack_alert() {
     local slack_token
 
     slack_token=$(resolve_slack_token) || {
-        log_warn "Cannot send Slack alert: SLACK_BOT_TOKEN not available"
+        log_warn "Cannot send Slack alert: OPENCLAW_SLACK_BOT_TOKEN not available"
         return 0  # don't abort under set -e; continue to GH issue
     }
 
@@ -99,7 +99,7 @@ create_gh_issue() {
     local title="$1"
     local body="$2"
 
-    gh api repos/jleechanorg/smartclaw/issues --method POST \
+    gh api repos/jleechanorg/jleechanclaw/issues --method POST \
         -f title="$title" \
         -f body="$body" \
         -f labels='["cost-alert","automated"]' >> "$LOG_FILE" 2>&1 || {

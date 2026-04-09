@@ -186,8 +186,10 @@ for i in $(seq 0 $(( NOTIF_COUNT - 1 ))); do
         spawn_output="$(cd "$local_path" && timeout 30 "$AO_BIN" spawn --claim-pr "$pr_number" 2>&1)"
         spawn_rc=$?
 
-        # Check for success first (rc=0 AND success message), then rate-limit, then failure
-        if [[ "$spawn_rc" -eq 0 ]] && echo "$spawn_output" | grep -q "Session .* created and claimed PR"; then
+        # Check for success first (rc=0 AND success message), then rate-limit, then failure.
+        # Require ✓ anchor to distinguish from error message "Session X was created, but failed
+        # to claim PR Y: ..." which also contains "Session .* created and claimed PR".
+        if [[ "$spawn_rc" -eq 0 ]] && echo "$spawn_output" | grep -q "✓.*Session .* created and claimed PR"; then
           log "SUCCESS: $(echo "$spawn_output" | grep 'Session')"
           # Update state file with dispatch timestamp on success
           tmp_state="$(mktemp)"
@@ -265,9 +267,8 @@ if [[ "$INTAKE_DRY_RUN" != "1" ]] && (( dispatched + escalated > 0 )); then
     done
   fi
 
-  # Post to Slack via bot token
-  if [[ -f "$REPO_ROOT/set-slack-env.sh" ]]; then
-    source "$REPO_ROOT/set-slack-env.sh"
+  # Post to Slack via bot token (OPENCLAW_SLACK_BOT_TOKEN in ~/.bashrc or launchd env)
+  if [[ -n "${OPENCLAW_SLACK_BOT_TOKEN:-}" ]]; then
     curl -s -X POST "https://slack.com/api/chat.postMessage" \
       -H "Authorization: Bearer $OPENCLAW_SLACK_BOT_TOKEN" \
       -H "Content-Type: application/json" \

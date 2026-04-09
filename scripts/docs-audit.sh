@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-ROOT="${OPENCLAW_ROOT:-$HOME/.smartclaw}"
+ROOT="${OPENCLAW_ROOT:-$HOME/.openclaw}"
 CTX="$ROOT/docs/context"
 AUDIT_SCRIPT="$ROOT/scripts/docs_audit.sh"
 GAPS="$CTX/DOC_GAPS.md"

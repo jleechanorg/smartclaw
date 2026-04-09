@@ -3,13 +3,13 @@
 # Output is ANSI-stripped and home-path-normalized for GitHub readability.
 set -euo pipefail
 
-ROOT="${OPENCLAW_ROOT:-$HOME/.smartclaw}"
+ROOT="${OPENCLAW_ROOT:-$HOME/.openclaw}"
 CTX="$ROOT/docs/context"
 SNAP="$CTX/SYSTEM_SNAPSHOT.md"
 GAPS="$CTX/DOC_GAPS.md"
 
-# Strip ANSI color codes and normalize ~/.smartclaw paths to ~/.
-sanitize() { sed -E $'s/\x1b\\[[0-9;]*m//g' | sed -E "s|$HOME/.smartclaw/?|~/.smartclaw/|g"; }
+# Strip ANSI color codes and normalize ~/.openclaw paths to ~/.
+sanitize() { sed -E $'s/\x1b\\[[0-9;]*m//g' | sed -E "s|$HOME/.openclaw/?|~/.openclaw/|g"; }
 
 mkdir -p "$CTX"
 

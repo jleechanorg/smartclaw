@@ -27,13 +27,14 @@ trap '' PIPE
 
 # ── Config ────────────────────────────────────────────────────────────────────
 LOCK_DIR="${DROP_LOCK_DIR:-${TMPDIR:-/tmp}/openclaw-dropped-thread.lock}"
-LOG_DIR="${DROP_LOG_DIR:-${HOME}/.smartclaw/logs}"
-STATE_FILE="${DROP_STATE_FILE:-$HOME/.smartclaw/logs/dropped-thread-state.json}"
+LOG_DIR="${DROP_LOG_DIR:-${HOME}/.openclaw/logs}"
+STATE_FILE="${DROP_STATE_FILE:-$HOME/.openclaw/logs/dropped-thread-state.json}"
 NUDGE_INTERVAL_SECS="${DROP_NUDGE_INTERVAL_SECS:-1800}"   # 30 minutes default
 LOOKBACK_HOURS="${DROP_LOOKBACK_HOURS:-8}"               # scan last N hours
 PROGRESS_STALE_MINUTES="${DROP_PROGRESS_STALE_MINUTES:-5}"  # dispatched task with no progress
 POST_AS_BOT="${DROP_POST_AS_BOT:-1}"                      # 0 = post as user
 AGENT_USER_ID="${OPENCLAW_BOT_USER_ID:-U0AEZC7RX1Q}"     # bot user ID for classification
+JEFFREY_USER_ID="${JLEECHAN_USER_ID:-U09GH5BR3QU}"        # Jeffrey's Slack user ID (standalone msg detection)
 
 mkdir -p "$LOG_DIR"
 mkdir -p "$(dirname "$STATE_FILE")"
@@ -76,8 +77,8 @@ was_nudged_recently() {
   last_ts="$(jq -rn "$state | .nudged.\"${channel_id}_${thread_ts}\" // empty" 2>/dev/null)" || last_ts=""
   [[ -z "$last_ts" || "$last_ts" == "null" ]] && return 1
   now_sec="$(date +%s)"
-  ts_sec="$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$last_ts" '+%s' 2>/dev/null)" || return 0
-  [[ $((now_sec - ts_sec)) -lt NUDGE_INTERVAL_SECS ]] && return 0
+  ts_sec="$(date -u -j -f "%Y-%m-%dT%H:%M:%SZ" "$last_ts" '+%s' 2>/dev/null)" || return 0
+  [[ $((now_sec - ts_sec)) -lt $NUDGE_INTERVAL_SECS ]] && return 0
   return 1
 }
 
@@ -150,6 +151,23 @@ now_sec     = __import__('time').time()
 agent_texts = [m.get("text", "") for m in messages if m.get("user") == AGENT_ID]
 agent_text  = " ".join(agent_texts).lower()
 
+# Basic temporal ordering (Slack ts are numeric strings)
+def ts_float(m):
+    try:
+        return float(m.get("ts", 0) or 0)
+    except Exception:
+        return 0.0
+
+agent_msgs_list = [m for m in messages if m.get("user") == AGENT_ID]
+user_msgs_list = [m for m in messages if m.get("user") and m.get("user") != AGENT_ID]
+last_agent = max(agent_msgs_list, key=ts_float) if agent_msgs_list else None
+last_user = max(user_msgs_list, key=ts_float) if user_msgs_list else None
+last_agent_ts = ts_float(last_agent) if last_agent else 0.0
+last_user_ts = ts_float(last_user) if last_user else 0.0
+last_user_text = (last_user.get("text", "").lower() if last_user else "")
+user_after_agent = bool(last_user_ts and (last_user_ts > last_agent_ts))
+minutes_since_last_user = ((now_sec - last_user_ts) / 60.0) if last_user_ts else 999.0
+
 # Admission phrases — agent explicitly said it didn't act
 ADMISSION_PHRASES = [
     "did not execute", "not execute", "only sent an acknowledgment",
@@ -186,8 +204,24 @@ if user_msgs == 0:
     print(json.dumps({"admitted": False, "action_needed": False, "reason": "no user asks", "kind": "none"}))
     sys.exit(0)
 
+# User followed up after the last agent reply and has waited long enough.
+# This catches "new ask in old thread" cases that were previously missed.
+ACTION_VERBS = [
+    "fix", "update", "check", "verify", "merge", "drive", "make sure", "follow up",
+    "please", "retry", "status", "why", "can you", "do ", "run ", "ship", "review",
+]
+looks_actionable = any(v in last_user_text for v in ACTION_VERBS) or ("<@" in last_user_text)
+if user_after_agent and minutes_since_last_user >= 5 and looks_actionable:
+    print(json.dumps({
+        "admitted": admitted,
+        "action_needed": True,
+        "reason": f"user follow-up pending ({minutes_since_last_user:.0f}m) after last agent reply",
+        "kind": "followup-pending",
+    }))
+    sys.exit(0)
+
 # Agent replied recently AND completed work → not a drop
-if hours_old < 0.5 and has_result:
+if hours_old < 0.5 and has_result and not user_after_agent:
     print(json.dumps({"admitted": False, "action_needed": False, "reason": "recent agent reply with result", "kind": "none"}))
     sys.exit(0)
 
@@ -247,10 +281,10 @@ MCP_MAIL_BOT_TOKEN="${MCP_MAIL_SLACK_TOKEN:-$(resolve_mcp_mail_token)}"
 # ── Slack API via curl ──────────────────────────────────────────────────────────
 # Uses MCP mail bot (U0A4G7LDJ4R) for posting nudge messages.
 # Falls back to OpenClaw bot (U0AEZC7RX1Q) only if MCP mail bot unavailable.
-SLACK_TOKEN="${SLACK_BOT_TOKEN:-${MCP_MAIL_BOT_TOKEN:-}}"
+SLACK_TOKEN="${OPENCLAW_SLACK_BOT_TOKEN:-${MCP_MAIL_BOT_TOKEN:-}}"
 
 resolve_channels() {
-  local config="${OPENCLAW_CONFIG_FILE:-${HOME}/.smartclaw/openclaw.json}"
+  local config="${OPENCLAW_CONFIG_FILE:-${HOME}/.openclaw/openclaw.json}"
   if [[ -f "$config" ]] && command -v python3 >/dev/null 2>&1; then
     python3 - "$config" <<'PYEOF'
 import json, sys
@@ -267,7 +301,30 @@ PYEOF
 }
 
 DEFAULT_CHANNELS="${DROP_CHANNELS:-$(resolve_channels)}"
-DEFAULT_CHANNELS="${DEFAULT_CHANNELS:-${SLACK_CHANNEL_ID} C0AJQ5M0A0Y}"
+DEFAULT_CHANNELS="${DEFAULT_CHANNELS:-C0AKALZ4CKW C0AJQ5M0A0Y}"
+
+# Channels excluded from dropped-thread scanning (nudge target channels / announcement channels)
+EXCLUDE_CHANNELS="${DROP_EXCLUDE_CHANNELS:-C09GRLXF9GR}"
+filter_channels() {
+  local result=""
+  for ch in $DEFAULT_CHANNELS; do
+    local excluded=0
+    for ex in $EXCLUDE_CHANNELS; do
+      [[ "$ch" == "$ex" ]] && excluded=1 && break
+    done
+    [[ "$excluded" == "0" ]] && result="${result}${result:+ }$ch"
+  done
+  echo "$result"
+}
+SCAN_CHANNELS="$(filter_channels)"
+
+# Always include DM channel — resolve_channels() only returns C-prefixed IDs from openclaw.json.
+# DM channels (D-prefix) are never in that list, so we add it unless already present.
+DM_CHANNEL="${JLEECHAN_DM_CHANNEL:-D0AFTLEJGJU}"
+case " ${DEFAULT_CHANNELS} " in
+  *" ${DM_CHANNEL} "*) : ;;  # already present
+  *) DEFAULT_CHANNELS="${DEFAULT_CHANNELS} ${DM_CHANNEL}" ;;
+esac
 
 fetch_thread_messages() {
   local channel_id=$1 thread_ts=$2
@@ -306,16 +363,101 @@ fetch_recent_threads() {
   echo "$response" | jq -r '.messages[] | select(.reply_count > 0) | .ts' 2>/dev/null || return 1
 }
 
+# Fetch standalone (non-threaded) messages from a user that have no agent reply.
+# These are missed by fetch_recent_threads because reply_count == 0.
+# Returns: one ts per line (Jeffrey messages with no bot follow-up within 30 min).
+fetch_standalone_user_messages() {
+  local channel_id=$1
+  local oldest_ts now_sec cutoff_ts
+  now_sec="$(date +%s)"
+  oldest_ts=$((now_sec - LOOKBACK_HOURS * 3600))
+  cutoff_ts=$((now_sec - NUDGE_INTERVAL_SECS))  # must be > 30 min old
+
+  local response
+  response="$(curl --silent --show-error \
+    --connect-timeout 10 --max-time 30 \
+    -X POST "https://slack.com/api/conversations.history" \
+    -H "Authorization: Bearer $SLACK_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "$(jq -n --arg ch "$channel_id" --arg oldest "$oldest_ts" \
+      --argjson limit 200 \
+      '{channel: $ch, oldest: $oldest, limit: $limit}')" 2>/dev/null)" || return 1
+
+  # Find Jeffrey's standalone roots (reply_count==0) older than NUDGE_INTERVAL_SECS.
+  # Also check that no agent message appeared within 30 min after the Jeffrey message.
+  # Use a temp file to pass response — pipe+heredoc conflict (both claim stdin).
+  local _tmpf
+  _tmpf="$(mktemp /tmp/slack-standalone.XXXXXX)"
+  echo "$response" > "$_tmpf"
+  python3 - "$JEFFREY_USER_ID" "$AGENT_USER_ID" "$cutoff_ts" "$_tmpf" <<'PYEOF'
+import sys, json, os
+jeffrey_id = sys.argv[1]
+agent_id   = sys.argv[2]
+cutoff     = float(sys.argv[3])
+tmpf       = sys.argv[4]
+
+try:
+    with open(tmpf) as f:
+        data = json.load(f)
+    msgs = data.get("messages", [])
+except Exception:
+    sys.exit(0)
+finally:
+    try:
+        os.unlink(tmpf)
+    except Exception:
+        pass
+
+# Build a sorted list with timestamps as floats
+for m in msgs:
+    try:
+        m["_ts"] = float(m.get("ts", 0))
+    except Exception:
+        m["_ts"] = 0.0
+
+msgs_sorted = sorted(msgs, key=lambda m: m["_ts"])
+
+for i, m in enumerate(msgs_sorted):
+    if m.get("user") != jeffrey_id:
+        continue
+    if m.get("subtype"):  # skip joins, leaves, bot_messages, etc.
+        continue
+    if (m.get("reply_count") or 0) > 0:
+        continue  # has thread replies — already handled by fetch_recent_threads
+    if m.get("thread_ts") and m["thread_ts"] != m.get("ts"):
+        continue  # it's a reply inside another thread, not a root
+    if m["_ts"] > cutoff:
+        continue  # too recent — not a drop yet
+
+    # Check if the agent replied in the channel within 30 min after this message
+    window_end = m["_ts"] + 1800  # 30 min
+    agent_replied = any(
+        n.get("user") == agent_id and n["_ts"] > m["_ts"] and n["_ts"] <= window_end
+        for n in msgs_sorted[i+1:]
+    )
+    if not agent_replied:
+        print(m["ts"])
+PYEOF
+}
+
 post_reply() {
   local channel_id=$1 thread_ts=$2 text=$3
   local as_user=${POST_AS_BOT:-1}
   local token response
 
-  if [[ "$as_user" == "0" ]]; then
+  # DM channels (D-prefix) require user identity — bots can't write to DMs they didn't open.
+  # Source ~/.profile to pick up SLACK_USER_TOKEN if not already in env.
+  if [[ "$channel_id" == D* ]]; then
+    if [[ -z "${SLACK_USER_TOKEN:-}" ]]; then
+      # shellcheck source=/dev/null
+      source "${HOME}/.profile" 2>/dev/null || true
+    fi
+    token="${SLACK_USER_TOKEN:-}"
+  elif [[ "$as_user" == "0" ]]; then
     token="${SLACK_USER_TOKEN:-}"
   else
     # Prefer MCP mail bot token for dropped-thread nudges (not OpenClaw bot)
-    token="${MCP_MAIL_BOT_TOKEN:-${SLACK_BOT_TOKEN:-}}"
+    token="${MCP_MAIL_BOT_TOKEN:-${OPENCLAW_SLACK_BOT_TOKEN:-}}"
   fi
 
   response="$(curl --silent --show-error --fail \
@@ -337,11 +479,11 @@ post_reply() {
 
 log "Starting dropped-thread-followup (lookback: ${LOOKBACK_HOURS}h)"
 
-[[ -z "$SLACK_TOKEN" ]] && { log "ERROR: SLACK_BOT_TOKEN not set"; exit 1; }
+[[ -z "$SLACK_TOKEN" ]] && { log "ERROR: OPENCLAW_SLACK_BOT_TOKEN not set"; exit 1; }
 
 actioned=0 skipped=0
 
-for channel in $DEFAULT_CHANNELS; do
+for channel in $SCAN_CHANNELS; do
   log "Checking channel $channel..."
 
   threads=$(fetch_recent_threads "$channel" 2>/dev/null) || { log "  Failed to fetch threads for $channel"; continue; }
@@ -386,6 +528,14 @@ for channel in $DEFAULT_CHANNELS; do
     reason=$(echo "$analysis" | jq -r '.reason' 2>/dev/null || echo "unknown")
     kind=$(echo "$analysis" | jq -r '.kind // "cold-thread"' 2>/dev/null || echo "cold-thread")
 
+    # Extract the original (first) user message from the thread for context
+    original_msg=$(echo "$messages" | jq -r '
+      [(.[] | select(.user != null and .user != "'"$AGENT_USER_ID"'"))] |
+      sort_by(.ts | tonumber) |
+      first |
+      .text // empty
+    ' 2>/dev/null | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | cut -c1-500)
+
     # Build nudge message
     if [[ "$kind" == "stale-dispatch" ]]; then
       nudge_text="[Dropped-thread followup] This dispatched AO task has been running with no progress update. "
@@ -393,6 +543,7 @@ for channel in $DEFAULT_CHANNELS; do
       nudge_text+="If work is complete, post proof links (PR/commit/artifact) instead."
     else
       nudge_text="[Dropped-thread followup] This thread appears to have gone cold. "
+      nudge_text+="Original request: \"${original_msg:-[could not retrieve]}\". "
       nudge_text+="Please provide a status update on the requested action, or confirm if work is complete. "
       nudge_text+="If you admitted to not executing something, please do so now and either complete the work "
       nudge_text+="or explain the blocker."
@@ -414,6 +565,50 @@ for channel in $DEFAULT_CHANNELS; do
     ((actioned++)) || true
 
   done <<< "$threads"
+done
+
+# ── Standalone message scan ────────────────────────────────────────────────────
+# Catches Jeffrey messages with reply_count==0 that never got a bot reply.
+# These are invisible to fetch_recent_threads.
+
+log "Scanning for standalone unanswered messages..."
+
+for channel in $SCAN_CHANNELS; do
+  log "  Standalone scan: $channel"
+
+  standalone_msgs=$(fetch_standalone_user_messages "$channel" 2>/dev/null) || {
+    log "  WARN: standalone scan failed for $channel"
+    continue
+  }
+
+  while IFS= read -r msg_ts; do
+    [[ -z "$msg_ts" ]] && continue
+
+    if was_nudged_recently "$channel" "$msg_ts"; then
+      ((skipped++)) || true
+      log "  SKIP standalone (nudged recently): $channel $msg_ts"
+      continue
+    fi
+
+    nudge_text="[Dropped-thread followup] You sent a message in this channel that never received a reply. "
+    nudge_text+="Please respond to Jeffrey's message (ts: ${msg_ts}) now."
+
+    if [[ "${DRY_RUN:-0}" == "1" ]]; then
+      log "DRY_RUN: would nudge standalone $channel $msg_ts"
+      ((actioned++)) || true
+      continue
+    fi
+
+    if post_reply "$channel" "$msg_ts" "$nudge_text"; then
+      record_nudge "$channel" "$msg_ts"
+      log "  NUDGED standalone: $channel $msg_ts"
+    else
+      log "  ERROR: failed to nudge standalone $channel $msg_ts"
+      continue
+    fi
+    ((actioned++)) || true
+
+  done <<< "$standalone_msgs"
 done
 
 log "Done — actioned=$actioned skipped=$skipped"

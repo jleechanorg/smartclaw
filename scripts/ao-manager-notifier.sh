@@ -14,5 +14,5 @@ if [[ ! -f "$NOTIFIER_PY" ]]; then
 fi
 
 # bash -lc ensures ~/.bash_profile and ~/.bashrc are sourced before python3 runs,
-# making GITHUB_TOKEN, SLACK_BOT_TOKEN, etc. available.
+# making GITHUB_TOKEN, OPENCLAW_SLACK_BOT_TOKEN, etc. available.
 exec bash -lc "python3 '$NOTIFIER_PY'"

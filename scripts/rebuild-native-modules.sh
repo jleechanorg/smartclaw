@@ -7,7 +7,7 @@
 
 set -euo pipefail
 
-LOG_DIR="${HOME}/.smartclaw/logs"
+LOG_DIR="${HOME}/.openclaw/logs"
 LOG_FILE="${LOG_DIR}/native-module-rebuild.log"
 mkdir -p "$LOG_DIR"
 
@@ -34,8 +34,8 @@ detect_gateway_node() {
   # 3. Read the gateway launchd plist — ground truth for which node the gateway uses
   local plist_node
   for plist in \
-    "$HOME/Library/LaunchAgents/ai.smartclaw.gateway.plist" \
-    "$HOME/Library/LaunchAgents/com.smartclaw.gateway.plist"
+    "$HOME/Library/LaunchAgents/ai.openclaw.gateway.plist" \
+    "$HOME/Library/LaunchAgents/com.openclaw.gateway.plist"
   do
     if [[ -f "$plist" ]]; then
       plist_node="$(python3 -c "
@@ -72,7 +72,7 @@ GATEWAY_MODULE_VERSION="$("$GATEWAY_NODE" -e 'console.log(process.versions.modul
   exit 1
 }
 
-EXTENSIONS_DIR="${HOME}/.smartclaw/extensions"
+EXTENSIONS_DIR="${HOME}/.openclaw/extensions"
 REBUILD_NEEDED=0
 REBUILD_OK=0
 REBUILD_FAIL=0

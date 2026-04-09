@@ -7,17 +7,17 @@ set -euo pipefail
 
 # ── Config ────────────────────────────────────────────────────────────────────
 REPOS=(
-  "jleechanorg/smartclaw"
+  "jleechanorg/jleechanclaw"
   "jleechanorg/worldarchitect.ai"
   "jleechanorg/agent-orchestrator"
   "jleechanorg/ai_universe"
 )
 LOOKBACK_HOURS=24
-REPORT_CHANNEL="${STABILITY_REPORT_CHANNEL:-${SLACK_CHANNEL_ID}}"
+REPORT_CHANNEL="${STABILITY_REPORT_CHANNEL:-C09GRLXF9GR}"
 AGENT_USER_ID="${OPENCLAW_BOT_USER_ID:-U0AEZC7RX1Q}"
-SLACK_TOKEN="${SLACK_BOT_TOKEN:-}"
+SLACK_TOKEN="${OPENCLAW_SLACK_BOT_TOKEN:-}"
 
-LOG_DIR="${STABILITY_LOG_DIR:-${HOME}/.smartclaw/logs}"
+LOG_DIR="${STABILITY_LOG_DIR:-${HOME}/.openclaw/logs}"
 mkdir -p "$LOG_DIR"
 LOG_FILE="${LOG_DIR}/stability-report.log"
 exec 2>> "$LOG_FILE"
@@ -27,7 +27,7 @@ log() { echo "[$(date '+%Y-%m-%dT%H:%M:%S')] $*"; }
 # GH token
 resolve_token() {
   local tok=""
-  tok="$(cat "$HOME/.smartclaw/openclaw.json" 2>/dev/null | jq -r '.skills.entries["gh-issues"].apiKey // empty' 2>/dev/null)" || true
+  tok="$(cat "$HOME/.openclaw/openclaw.json" 2>/dev/null | jq -r '.skills.entries["gh-issues"].apiKey // empty' 2>/dev/null)" || true
   tok="${tok:-$GH_TOKEN}"
   tok="${tok:-$GITHUB_TOKEN}"
   printf '%s' "$tok"
@@ -234,7 +234,7 @@ PYEOF
 log "Starting stability report (lookback: ${LOOKBACK_HOURS}h)"
 
 if [[ -z "$SLACK_TOKEN" ]]; then
-  log "WARN: SLACK_BOT_TOKEN not set — skipping Slack analysis"
+  log "WARN: OPENCLAW_SLACK_BOT_TOKEN not set — skipping Slack analysis"
 fi
 
 # Aggregate PR stats
