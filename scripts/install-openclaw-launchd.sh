@@ -5,28 +5,28 @@
 #
 # Installs:
 #   Infrastructure (always-on daemons):
-#     com.smartclaw.gateway        — OpenClaw gateway (port 18789)
-#     ai.smartclaw.qdrant          — Qdrant vector DB (Docker, port 6333)
-#     ai.smartclaw.webhook         — GitHub webhook ingress daemon (port 19888)
-#     ai.smartclaw.startup-check   — Startup verification on login
-#     ai.smartclaw.monitor-agent   — Periodic health monitoring (every 30 min)
+#     com.openclaw.gateway        — OpenClaw gateway (port 18789)
+#     ai.openclaw.qdrant          — Qdrant vector DB (Docker, port 6333)
+#     ai.openclaw.webhook         — GitHub webhook ingress daemon (port 19888)
+#     ai.openclaw.startup-check   — Startup verification on login
+#     ai.openclaw.monitor-agent   — Periodic health monitoring (every 30 min)
 #     ai.agento-manager           — Agent Orchestrator manager (KeepAlive)
 #     ai.agento.dashboard         — AO web dashboard (KeepAlive, port 3020)
-#     ai.smartclaw.lifecycle-manager — AO lifecycle workers (KeepAlive)
+#     ai.openclaw.lifecycle-manager — AO lifecycle workers (KeepAlive)
 #
 #   Scheduled jobs (launchd-managed, NOT gateway-cron):
-#     ai.smartclaw.schedule.morning-log-review     — 8:00 AM PT daily
-#     ai.smartclaw.schedule.weekly-error-trends   — Mon 9:00 AM PT
-#     ai.smartclaw.schedule.docs-drift-review      — 8:15 AM PT daily
-#     ai.smartclaw.schedule.cron-backup-sync       — 8:25 AM PT daily
-#     ai.smartclaw.schedule.daily-research         — 6:00 PM PT Mon-Fri
-#     ai.smartclaw.schedule.bug-hunt-9am           — 9:00 AM PT Mon-Fri
-#     ai.smartclaw.schedule.harness-analyzer-9am  — 9:00 AM PT Mon-Fri
-#     ai.smartclaw.schedule.orch-health-weekly     — Mon 9:30 AM PT
-#     ai.smartclaw.schedule.github-intake          — 9:00 AM PT daily
-#     ai.smartclaw.schedule.qdrant-backup          — 2:00 AM nightly (→ Dropbox)
+#     ai.openclaw.schedule.morning-log-review     — 8:00 AM PT daily
+#     ai.openclaw.schedule.weekly-error-trends   — Mon 9:00 AM PT
+#     ai.openclaw.schedule.docs-drift-review      — 8:15 AM PT daily
+#     ai.openclaw.schedule.cron-backup-sync       — 8:25 AM PT daily
+#     ai.openclaw.schedule.daily-research         — 6:00 PM PT Mon-Fri
+#     ai.openclaw.schedule.bug-hunt-9am           — 9:00 AM PT Mon-Fri
+#     ai.openclaw.schedule.harness-analyzer-9am  — 9:00 AM PT Mon-Fri
+#     ai.openclaw.schedule.orch-health-weekly     — Mon 9:30 AM PT
+#     ai.openclaw.schedule.github-intake          — 9:00 AM PT daily
+#     ai.openclaw.schedule.qdrant-backup          — 2:00 AM nightly (→ Dropbox)
 #
-# NOT installed here (remain live in ~/.smartclaw/cron/jobs.json, gitignored):
+# NOT installed here (remain live in ~/.openclaw/cron/jobs.json, gitignored):
 #   Gateway-cron jobs are managed by the OpenClaw gateway itself and are NOT
 #   migrated to launchd. This includes ad-hoc and PR-automation jobs:
 #     - thread-followup-*   (short-lived follow-up tasks)
@@ -88,8 +88,8 @@ echo ""
 
 # Step 2b: mem0 native module watchdog
 echo "[2b] Installing mem0 native module watchdog..."
-_watchdog_plist="$HOME/Library/LaunchAgents/com.smartclaw.mem0-watchdog.plist"
-_watchdog_template="$REPO_ROOT/launchd/com.smartclaw.mem0-watchdog.plist"
+_watchdog_plist="$HOME/Library/LaunchAgents/com.openclaw.mem0-watchdog.plist"
+_watchdog_template="$REPO_ROOT/launchd/com.openclaw.mem0-watchdog.plist"
 if [[ ! -f "$_watchdog_plist" ]] && [[ -f "$_watchdog_template" ]]; then
   # Substitute __HOME__ with actual $HOME in plist before deploying
   sed "s|__HOME__|$HOME|g" "$_watchdog_template" > "$_watchdog_plist"
@@ -98,15 +98,15 @@ if [[ ! -f "$_watchdog_plist" ]] && [[ -f "$_watchdog_template" ]]; then
 fi
 if [[ -f "$_watchdog_plist" ]]; then
   if [[ "$DRY_RUN" == "1" ]]; then
-    _echo "  [dry-run] would bootstrap com.smartclaw.mem0-watchdog"
+    _echo "  [dry-run] would bootstrap com.openclaw.mem0-watchdog"
   else
     _bs_err=$(launchctl bootstrap "gui/$(id -u)" "$_watchdog_plist" 2>&1)
     _bs_rc=$?
     if [[ "$_bs_rc" -eq 0 ]]; then
-      _echo "  ✓ com.smartclaw.mem0-watchdog bootstrapped"
+      _echo "  ✓ com.openclaw.mem0-watchdog bootstrapped"
     else
       _echo "  bootstrap failed (exit $_bs_rc): $_bs_err"
-      _echo "  (may already be loaded — verify with: launchctl print gui/\$(id -u)/com.smartclaw.mem0-watchdog)"
+      _echo "  (may already be loaded — verify with: launchctl print gui/\$(id -u)/com.openclaw.mem0-watchdog)"
     fi
   fi
 else
@@ -117,7 +117,7 @@ fi
 # Only record if no baseline exists — do NOT clobber an existing baseline
 echo "[2c] Checking NODE_MODULE_VERSION baseline..."
 _gateway_node="${HOME}/.nvm/versions/node/v22.22.0/bin/node"
-_baseline="$HOME/.smartclaw/.gateway-node-version"
+_baseline="$HOME/.openclaw/.gateway-node-version"
 if [[ "$DRY_RUN" == "1" ]]; then
   _echo "  [dry-run] would check and record MODULE_VERSION from $_gateway_node → $_baseline"
 elif [[ -x "$_gateway_node" ]]; then
@@ -145,19 +145,19 @@ echo ""
 echo "Launchd labels (macOS):"
 if command -v launchctl >/dev/null 2>&1; then
   for label in \
-    com.smartclaw.gateway \
-    ai.smartclaw.qdrant \
-    ai.smartclaw.schedule.morning-log-review \
-    ai.smartclaw.schedule.weekly-error-trends \
-    ai.smartclaw.schedule.docs-drift-review \
-    ai.smartclaw.schedule.cron-backup-sync \
-    ai.smartclaw.schedule.daily-research \
-    ai.smartclaw.schedule.bug-hunt-9am \
-    ai.smartclaw.schedule.harness-analyzer-9am \
-    ai.smartclaw.schedule.orch-health-weekly \
-    ai.smartclaw.schedule.github-intake \
-    ai.smartclaw.claude-memory-sync \
-    ai.smartclaw.monitor-agent; do
+    com.openclaw.gateway \
+    ai.openclaw.qdrant \
+    ai.openclaw.schedule.morning-log-review \
+    ai.openclaw.schedule.weekly-error-trends \
+    ai.openclaw.schedule.docs-drift-review \
+    ai.openclaw.schedule.cron-backup-sync \
+    ai.openclaw.schedule.daily-research \
+    ai.openclaw.schedule.bug-hunt-9am \
+    ai.openclaw.schedule.harness-analyzer-9am \
+    ai.openclaw.schedule.orch-health-weekly \
+    ai.openclaw.schedule.github-intake \
+    ai.openclaw.claude-memory-sync \
+    ai.openclaw.monitor-agent; do
     if launchctl print "gui/$(id -u)/$label" >/dev/null 2>&1; then
       _echo "  ✓ $label"
     else
@@ -170,7 +170,7 @@ fi
 
 echo ""
 echo "Log locations:"
-echo "  Scheduled job logs: ~/.smartclaw/logs/scheduled-jobs/"
-echo "  Gateway logs:       ~/.smartclaw/logs/gateway.log"
+echo "  Scheduled job logs: ~/.openclaw/logs/scheduled-jobs/"
+echo "  Gateway logs:       ~/.openclaw/logs/gateway.log"
 echo ""
 echo "Docs: see docs/CRON_MIGRATION.md for live-vs-tracked distinction."

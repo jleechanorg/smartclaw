@@ -13,4 +13,4 @@ if [[ -z "${GH_TOKEN:-}" ]]; then
 fi
 export GH_TOKEN
 
-exec ${HOME}/.smartclaw/scripts/stability-report.sh "$@"
+exec "$HOME/.openclaw/scripts/stability-report.sh" "$@"
