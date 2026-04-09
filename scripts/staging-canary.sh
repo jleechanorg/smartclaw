@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# staging-canary.sh — 6-point canary test for OpenClaw gateway
-# Run against staging (port 18790) before applying changes to production (18789).
+# staging-canary.sh — 6-point canary test for SmartClaw gateway
+# Run against staging (port 18810) before applying changes to production (18789).
 # Exit 0 only if ALL 6 checks pass. Exit 1 on any failure.
 set -uo pipefail
 
-PORT="${1:-18790}"
+PORT="${1:-18810}"
 # Accept --port flag
 if [[ "${1:-}" == "--port" ]]; then
-    PORT="${2:-18790}"
+    PORT="${2:-18810}"
     shift 2 2>/dev/null || true
 fi
 
