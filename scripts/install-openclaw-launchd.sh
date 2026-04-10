@@ -144,21 +144,20 @@ echo "[3/3] Install summary..."
 echo ""
 echo "Launchd labels (macOS):"
 if command -v launchctl >/dev/null 2>&1; then
-  # Note: Labels match smartclaw plist files, not openclaw
   for label in \
-    ai.smartclaw.gateway \
-    ai.smartclaw.qdrant \
-    ai.smartclaw.schedule.morning-log-review \
-    ai.smartclaw.schedule.weekly-error-trends \
-    ai.smartclaw.schedule.docs-drift-review \
-    ai.smartclaw.schedule.cron-backup-sync \
-    ai.smartclaw.schedule.daily-research \
-    ai.smartclaw.schedule.bug-hunt-9am \
-    ai.smartclaw.schedule.harness-analyzer-9am \
-    ai.smartclaw.schedule.orch-health-weekly \
-    ai.smartclaw.schedule.github-intake \
-    ai.smartclaw.claude-memory-sync \
-    ai.smartclaw.monitor-agent; do
+    com.openclaw.gateway \
+    ai.openclaw.qdrant \
+    ai.openclaw.schedule.morning-log-review \
+    ai.openclaw.schedule.weekly-error-trends \
+    ai.openclaw.schedule.docs-drift-review \
+    ai.openclaw.schedule.cron-backup-sync \
+    ai.openclaw.schedule.daily-research \
+    ai.openclaw.schedule.bug-hunt-9am \
+    ai.openclaw.schedule.harness-analyzer-9am \
+    ai.openclaw.schedule.orch-health-weekly \
+    ai.openclaw.schedule.github-intake \
+    ai.openclaw.claude-memory-sync \
+    ai.openclaw.monitor-agent; do
     if launchctl print "gui/$(id -u)/$label" >/dev/null 2>&1; then
       _echo "  ✓ $label"
     else
