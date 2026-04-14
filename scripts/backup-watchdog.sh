@@ -15,7 +15,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-SNAP_BASE="$REPO_ROOT/.openclaw-backups"
+SNAP_BASE="$REPO_ROOT/.smartclaw-backups"
 MAX_AGE_SECONDS=21600  # 6 hours
 SMTP_SERVER="smtp.gmail.com"
 SMTP_PORT="587"

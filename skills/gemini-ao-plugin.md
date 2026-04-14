@@ -39,7 +39,7 @@ The `--yolo` flag enables non-interactive autonomous execution — equivalent to
 
 ## Project Configuration
 
-Add a Gemini-based project to `~/.openclaw/agent-orchestrator.yaml`:
+Add a Gemini-based project to `~/.smartclaw/agent-orchestrator.yaml`:
 
 ```yaml
 projects:

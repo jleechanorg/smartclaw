@@ -4,7 +4,9 @@ set -euo pipefail
 
 # Source full shell environment
 if [[ -f ~/.bash_profile ]]; then
+  set +u
   source ~/.bash_profile 2>/dev/null || true
+  set -u
 fi
 
 # Ensure GH_TOKEN is set
@@ -13,4 +15,4 @@ if [[ -z "${GH_TOKEN:-}" ]]; then
 fi
 export GH_TOKEN
 
-exec "$HOME/.openclaw/scripts/stability-report.sh" "$@"
+exec "$HOME/.smartclaw/scripts/stability-report.sh" "$@"

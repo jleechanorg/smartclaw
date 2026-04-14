@@ -141,11 +141,11 @@ openclaw channels add \
 
 ## 🔐 Security Notes
 
-- ✅ Bot token stored in `~/.openclaw/openclaw.json` (chmod 700)
+- ✅ Bot token stored in `~/.smartclaw/openclaw.json` (chmod 700)
 - ✅ Tokens never logged to files
 - ✅ All communication over HTTPS/WSS
 - ⚠️  Never share your tokens publicly or commit to git
 
 ---
 
-**Need help?** Check OpenClaw docs: https://docs.openclaw.ai/channels/slack
+**Need help?** Check OpenClaw docs: https://docs.smartclaw.ai/channels/slack

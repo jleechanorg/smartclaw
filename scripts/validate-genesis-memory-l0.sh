@@ -3,7 +3,7 @@ set -euo pipefail
 
 REPOS=(
   "$HOME/projects/worldarchitect.ai"
-  "$HOME/project_jleechanclaw/jleechanclaw"
+  "$HOME/project_smartclaw/smartclaw"
   "$HOME/project_worldaiclaw/worldai_claw"
 )
 
@@ -13,7 +13,7 @@ echo "[1/3] build_memory collect+synthesize dry-run over rolling 8-day window"
 python3 scripts/build_memory.py \
   --days 8 \
   --repo "worldarchitect.ai:${REPOS[0]}" \
-  --repo "jleechanclaw:${REPOS[1]}" \
+  --repo "smartclaw:${REPOS[1]}" \
   --repo "worldai_claw:${REPOS[2]}" \
   --dry-run
 
@@ -23,7 +23,7 @@ python3 scripts/build_memory.py \
   --days 7 \
   --stage write \
   --repo "worldarchitect.ai:${REPOS[0]}" \
-  --repo "jleechanclaw:${REPOS[1]}" \
+  --repo "smartclaw:${REPOS[1]}" \
   --repo "worldai_claw:${REPOS[2]}" \
   --dry-run
 

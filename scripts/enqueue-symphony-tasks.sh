@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUNTIME_ROOT="${SYMPHONY_DAEMON_RUNTIME:-$HOME/Library/Application Support/jleechanclaw/symphony_daemon}"
+RUNTIME_ROOT="${SYMPHONY_DAEMON_RUNTIME:-$HOME/Library/Application Support/smartclaw/symphony_daemon}"
 METADATA="$RUNTIME_ROOT/daemon_metadata.json"
 
 if [[ ! -f "$METADATA" ]]; then

@@ -6,7 +6,7 @@ Clusters memories by key-token overlap (threshold 0.88), keeps the longest
 (most informative) in each cluster, and deletes the rest.
 
 Usage:
-    python3 ~/.openclaw/scripts/mem0_dedup.py [--dry-run] [--user-id jleechan]
+    python3 ~/.smartclaw/scripts/mem0_dedup.py [--dry-run] [--user-id jleechan]
 """
 from __future__ import annotations
 

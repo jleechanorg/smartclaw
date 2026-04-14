@@ -6,7 +6,7 @@
 
 This document captures user preferences and patterns extracted from available conversation history.
 
-**Note:** No Claude Code or Cursor conversation history was found in the home directory (~). The analysis is based on OpenClaw session data from `~/.openclaw/backups/` covering February 2026.
+**Note:** No Claude Code or Cursor conversation history was found in the home directory (~). The analysis is based on OpenClaw session data from `~/.smartclaw/backups/` covering February 2026.
 
 ---
 
@@ -55,7 +55,7 @@ From onboarding session (2026-02-10):
 - Tests **E2E for OpenClaw** (character creation flows)
 
 ### GitHub Activity
-- Works on `jleechanorg/worldarchitect.ai` and `jleechanorg/jleechanclaw`
+- Works on `jleechanorg/worldarchitect.ai` and `jleechanorg/smartclaw`
 - Manages many PRs (5500+ range)
 - Recent focus: BYOK (Bring Your Own Key) implementation, MCP smoke tests
 
@@ -108,6 +108,6 @@ Based on OpenClaw SOUL.md guidance:
 
 ## Data Sources
 
-- OpenClaw session backups: `~/.openclaw/backups/20260219_120541/agents/main/sessions/`
+- OpenClaw session backups: `~/.smartclaw/backups/20260219_120541/agents/main/sessions/`
 - Date range: February 10-19, 2026
 - Session types: Onboarding, cron reminders, GitHub PR reviews, E2E testing

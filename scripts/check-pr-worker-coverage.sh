@@ -6,6 +6,42 @@ set -uo pipefail
 
 REPO="jleechanorg/agent-orchestrator"
 PROJECT="agent-orchestrator"
+LIFECYCLE_LOG="${LIFECYCLE_LOG:-$HOME/.smartclaw/logs/ao-lifecycle-${PROJECT}.log}"
+
+latest_claim_failure_for_pr() {
+  local pr_number="$1"
+  python3 - "$LIFECYCLE_LOG" "$pr_number" 2>/dev/null <<'PY' || true
+import json
+import pathlib
+import sys
+
+log_path = pathlib.Path(sys.argv[1])
+target_pr = int(sys.argv[2])
+latest = ""
+
+if not log_path.exists():
+    raise SystemExit(0)
+
+for raw in log_path.read_text(errors="ignore").splitlines():
+    if "lifecycle.backfill.claim_failed" not in raw:
+        continue
+    try:
+        payload = json.loads(raw)
+    except Exception:
+        continue
+    if payload.get("operation") != "lifecycle.backfill.claim_failed":
+        continue
+    data = payload.get("data") or {}
+    if data.get("prNumber") != target_pr:
+        continue
+    latest = " ".join(str(data.get("error", "")).split())
+
+if latest:
+    if len(latest) > 220:
+        latest = latest[:217] + "..."
+    print(latest)
+PY
+}
 
 # --- Fetch open PRs via GitHub REST API (per_page=100 to avoid silent truncation) ---
 pr_json=$(gh api "repos/$REPO/pulls?state=open&per_page=100" --jq '
@@ -62,12 +98,14 @@ while IFS= read -r pr_line; do
   pr_title_short=$(echo "$pr_title" | cut -c1-47)
   [[ ${#pr_title} -gt 47 ]] && pr_title_short="${pr_title_short}..."
 
-  # Find session for this PR (grep for the PR number in session output)
+  # Find session for this PR from `ao session ls`.
+  # Current output usually includes a GitHub API PR URL (`.../pulls/<num>`),
+  # while older output used `pull/<num>`. Accept both shapes.
   session_line=""
   session_name=""
   session_status=""
-  if echo "$active_sessions" | grep -qE "pull/$pr_num( |$)"; then
-    session_line=$(echo "$active_sessions" | grep -E "pull/$pr_num( |$)" | head -1)
+  if echo "$active_sessions" | grep -qE "(/pulls?/)$pr_num( |$)"; then
+    session_line=$(echo "$active_sessions" | grep -E "(/pulls?/)$pr_num( |$)" | head -1)
     session_name=$(echo "$session_line" | awk '{print $1}')
     # Extract status from brackets, e.g. [ci_failed] -> ci_failed
     session_status=$(echo "$session_line" | grep -oE '\[[^]]+\]' | tr -d '[]' | tr -d ' ')
@@ -79,7 +117,13 @@ while IFS= read -r pr_line; do
   if [[ -n "$session_name" ]]; then
     printf "%-6s %-50s %-12s %s\n" "#$pr_num" "$pr_title_short" "$session_name" "[$session_status]"
   else
-    printf "%-6s %-50s %-12s %s\n" "#$pr_num" "$pr_title_short" "—" "UNCOVERED"
+    claim_failure=$(latest_claim_failure_for_pr "$pr_num")
+    if [[ -n "$claim_failure" ]]; then
+      printf "%-6s %-50s %-12s %s\n" "#$pr_num" "$pr_title_short" "—" "BLOCKED"
+      echo "       blocker: $claim_failure"
+    else
+      printf "%-6s %-50s %-12s %s\n" "#$pr_num" "$pr_title_short" "—" "UNCOVERED"
+    fi
     uncovered_prs="${uncovered_prs}#${pr_num} "
     ((uncovered_count++))
   fi
