@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# install.sh — One-shot setup for ~/.openclaw/ (jleechanorg/jleechanclaw)
+# install.sh — One-shot setup for ~/.smartclaw/ (jleechanorg/smartclaw)
 #
 # Usage (post-clone):
-#   bash ~/.openclaw/install.sh
+#   bash ~/.smartclaw/install.sh
 #
 # What it does:
 #   1. Recreates symlinks and copies config files needed at runtime
 #   2. Installs all LaunchAgents / systemd units (gateway, monitor, startup-check, etc.)
 #
 # Prerequisites:
-#   - openclaw.json must exist at ~/.openclaw/openclaw.json with real tokens hardcoded
-#     (copy from openclaw.json.redacted and fill in secrets — never commit that file)
+#   - openclaw.json must exist at ~/.smartclaw/openclaw.json with real tokens hardcoded
+#     (create/update this local runtime file directly; it is gitignored)
 #   - openclaw CLI must be in PATH
 
 set -euo pipefail
@@ -30,19 +30,26 @@ if [[ -d "$REPO_ROOT/workspace-monitor" ]]; then
   echo "✓ Symlink: workspace-monitor/skills -> skills/"
 fi
 
-# Agent Orchestrator config
+# Agent Orchestrator runtime config
 REPO_YAML="$REPO_ROOT/agent-orchestrator.yaml"
 AO_DOTFILE="$HOME/.agent-orchestrator.yaml"
+RENDER_AO_CONFIG="$REPO_ROOT/scripts/render-agent-orchestrator-config.sh"
 if [[ -f "$REPO_YAML" ]]; then
-  cp "$REPO_YAML" "$AO_DOTFILE"
-  echo "✓ Copied: agent-orchestrator.yaml -> ~/.agent-orchestrator.yaml"
+  if [[ -f "$RENDER_AO_CONFIG" ]]; then
+    bash "$RENDER_AO_CONFIG" "$REPO_YAML" "$AO_DOTFILE"
+    echo "✓ Rendered: agent-orchestrator.yaml -> ~/.agent-orchestrator.yaml"
+  else
+    echo "ERROR: AO render script not found at $RENDER_AO_CONFIG" >&2
+    exit 1
+  fi
+  bash "$SCRIPTS/bootstrap.sh" --symlink-only
 fi
 
 # --- 2. Verify openclaw.json has real tokens ---
 if [[ ! -f "$REPO_ROOT/openclaw.json" ]]; then
   echo ""
-  echo "ERROR: ~/.openclaw/openclaw.json not found."
-  echo "  Copy openclaw.json.redacted and fill in real tokens before running install."
+  echo "ERROR: ~/.smartclaw/openclaw.json not found."
+  echo "  Create openclaw.json with real tokens before running install."
   exit 1
 fi
 
@@ -95,6 +102,6 @@ echo "--- Installing services ---"
 echo ""
 echo "=== Install complete ==="
 echo ""
-echo "Gateway token and all secrets are read directly from ~/.openclaw/openclaw.json."
+echo "Gateway token and all secrets are read directly from ~/.smartclaw/openclaw.json."
 echo "Do NOT add tokens to plists or environment variables — openclaw.json is the"
 echo "single source of truth."

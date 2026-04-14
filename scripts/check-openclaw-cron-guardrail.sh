@@ -4,7 +4,7 @@ set -euo pipefail
 # Guardrail:
 # - Forbidden: system crontab usage for OpenClaw reminder/scheduling/automation jobs.
 # - Forbidden: OpenClaw in-app cron workflow (`openclaw cron ...`) for repo-managed recurring jobs.
-# - Required: launchd workflow (`openclaw-config/ai.openclaw.schedule.*.plist` + install scripts).
+# - Required: launchd workflow (`openclaw-config/ai.smartclaw.schedule.*.plist` + install scripts).
 
 # Check for required tools
 if ! command -v rg &> /dev/null; then
@@ -50,7 +50,7 @@ check_file_for_violation() {
     context=$(sed -n "${line_no},$((line_no + 2))p" "$file")
 
     # Check if context contains both crontab and OpenClaw-related terms
-    if echo "$context" | rg -iq 'crontab' && echo "$context" | rg -iq 'openclaw|\.openclaw|ai\.openclaw|openclaw-backup|backup-content'; then
+    if echo "$context" | rg -iq 'crontab' && echo "$context" | rg -iq 'openclaw|\.smartclaw|ai\.smartclaw|openclaw-backup|backup-content'; then
       echo "Guardrail violation: $file:$line_no"
       echo "  $line"
       violations=1
@@ -62,7 +62,7 @@ check_file_for_violation() {
 
 while IFS= read -r file; do
   case "$file" in
-    .openclaw-backups/*|openclaw/.openclaw-backups/*|openclaw-config/agents/*|openclaw-config/credentials/*|scripts/check-openclaw-cron-guardrail.sh|scripts/install-openclaw-backup-jobs.sh|scripts/setup-openclaw-full.sh|BACKUP_AND_RESTORE.md|CLAUDE.md|testing_llm/MEMORY_QUALITY_TEST.md)
+    .smartclaw-backups/*|openclaw/.smartclaw-backups/*|openclaw-config/agents/*|openclaw-config/credentials/*|scripts/check-openclaw-cron-guardrail.sh|scripts/install-openclaw-backup-jobs.sh|scripts/setup-openclaw-full.sh|BACKUP_AND_RESTORE.md|CLAUDE.md|testing_llm/MEMORY_QUALITY_TEST.md)
       continue
       ;;
   esac

@@ -244,6 +244,7 @@
       <a href="#stage-1" class="sub">Stage 1 — Staging Worktree</a>
       <a href="#stage-2" class="sub">Stage 2 — Auto-Promote</a>
       <a href="#stage-3" class="sub">Stage 3 — CI Gate</a>
+      <a href="#stage-3b" class="sub">Stage 3b — Full canary (self-hosted)</a>
       <a href="#canary">Full Canary (6/6)</a>
       <a href="#workflow">Day-to-Day Workflow</a>
       <a href="#gaps">Known Gaps</a>
@@ -255,7 +256,7 @@
   <!-- Main -->
   <main class="main">
     <h1>3-Stage OpenClaw Dev Pipeline</h1>
-    <div class="subtitle">Reference Documentation &nbsp;·&nbsp; Last updated: 2026-03-31 &nbsp;·&nbsp; <span class="badge badge-green">Operational</span></div>
+    <div class="subtitle">Reference Documentation &nbsp;·&nbsp; Last updated: 2026-04-03 &nbsp;·&nbsp; <span class="badge badge-green">Operational</span></div>
 
     <!-- Background -->
     <section id="background">
@@ -424,15 +425,24 @@ bash scripts/staging-canary.sh --port 18789</pre>
       </table>
 
       <div class="callout warn">
-        <strong>Manual gate required:</strong> CI runs checks 2 and 5 (static analysis). The remaining 4 checks must be run locally against the staging gateway before every merge.
+        <strong>Portable CI:</strong> GitHub-hosted runners execute checks 2 and 5 only. Checks 1, 3, 4, and 6 need your machine — use <a href="#stage-3b">Stage 3b</a> (self-hosted) or run <code>staging-canary.sh</code> manually.
       </div>
+    </section>
+
+    <!-- Stage 3b -->
+    <section id="stage-3b">
+      <h2>Stage 3b — Full canary in CI (self-hosted)</h2>
+      <p><strong>File</strong>: <code>.github/workflows/staging-canary-full.yml</code></p>
+      <p>When <code>openclaw.json</code> changes in a PR, runs <code>scripts/staging-canary.sh</code> (all 6 checks) on a <strong>self-hosted runner</strong> (e.g. Mac with <code>ai.smartclaw.staging</code> on port <strong>18810</strong>).</p>
+      <p><strong>Setup:</strong> <code>.github/SELFHOSTED_TEST.md</code> — register a runner with labels <code>self-hosted</code> and <code>openclaw-staging</code>. Optional variables: <code>STAGING_CANARY_PORT</code>, <code>OPENCLAW_STAGING_CONFIG</code>. Set <code>ENABLE_STAGING_CANARY_SELFHOSTED=false</code> to skip when the runner is offline.</p>
+      <p><strong>Not included:</strong> <code>monitor-agent.sh</code> remains on LaunchAgent; it is not a PR gate.</p>
     </section>
 
     <!-- Full Canary -->
     <section id="canary">
       <h2>The Full Canary (6/6 Checks)</h2>
       <p><strong>File</strong>: <code>scripts/staging-canary.sh</code></p>
-      <p>Must be run <strong>locally</strong> against the staging gateway before merging staging → main. This is the final gate before production promotion.</p>
+      <p>Run against the staging gateway before merging staging → main, or rely on <strong>Stage 3b</strong> if configured. This is the final gate before production promotion.</p>
 
 <pre># Start staging gateway (one-time or after machine reboot)
 bash scripts/staging-gateway.sh start
@@ -544,6 +554,12 @@ git push origin staging</pre>
             <td><span class="badge badge-green">Done</span></td>
             <td>PR #458 merged</td>
             <td>2026-03-31</td>
+          </tr>
+          <tr>
+            <td>orch-1ps.3b — Full canary self-hosted (staging-canary-full.yml)</td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td>—</td>
+            <td>2026-04-03</td>
           </tr>
           <tr>
             <td>orch-1ps.4 — Git hooks for auto-restart</td>

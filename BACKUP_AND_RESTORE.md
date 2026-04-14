@@ -6,9 +6,9 @@
 
 ## 🔐 What Gets Backed Up
 
-✅ **Configuration**: `~/.openclaw/openclaw.json`
-✅ **Credentials**: `~/.openclaw/credentials/` (WhatsApp, Slack tokens)
-✅ **LaunchAgent**: `~/Library/LaunchAgents/ai.openclaw.gateway.plist`
+✅ **Configuration**: `~/.smartclaw/openclaw.json`
+✅ **Credentials**: `~/.smartclaw/credentials/` (WhatsApp, Slack tokens)
+✅ **LaunchAgent**: `~/Library/LaunchAgents/ai.smartclaw.gateway.plist`
 ✅ **Custom Scripts**: Health check, startup scripts
 ✅ **Documentation**: All setup guides
 
@@ -19,11 +19,11 @@
 Run this command to set up automatic daily backups:
 
 ```bash
-~/.openclaw/enable-auto-backup.sh
+~/.smartclaw/enable-auto-backup.sh
 ```
 
 This will:
-- Create daily backups in `~/.openclaw/backups/`
+- Create daily backups in `~/.smartclaw/backups/`
 - Keep last 30 days of backups
 - Run automatically via cron at 2 AM daily
 - Encrypt sensitive credentials
@@ -35,8 +35,8 @@ This will:
 ```bash
 # Create timestamped backup
 tar -czf ~/openclaw-backup-$(date +%Y%m%d).tar.gz \
-  ~/.openclaw/ \
-  ~/Library/LaunchAgents/ai.openclaw.gateway.plist
+  ~/.smartclaw/ \
+  ~/Library/LaunchAgents/ai.smartclaw.gateway.plist
 
 # Backup location
 ls -lh ~/openclaw-backup-*.tar.gz
@@ -57,7 +57,7 @@ cd ~
 tar -xzf openclaw-backup-YYYYMMDD.tar.gz
 
 # Reload LaunchAgent
-launchctl load ~/Library/LaunchAgents/ai.openclaw.gateway.plist
+launchctl load ~/Library/LaunchAgents/ai.smartclaw.gateway.plist
 
 # Verify
 openclaw channels list
@@ -70,13 +70,13 @@ openclaw channels list
 ### Option 1: iCloud
 ```bash
 # Backup to iCloud
-cp -r ~/.openclaw ~/Library/Mobile\ Documents/com~apple~CloudDocs/openclaw-backup
+cp -r ~/.smartclaw ~/Library/Mobile\ Documents/com~apple~CloudDocs/openclaw-backup
 ```
 
 ### Option 2: Encrypted Archive
 ```bash
 # Create encrypted backup
-tar -czf - ~/.openclaw ~/Library/LaunchAgents/ai.openclaw.gateway.plist | \
+tar -czf - ~/.smartclaw ~/Library/LaunchAgents/ai.smartclaw.gateway.plist | \
   openssl enc -aes-256-cbc -salt -pbkdf2 -iter 100000 -out ~/openclaw-encrypted-backup.tar.gz.enc
 
 # To restore encrypted backup:
@@ -89,10 +89,10 @@ openssl enc -aes-256-cbc -d -pbkdf2 -iter 100000 -in ~/openclaw-encrypted-backup
 ## 🔑 Token Storage (Secure)
 
 Your tokens are stored in:
-- **WhatsApp**: `~/.openclaw/credentials/whatsapp/`
+- **WhatsApp**: `~/.smartclaw/credentials/whatsapp/`
 - **Slack Bot Token**: `SLACK_BOT_TOKEN` environment variable
 - **Slack App Token**: `SLACK_APP_TOKEN` environment variable
-- **Gateway Token**: `~/.openclaw/openclaw.json`
+- **Gateway Token**: `~/.smartclaw/openclaw.json`
 
 **NEVER commit these to git or share publicly!**
 
@@ -118,7 +118,7 @@ If you lose everything and need to restore:
 ### 1. Version Control (Recommended)
 ```bash
 # Create git repo for config (tokens excluded)
-cd ~/.openclaw
+cd ~/.smartclaw
 git init
 echo "credentials/" >> .gitignore
 echo "logs/" >> .gitignore
@@ -132,14 +132,14 @@ git push -u origin main
 ```
 
 ### 2. Time Machine
-- macOS Time Machine automatically backs up `~/.openclaw/`
+- macOS Time Machine automatically backs up `~/.smartclaw/`
 - Restore from Time Machine if needed
 
 ### 3. Scheduled Backups
 ```bash
 # Add to crontab (already configured via health-check)
 # Backups run daily at 2 AM
-0 2 * * * tar --exclude ~/.openclaw/backups -czf ~/.openclaw/backups/backup-$(date +\%Y\%m\%d).tar.gz ~/.openclaw/
+0 2 * * * tar --exclude ~/.smartclaw/backups -czf ~/.smartclaw/backups/backup-$(date +\%Y\%m\%d).tar.gz ~/.smartclaw/
 ```
 
 ---
@@ -168,10 +168,10 @@ If you lose your Slack tokens:
 
 ✓ LaunchAgent auto-starts on boot
 ✓ Health check runs every 5 minutes
-✓ Logs preserved in `~/.openclaw/logs/`
+✓ Logs preserved in `~/.smartclaw/logs/`
 ✓ Configuration backed up on every `openclaw doctor --fix`
 ✓ Crontab persists across reboots
 
 ---
 
-**Bottom Line:** As long as you have a backup of `~/.openclaw/` and the LaunchAgent plist, you can restore everything in under 5 minutes!
+**Bottom Line:** As long as you have a backup of `~/.smartclaw/` and the LaunchAgent plist, you can restore everything in under 5 minutes!

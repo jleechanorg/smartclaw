@@ -1,7 +1,7 @@
 ============================= test session starts ==============================
 platform darwin -- Python 3.14.3, pytest-9.0.2, pluggy-1.6.0 -- /opt/homebrew/opt/python@3.14/bin/python3.14
 cachedir: .pytest_cache
-rootdir: /Users/jleechan/.worktrees/jleechanclaw/jc-226
+rootdir: ${HOME}/.worktrees/smartclaw/jc-226
 configfile: pyproject.toml
 collecting ... collected 99 items
 

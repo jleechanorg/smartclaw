@@ -1,113 +1,173 @@
 ---
-description: /claw - Send a task to OpenClaw agent via Slack orchestrator loop (P0 fix)
+description: /claw - Route all tasks through Hermes gateway inference
 type: orchestration
 execution_mode: immediate
 ---
-# /claw - OpenClaw Agent Dispatch via Slack
+# /claw - Hermes Gateway Inference
 
 **Usage**: `/claw <task description>`
 
-**Purpose**: Send a task to the OpenClaw agent via Slack. This is the **recommended** path since the native `openclaw agent` CLI hangs due to gateway WebSocket timeouts when the orchestrator loop is active.
+**Purpose**: Routes ALL tasks through Hermes gateway inference. Coding tasks go through Hermes, which may then call `dispatch-task` internally if needed.
 
-## Why Slack?
+> **Note (2026-04-12):** Hermes replaced OpenClaw as THE agent. All tasks route through Hermes gateway (MiniMax M2.7). OpenClaw is dead.
 
-The native `openclaw agent` CLI path has known issues:
-1. Gateway WS times out while orchestrator loop is active
-2. Embedded fallback fails on session file lock held by gateway (e.g., `8a87e127.jsonl.lock`)
-
-Posting to Slack (`#ai-slack-test`) goes through the **orchestrator loop**, which is the working path.
-
-## Execution Instructions
+## Execution
 
 When this command is invoked with `$ARGUMENTS`:
 
-### Step 1: Health Check - Detect Gateway Session Lock
-
-Before dispatching, check if the gateway holds a session lock that would cause the CLI path to fail:
-
-```bash
-# Check for stale session lock files (gateway holds lock during active orchestrator loops)
-LOCK_FILES=$(find ~/.openclaw/agents/main/sessions -name "*.jsonl.lock" -mmin -5 2>/dev/null | wc -l)
-if [ "$LOCK_FILES" -gt 0 ]; then
-  echo "⚠️ Gateway session lock detected ($LOCK_FILES lock files < 5 min old)"
-  echo "   Falling back to Slack dispatch path..."
-  USE_SLACK_FALLBACK=true
-else
-  echo "✓ No active gateway session locks detected"
-  USE_SLACK_FALLBACK=false
-fi
-```
-
-### Step 2: Dispatch via Slack (Primary Path)
-
-Post the task to `#ai-slack-test` so OpenClaw picks it up through the orchestrator loop:
-
 ```bash
 TASK_DESCRIPTION="$ARGUMENTS"
-SLACK_CHANNEL="C0AKALZ4CKW"  # #ai-slack-test
+set -euo pipefail
 
-# Format message with clear task delineation for the orchestrator
-MESSAGE="[claw dispatch] $TASK_DESCRIPTION"
+LOGDIR="/tmp/hermes"
+mkdir -p "$LOGDIR"
+chmod 700 "$LOGDIR" 2>/dev/null || true
+STATUS_LOG="$(mktemp "$LOGDIR/.claw-status-XXXXXXXX")"
+LAUNCHD_PLIST="$HOME/Library/LaunchAgents/ai.hermes.prod.plist"
 
-# Post to Slack using bot token (orchestrator loop picks up from #ai-slack-test)
-RESPONSE=$(curl -s -X POST https://slack.com/api/chat.postMessage \
-  -H "Authorization: Bearer $OPENCLAW_SLACK_BOT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "{\"channel\":\"$SLACK_CHANNEL\",\"text\":\"$MESSAGE\"}")
+# If a launchd gateway is installed, prefer its env over CLI defaults.
+# This keeps /claw aligned with the actual running service.
+if [ -f "$LAUNCHD_PLIST" ]; then
+  while IFS='=' read -r key value; do
+    [ -n "$key" ] || continue
+    export "$key=$value"
+  done < <(
+    python3 - "$LAUNCHD_PLIST" <<'PY'
+import plistlib
+import sys
 
-if echo "$RESPONSE" | grep -q '"ok":true'; then
-  echo "✓ Dispatched to OpenClaw via Slack orchestrator loop"
-  echo "  Task: $TASK_DESCRIPTION"
-  echo "  Channel: #ai-slack-test"
-  echo ""
-  echo "  The orchestrator loop will pick up this message and spawn an agent."
-else
-  echo "✗ Slack dispatch failed:"
-  echo "$RESPONSE" | jq -r '.error // .'
+path = sys.argv[1]
+try:
+    with open(path, "rb") as fh:
+        data = plistlib.load(fh)
+except FileNotFoundError:
+    raise SystemExit(0)
+
+env = data.get("EnvironmentVariables") or {}
+for key in ("HERMES_HOME", "HERMES_LOG_LEVEL"):
+    value = env.get(key)
+    if value:
+        print(f"{key}={value}")
+PY
+  )
+fi
+
+# Ensure HERMES_HOME is set (prod by default)
+export HERMES_HOME="${HERMES_HOME:-$HOME/.hermes_prod}"
+
+# Verify config.yaml exists and is valid YAML
+HERMES_CFG="$HERMES_HOME/config.yaml"
+if [ ! -f "$HERMES_CFG" ]; then
+  echo "Hermes config not found: $HERMES_CFG"
   exit 1
 fi
-```
-
-### Step 3: Confirm to User
-
-- Task dispatched via Slack orchestrator loop (not broken `openclaw agent` CLI)
-- OpenClaw picks up the message from `#ai-slack-test` and spawns an agent
-- Response will appear in the Slack thread
-
-## Alternative: Direct CLI (Only When No Locks)
-
-If you must use the CLI path (no gateway locks detected), you can optionally try it:
-
-```bash
-# Only use this path as a last resort - the CLI hangs with active orchestrator
-if [ "$USE_SLACK_FALLBACK" = "false" ]; then
-  echo ""
-  echo "Alternatively, you could try (may hang):"
-  echo "  openclaw agent --agent main -m \"$ARGUMENTS\""
+if ! python3 -c "import yaml; yaml.safe_load(open('$HERMES_CFG'))" 2>/dev/null; then
+  echo "Hermes config is not valid YAML: $HERMES_CFG"
+  exit 1
 fi
+
+# Verify the gateway is running
+if ! HERMES_HOME="$HERMES_HOME" hermes gateway status >"$STATUS_LOG" 2>&1; then
+  echo "Hermes gateway is not running."
+  sed -n '1,80p' "$STATUS_LOG"
+  exit 1
+fi
+if ! grep -q 'Gateway is running' "$STATUS_LOG"; then
+  echo "Hermes gateway is not healthy."
+  sed -n '1,80p' "$STATUS_LOG"
+  exit 1
+fi
+
+# Resolve slash commands
+TASK_WITH_RESOLVED="$TASK_DESCRIPTION"
+
+SLASH_CMD=$(printf '%s' "$TASK_DESCRIPTION" | python3 -c "
+import sys, re
+text = sys.stdin.read().strip()
+clean = re.sub(r'https?://\S+', '', text)
+m = re.search(r'(?:^|\s)/([\w-]+)', clean)
+if m:
+    print(m.group(1))
+" 2>/dev/null)
+
+if [ -n "$SLASH_CMD" ]; then
+  RESOLVED_CONTENT=""
+  RESOLVED_SOURCE=""
+  for search_dir in ".claude/commands" "$HOME/.claude/commands"; do
+    if [ -f "$search_dir/$SLASH_CMD.md" ]; then
+      RESOLVED_CONTENT=$(cat "$search_dir/$SLASH_CMD.md" 2>/dev/null)
+      RESOLVED_SOURCE="$search_dir/$SLASH_CMD.md"
+      break
+    fi
+  done
+  if [ -z "$RESOLVED_CONTENT" ]; then
+    for search_dir in ".claude/skills" "$HOME/.claude/skills"; do
+      if [ -f "$search_dir/$SLASH_CMD/SKILL.md" ]; then
+        RESOLVED_CONTENT=$(cat "$search_dir/$SLASH_CMD/SKILL.md" 2>/dev/null)
+        RESOLVED_SOURCE="$search_dir/$SLASH_CMD/SKILL.md"
+        break
+      elif [ -f "$search_dir/$SLASH_CMD.md" ]; then
+        RESOLVED_CONTENT=$(cat "$search_dir/$SLASH_CMD.md" 2>/dev/null)
+        RESOLVED_SOURCE="$search_dir/$SLASH_CMD.md"
+        break
+      fi
+    done
+  fi
+  if [ -n "$RESOLVED_CONTENT" ]; then
+    echo "Resolved /$SLASH_CMD from $RESOLVED_SOURCE"
+    TASK_WITH_RESOLVED="The user asked: $TASK_DESCRIPTION
+
+Below is the full definition of /$SLASH_CMD (resolved from $RESOLVED_SOURCE). Execute it as instructed:
+
+---
+$RESOLVED_CONTENT
+---"
+  fi
+fi
+
+TASK_FILE="$(mktemp "$LOGDIR/.claw-task-XXXXXXXX")"
+chmod 600 "$TASK_FILE" 2>/dev/null || true
+printf '%s' "$TASK_WITH_RESOLVED" >"$TASK_FILE"
+if [ ! -s "$TASK_FILE" ]; then
+  echo "Failed to build Hermes task file"
+  exit 1
+fi
+
+LOGFILE="$LOGDIR/claw-$(date +%s).log"
+nohup hermes chat \
+  -q "$(cat "$TASK_FILE")" \
+  --yolo \
+  --max-turns 90 \
+  -Q \
+  --source tool \
+  >"$LOGFILE" 2>&1 &
+
+CLAW_PID=$!
+sleep 3
+if ! kill -0 "$CLAW_PID" 2>/dev/null; then
+  echo "Hermes agent exited immediately."
+  sed -n '1,80p' "$LOGFILE"
+  exit 1
+fi
+
+echo "Task dispatched to Hermes gateway (PID: $CLAW_PID)"
+echo "Log: $LOGFILE"
+echo "Monitor: tail -f $LOGFILE"
+echo "Kill: kill $CLAW_PID"
 ```
 
 ## Requirements
 
-- OpenClaw gateway running and monitoring `#ai-slack-test`
-- `OPENCLAW_SLACK_BOT_TOKEN` environment variable set
-- Gateway has `requireMention: false` for `#ai-slack-test` (so it picks up all messages)
-
-## Checking Progress
-
-- Check Slack `#ai-slack-test` for agent responses
-- Gateway logs: `tail -f /tmp/openclaw/openclaw-$(date +%F).log`
-
-## Environment Variables Used
-
-| Variable | Source | Purpose |
-|----------|--------|---------|
-| `OPENCLAW_SLACK_BOT_TOKEN` | Gateway config | Bot token for posting to Slack |
-| `SLACK_CHANNEL` | Hardcoded | `#ai-slack-test` (C0AKALZ4CKW) |
+- Hermes gateway running via `hermes gateway status`
+- `config.yaml` valid at `$HERMES_HOME/config.yaml`
+- Slash command resolution: looks up `.claude/commands/` and `.claude/skills/` directories
 
 ## Notes
 
-- **This is the P0 fix** for the broken `openclaw agent` CLI path
-- The Slack orchestrator loop is the reliable production path
-- Health check prevents wasted dispatch attempts when gateway holds session locks
-- Beads: orch-1mdn (epic), orch-cagr, orch-vf9y, orch-sb8y, orch-vcaf
+- All tasks route through Hermes agent inference (MiniMax M2.7 default).
+- Hermes replaced OpenClaw as THE agent (2026-04-12).
+- Slash commands are resolved before dispatch.
+- Log file written to `/tmp/hermes/claw-<timestamp>.log`
+- `--source tool` tag hides /claw sessions from `hermes sessions` user lists.
+- `--yolo` bypasses tool approval prompts for autonomous execution.
+- `-Q` (quiet) suppresses banner/spinner for clean log output.

@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Backup ~/.openclaw into this repo with sensitive redaction.
+# Backup ~/.smartclaw into this repo with sensitive redaction.
 #
-# Rsyncs into a single .openclaw-backups/latest/ directory (--delete keeps it
+# Rsyncs into a single .smartclaw-backups/latest/ directory (--delete keeps it
 # current) and commits if anything changed. Git history is the point-in-time
 # record — no dated subdirectories needed.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-SRC_DIR="${HOME}/.openclaw"
-SNAP_BASE="$REPO_ROOT/.openclaw-backups"
+SRC_DIR="${HOME}/.smartclaw"
+SNAP_BASE="$REPO_ROOT/.smartclaw-backups"
 SNAPSHOT_DIR="$SNAP_BASE/latest"
 SNAPSHOT_TS="$(date +"%Y%m%d_%H%M%S")"
 
@@ -20,12 +20,12 @@ mkdir -p "$SNAPSHOT_DIR"
 # Step 1: rsync mirror — incremental, --delete removes files gone from source.
 # ---------------------------------------------------------------------------
 rsync -a --delete \
-  --exclude='.openclaw-backups' \
+  --exclude='.smartclaw-backups' \
   --exclude='.git' \
   --exclude='.DS_Store' \
   --exclude='workspace' \
   --exclude='workspace-*' \
-  --exclude='jleechanclaw' \
+  --exclude='smartclaw' \
   --exclude='credentials/whatsapp' \
   --exclude='*.lock' \
   --exclude='extensions/*/node_modules' \
@@ -41,14 +41,14 @@ PYTHONPATH="$REPO_ROOT/src" python3 -m orchestration.backup_redaction "$SNAPSHOT
 
 cd "$REPO_ROOT"
 
-git add .openclaw-backups/latest/
-if git diff --quiet --cached -- .openclaw-backups/latest; then
+git add .smartclaw-backups/latest/
+if git diff --quiet --cached -- .smartclaw-backups/latest; then
   echo "No changes to commit."
-  git restore --staged .openclaw-backups/latest 2>/dev/null || true
+  git restore --staged .smartclaw-backups/latest 2>/dev/null || true
   exit 0
 fi
 
-git commit -m "chore: backup ~/.openclaw snapshot $SNAPSHOT_TS" -- .openclaw-backups/latest/
+git commit -m "chore: backup ~/.smartclaw snapshot $SNAPSHOT_TS" -- .smartclaw-backups/latest/
 
 git fetch --quiet origin main
 COMMIT_SHA="$(git rev-parse HEAD)"

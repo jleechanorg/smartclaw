@@ -15,8 +15,8 @@
 
 **Directory structure:**
 ```
-~/.hermes/          ← git repo root (jleechanclaw), Hermes staging
-~/.openclaw/        ← symlink → ~/.hermes/ (backward compat)
+~/.hermes/          ← git repo root (smartclaw), Hermes staging
+~/.smartclaw/        ← symlink → ~/.hermes/ (backward compat)
 ~/.hermes_prod/     ← Hermes prod (separate runtime data)
 ```
 
@@ -27,7 +27,7 @@
 ### Run Hermes Monitor
 
 ```bash
-bash ~/.openclaw/scripts/hermes-monitor.sh
+bash ~/.smartclaw/scripts/hermes-monitor.sh
 ```
 
 ### Check Status
@@ -76,14 +76,14 @@ launchctl kickstart -kp gui/$(id -u)/ai.hermes.prod
 ```bash
 HERMES_ENABLED=true
 HERMES_ENV=staging
-HERMES_HOME=/Users/jleechan/.hermes
+HERMES_HOME=${HOME}/.hermes
 
 # Slack — STAGING tokens
 SLACK_BOT_TOKEN=&lt;SLACK_BOT_TOKEN&gt;
 SLACK_APP_TOKEN=&lt;SLACK_APP_TOKEN&gt;
 
-OPENCLAW_STATE_DIR=/Users/jleechan/.openclaw/
-OPENCLAW_CONFIG_PATH=/Users/jleechan/.openclaw/openclaw.json
+OPENCLAW_STATE_DIR=${HOME}/.smartclaw/
+OPENCLAW_CONFIG_PATH=${HOME}/.smartclaw/openclaw.json
 GATEWAY_ALLOW_ALL_USERS=true
 ```
 
@@ -92,14 +92,14 @@ GATEWAY_ALLOW_ALL_USERS=true
 ```bash
 HERMES_ENABLED=true
 HERMES_ENV=prod
-HERMES_HOME=/Users/jleechan/.hermes_prod
+HERMES_HOME=${HOME}/.hermes_prod
 
 # Slack — PROD tokens
 SLACK_BOT_TOKEN=&lt;SLACK_BOT_TOKEN&gt;
 SLACK_APP_TOKEN=&lt;SLACK_APP_TOKEN&gt;
 
-OPENCLAW_STATE_DIR=/Users/jleechan/.openclaw_prod/
-OPENCLAW_CONFIG_PATH=/Users/jleechan/.openclaw_prod/openclaw.json
+OPENCLAW_STATE_DIR=${HOME}/.smartclaw_prod/
+OPENCLAW_CONFIG_PATH=${HOME}/.smartclaw_prod/openclaw.json
 GATEWAY_ALLOW_ALL_USERS=true
 ```
 
@@ -135,11 +135,11 @@ rg 'SLACK_BOT_TOKEN' ~/.hermes_prod/.env  # prod
 OpenClaw AO is currently disabled. To re-enable:
 
 ```bash
-OPENCLAW_ENABLED=1 bash ~/.openclaw/scripts/hermes-monitor.sh
+OPENCLAW_ENABLED=1 bash ~/.smartclaw/scripts/hermes-monitor.sh
 ```
 
 Launchd services to load:
 ```bash
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.openclaw.gateway.plist
-launchctl start gui/$(id -u)/ai.openclaw.gateway
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.smartclaw.gateway.plist
+launchctl start gui/$(id -u)/ai.smartclaw.gateway
 ```

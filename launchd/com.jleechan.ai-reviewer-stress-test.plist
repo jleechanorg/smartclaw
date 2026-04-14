@@ -4,65 +4,38 @@
 <dict>
     <key>Label</key>
     <string>com.jleechan.ai-reviewer-stress-test</string>
-    
+
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/jleechan/.openclaw/scripts/ai-reviewer-stress-test.sh</string>
+        <string>-c</string>
+        <string>cd ~/projects_reference/smartclaw && scripts/ai-reviewer-stress-test.sh</string>
     </array>
-    
+
+    <key>StartInterval</key>
+    <integer>14400</integer>
+    <!-- 14400 seconds = 4 hours -->
+
     <key>StandardOutPath</key>
-    <string>/Users/jleechan/.openclaw/logs/stress_test.stdout.log</string>
-    
+    <string>/tmp/ai-reviewer-stress-test.log</string>
+
     <key>StandardErrorPath</key>
-    <string>/Users/jleechan/.openclaw/logs/stress_test.stderr.log</string>
-    
+    <string>/tmp/ai-reviewer-stress-test.err.log</string>
+
     <key>RunAtLoad</key>
     <false/>
-    
-    <key>StartCalendarInterval</key>
-    <array>
-        <dict>
-            <key>Hour</key>
-            <integer>0</integer>
-            <key>Minute</key>
-            <integer>0</integer>
-        </dict>
-        <dict>
-            <key>Hour</key>
-            <integer>4</integer>
-            <key>Minute</key>
-            <integer>0</integer>
-        </dict>
-        <dict>
-            <key>Hour</key>
-            <integer>8</integer>
-            <key>Minute</key>
-            <integer>0</integer>
-        </dict>
-        <dict>
-            <key>Hour</key>
-            <integer>12</integer>
-            <key>Minute</key>
-            <integer>0</integer>
-        </dict>
-        <dict>
-            <key>Hour</key>
-            <integer>16</integer>
-            <key>Minute</key>
-            <integer>0</integer>
-        </dict>
-        <dict>
-            <key>Hour</key>
-            <integer>20</integer>
-            <key>Minute</key>
-            <integer>0</integer>
-        </dict>
-    </array>
-    
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/jleechan</string>
+    </dict>
+
     <key>ProcessType</key>
     <string>Background</string>
-    
+
     <key>ThrottleInterval</key>
     <integer>60</integer>
 </dict>

@@ -23,7 +23,7 @@ if ! command -v rg >/dev/null 2>&1; then
 fi
 
 repo_root="$(git rev-parse --show-toplevel)"
-openclaw_workspace="${HOME}/.openclaw/workspace"
+openclaw_workspace="${HOME}/.smartclaw/workspace"
 tmp_text="$(mktemp)"
 tmp_json="$(mktemp)"
 trap 'rm -f "$tmp_text" "$tmp_json"' EXIT

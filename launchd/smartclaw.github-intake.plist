@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>ai.openclaw.github-intake</string>
+  <string>ai.smartclaw.github-intake</string>
 
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/jleechan/.openclaw/scripts/github-intake.sh</string>
+    <string>${HOME}/.smartclaw/scripts/github-intake.sh</string>
   </array>
 
   <key>EnvironmentVariables</key>
@@ -15,7 +15,7 @@
     <key>HOME</key>
     <string>/Users/jleechan</string>
     <key>PATH</key>
-    <string>/Users/jleechan/.nvm/versions/node/current/bin:/Users/jleechan/.nvm/versions/node/v22.22.0/bin:/Users/jleechan/Library/pnpm:/Users/jleechan/.bun/bin:/Users/jleechan/.local/bin:/Users/jleechan/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <string>${HOME}/.nvm/versions/node/current/bin:${HOME}/.nvm/versions/node/v22.22.0/bin:${HOME}/Library/pnpm:${HOME}/.bun/bin:${HOME}/.local/bin:${HOME}/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>INTAKE_DRY_RUN</key>
     <string>0</string>
     <key>INTAKE_MAX_DISPATCH</key>
@@ -34,8 +34,8 @@
   </dict>
 
   <key>StandardOutPath</key>
-  <string>/Users/jleechan/.openclaw/logs/github-intake.log</string>
+  <string>${HOME}/.smartclaw/logs/github-intake.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/jleechan/.openclaw/logs/github-intake.log</string>
+  <string>${HOME}/.smartclaw/logs/github-intake.log</string>
 </dict>
 </plist>

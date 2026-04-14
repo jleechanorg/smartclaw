@@ -17,7 +17,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 os.environ.setdefault("PYTHONUNBUFFERED", "1")
 
-SLACK_CHANNEL = os.environ.get("OPENCLAW_SLACK_CHANNEL", "C0AKALZ4CKW")  # #ai-slack-test
+SLACK_CHANNEL = os.environ.get("OPENCLAW_SLACK_CHANNEL", "${SLACK_CHANNEL_ID}")  # #ai-slack-test
 PORT = 18800
 WEBHOOK_SECRET = os.environ.get("OPENCLAW_AO_NOTIFY_TOKEN", "")
 AO_BIN = os.environ.get("AO_BIN") or os.path.expanduser("~/bin/ao")
@@ -83,7 +83,7 @@ def ao_spawn(project_id: str, claim_pr: str | None = None) -> None:
 def post_to_slack(text: str) -> None:
     # Prefer bot token for service notifier; fall back to user token if not available
     token = (
-        os.environ.get("OPENCLAW_SLACK_BOT_TOKEN")
+        os.environ.get("SLACK_BOT_TOKEN")
         or os.environ.get("SLACK_BOT_TOKEN")
         or os.environ.get("SLACK_USER_TOKEN")
     )

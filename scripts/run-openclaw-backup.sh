@@ -79,7 +79,7 @@ EOF
 
 acquire_lock
 
-echo "[$(TS)] Starting ~/.openclaw backup" >> "$LOG_FILE"
+echo "[$(TS)] Starting ~/.smartclaw backup" >> "$LOG_FILE"
 
 if [ "${OPENCLAW_BACKUP_FORCE_FAILURE:-0}" = "1" ]; then
   echo "[$(TS)] Forced failure enabled for verification: OPENCLAW_BACKUP_FORCE_FAILURE=1" >> "$LOG_FILE"

@@ -202,7 +202,7 @@ RAM is the bottleneck. Each agent = own worktree + node_modules + builds/tests.
 
 | Elvis's System | Jeffrey's Equivalent |
 |----------------|---------------------|
-| Zoe (orchestrator) | OpenClaw (jleechanclaw agent) |
+| Zoe (orchestrator) | OpenClaw (smartclaw agent) |
 | Obsidian vault | MEMORY.md + weekly memory files + SOUL.md |
 | `.clawdbot/active-tasks.json` | `src/orchestration/session_registry.py` |
 | `check-agents.sh` | `src/orchestration/supervisor.py` |

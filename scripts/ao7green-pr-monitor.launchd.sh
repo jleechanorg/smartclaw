@@ -6,7 +6,13 @@ set -euo pipefail
 
 # Source .bash_profile → .bashrc to get full interactive env
 if [[ -f ~/.bash_profile ]]; then
+  # launchd wrappers run under `set -u`; shell init files may reference
+  # optional variables that are only set in interactive tmux/cmux sessions.
+  # Temporarily disable nounset so a missing shell-only variable does not
+  # abort the scheduled job before the monitor starts.
+  set +u
   source ~/.bash_profile 2>/dev/null || true
+  set -u
 fi
 
 # Ensure GH_TOKEN is set (gh is authenticated; this avoids 'set -u' crash
@@ -31,8 +37,11 @@ fi
 if [[ -n "${AO_MONITOR_PROJECT:-}" ]]; then
   export AO_MONITOR_PROJECT
 fi
-if [[ -n "${AO_MONITOR_LOG_DIR:-}" ]]; then
-  export AO_MONITOR_LOG_DIR
+if [[ -n "${AO_MONITOR_LOG:-}" ]]; then
+  export AO_MONITOR_LOG
+fi
+if [[ -n "${AO_MONITOR_CHANNEL:-}" ]]; then
+  export AO_MONITOR_CHANNEL
 fi
 
-exec ${HOME}/.smartclaw/scripts/ao7green-pr-monitor.sh "$@"
+exec "${HOME}/.smartclaw/scripts/ao7green-pr-monitor.sh" "$@"

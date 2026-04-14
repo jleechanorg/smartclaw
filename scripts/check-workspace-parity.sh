@@ -2,17 +2,17 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WORKSPACE_DIR="${HOME}/.openclaw/workspace"
+WORKSPACE_DIR="${HOME}/.smartclaw/workspace"
 FILES=(AGENTS.md SOUL.md TOOLS.md USER.md IDENTITY.md HEARTBEAT.md)
 
 usage() {
   cat <<USAGE
 Usage: $(basename "$0") [--sync]
 
-Checks byte-for-byte parity between repo root policy files and ~/.openclaw/workspace.
+Checks byte-for-byte parity between repo root policy files and ~/.smartclaw/workspace.
 
 Options:
-  --sync    Copy repo root files into ~/.openclaw/workspace when differences exist.
+  --sync    Copy repo root files into ~/.smartclaw/workspace when differences exist.
   -h, --help  Show help.
 USAGE
 }

@@ -21,13 +21,18 @@ LOG_DIR="${AOPR_LOG_DIR:-${HOME}/.smartclaw/logs}"
 STATE_FILE="${AOPR_STATE_FILE:-$HOME/.smartclaw/logs/ao-progress-state.json}"
 REPORT_INTERVAL_SECS="${AOPR_INTERVAL_SECS:-1800}"   # 30 min
 SLACK_CHANNEL="${AOPR_SLACK_CHANNEL:-C0ALSKLU9KM}"   # #agent-orchestrator
-SLACK_THREAD_TS="${AOPR_SLACK_THREAD_TS:-1774878189.108959}"  # original thread
+# Root thread for progress replies (#agent-orchestrator)
+# Default (fallback). Script auto-creates a new thread each calendar day (PDT).
+SLACK_THREAD_TS="${AOPR_SLACK_THREAD_TS:-}"
 AO_DIR="${AO_DIR:-$HOME/project_agento/agent-orchestrator}"
 AO_BIN="${AO_BIN:-ao}"
 
+# Compute today's date key for thread-per-day logic (PDT = America/Los_Angeles)
+TODAY_KEY="$(TZ=America/Los_Angeles date '+%Y-%m-%d')"
+
 mkdir -p "$LOG_DIR"
 
-log() { echo "[$(date '+%Y-%m-%dT%H:%M:%S')] $*"; }
+log() { echo "[$(date '+%Y-%m-%dT%H:%M:%S')] $*" >&2; }
 
 # Overlap lock
 if [[ "${IS_SOURCED:-0}" != "1" ]]; then
@@ -41,8 +46,11 @@ fi
 # ── Slack helper ──────────────────────────────────────────────────────────────
 post_slack() {
   local text="$1"
+  local thread_ts_arg="${2:-}"
+  local effective_ts="${thread_ts_arg:-${SLACK_THREAD_TS:-}}"
+
   if [[ "${DRY_RUN:-0}" == "1" ]]; then
-    log "[DRY_RUN] Slack: $text"
+    log "[DRY_RUN] Slack: $text [thread:$effective_ts]"
     return
   fi
   local token="${SLACK_BOT_TOKEN:-}"
@@ -51,14 +59,18 @@ post_slack() {
     return
   fi
   export SLACK_TEXT="$text"
+  export SLACK_THREAD_TS="$effective_ts"
   python3 -c "
 import urllib.request, json, os, sys
 text = os.environ.get('SLACK_TEXT', '')
-payload = json.dumps({
+ts = os.environ.get('SLACK_THREAD_TS', '')
+payload = {
   'channel': '${SLACK_CHANNEL}',
-  'text': text,
-  'thread_ts': '${SLACK_THREAD_TS}'
-})
+  'text': text
+}
+if ts:
+    payload['thread_ts'] = ts
+payload = json.dumps(payload)
 req = urllib.request.Request(
   'https://slack.com/api/chat.postMessage',
   data=payload.encode(),
@@ -74,8 +86,12 @@ with urllib.request.urlopen(req) as resp:
 # ── GH token ─────────────────────────────────────────────────────────────────
 resolve_token() {
   local tok=""
-  # Try openclaw config first
-  tok="$(cat "$HOME/.smartclaw/openclaw.json" 2>/dev/null | jq -r 'try .skills.entries["gh-issues"].apiKey catch empty' 2>/dev/null)" || tok=""
+  # Try openclaw config(s) for embedded gh token (prod may use ~/.smartclaw_prod)
+  for cfg in "$HOME/.smartclaw/openclaw.json" "$HOME/.smartclaw_prod/openclaw.prod.json"; do
+    [[ -f "$cfg" ]] || continue
+    tok="$(jq -r 'try .skills.entries["gh-issues"].apiKey catch empty' "$cfg" 2>/dev/null)" || tok=""
+    [[ -n "$tok" && "$tok" != "null" ]] && break
+  done
   # Skip if null or empty
   if [[ -z "$tok" || "$tok" == "null" ]]; then
     tok="${GH_TOKEN:-}"
@@ -104,6 +120,69 @@ load_state() {
 save_state() {
   local json=$1
   cat > "$STATE_FILE" <<< "$json"
+}
+
+# ── Thread-per-day: resolve or create today's thread ─────────────────────────
+resolve_thread_ts() {
+  local state_json=$1
+  local today_ts
+
+  # Check if we already have a thread for today in state
+  today_ts="$(echo "$state_json" | jq -r ".daily_threads[\"$TODAY_KEY\"] // empty" 2>/dev/null)" || today_ts=""
+  if [[ -n "$today_ts" && "$today_ts" != "null" && "$today_ts" != "null" ]]; then
+    log "Using cached thread for $TODAY_KEY: $today_ts"
+    echo "$today_ts"
+    return
+  fi
+
+  # DRY_RUN: skip actual Slack post, return empty so main posts to channel
+  if [[ "${DRY_RUN:-0}" == "1" ]]; then
+    log "[DRY_RUN] Would create new thread for $TODAY_KEY in #agent-orchestrator"
+    echo ""
+    return
+  fi
+
+  # No cached thread for today — post a new header to #agent-orchestrator,
+  # capture the returned ts, store it in state, and use it as thread root.
+  log "Creating new thread for $TODAY_KEY"
+  local response
+  response="$(python3 -c "
+import urllib.request, json, os, sys
+
+payload = json.dumps({
+  'channel': '${SLACK_CHANNEL}',
+  'text': '*AO Progress Report* | $TODAY_KEY — new daily thread',
+  'unfurl_links': False
+})
+req = urllib.request.Request(
+  'https://slack.com/api/chat.postMessage',
+  data=payload.encode(),
+  headers={'Authorization': 'Bearer ${SLACK_BOT_TOKEN}', 'Content-Type': 'application/json'},
+  method='POST'
+)
+with urllib.request.urlopen(req) as resp:
+  result = json.load(resp)
+  if result.get('ok'):
+    print(result.get('ts', ''))
+  else:
+    print('ERROR:' + str(result))
+")" || response=""
+
+  if [[ "$response" == ERROR:* ]]; then
+    log "Failed to create new thread: $response"
+    # Fallback: use empty (post to channel)
+    echo ""
+    return
+  fi
+
+  if [[ -z "$response" || "$response" == "null" ]]; then
+    log "Empty ts returned when creating new thread"
+    echo ""
+    return
+  fi
+
+  log "New thread created: $response"
+  echo "$response"
 }
 
 # ── Get AO sessions JSON (all projects) ───────────────────────────────────────
@@ -162,8 +241,25 @@ get_session_info() {
 {
   log "Starting AO progress reporter"
 
-  ao_sessions_json="$(fetch_ao_sessions)" || ao_sessions_json="[]"
   current_state="$(load_state)" || current_state="{}"
+  ao_sessions_json="$(fetch_ao_sessions)" || ao_sessions_json="[]"
+
+  # Resolve or create today's thread — store in state
+  thread_ts="$(resolve_thread_ts "$current_state")" || thread_ts=""
+  if [[ -n "$thread_ts" && "$thread_ts" != "null" ]]; then
+    # Persist today's thread_ts in state so next run reuses it
+    current_state="$(echo "$current_state" | jq --arg key "$TODAY_KEY" --arg ts "$thread_ts" \
+      'setpath(["daily_threads"]; (if .daily_threads == null then {} else .daily_threads end) | .[$key] = $ts)')" || true
+    log "Thread for $TODAY_KEY resolved: $thread_ts"
+  else
+    # Could not resolve thread — post without thread (channel root)
+    thread_ts=""
+    log "No thread_ts available, posting to channel"
+  fi
+  # Export thread_ts so post_slack uses it without needing explicit arg
+  SLACK_THREAD_TS="$thread_ts"
+
+  save_state "$current_state"
 
   if [[ "$ao_sessions_json" == "[]" ]] || [[ -z "$ao_sessions_json" ]]; then
     log "No AO sessions found or AO unavailable"
@@ -197,6 +293,7 @@ get_session_info() {
     repo=""
     case "$project_id" in
       agent-orchestrator) repo="jleechanorg/agent-orchestrator" ;;
+      browserclaw)        repo="jleechanorg/browserclaw" ;;
       worldarchitect)     repo="jleechanorg/worldarchitect.ai" ;;
       worldai-claw)       repo="jleechanorg/worldai_claw" ;;
       claude-commands)    repo="jleechanorg/claude-commands" ;;
@@ -229,13 +326,11 @@ get_session_info() {
         --argjson now "$(date +%s)" \
         'setpath([$name]; {last_sha: $sha, last_report: $now})')" || true
     elif [[ -n "$current_sha" ]]; then
-      # No new commits since last report, keep old sha in state
-      if [[ -n "$last_sha" ]]; then
-        current_state="$(echo "$current_state" | jq \
-          --arg name "$session_name" \
-          --argjson now "$(date +%s)" \
-          "setpath([\$name]; {last_sha: \$name as \$n | (.\$n // {}), last_report: \$now})" 2>/dev/null)" || true
-      fi
+      # Same HEAD as last report — refresh last_report only, preserve last_sha
+      current_state="$(echo "$current_state" | jq \
+        --arg name "$session_name" \
+        --argjson now "$(date +%s)" \
+        '.[$name] |= (. // {}) + {last_report: $now}' 2>/dev/null)" || true
     fi
 
     # Classify session health
