@@ -7,6 +7,13 @@ defaults:
   agent: claude-code
   workspace: worktree
   notifiers: [hermes, orchestrator, webhook]
+  modelByCli:
+    minimax:
+      model: MiniMax-M2.7
+    codex:
+      model: gpt-5.4
+    claude-code:
+      model: claude-haiku-4-5-20251001
   agentRules: |
     **COMMIT MESSAGE PREFIX — MANDATORY:**
     ALL commits MUST use the prefix `[agento]` in the commit message.

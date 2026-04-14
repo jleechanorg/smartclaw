@@ -1,0 +1,12 @@
+---
+description: Hermes config.yaml must stay in sync between ~/.smartclaw/hermes and ~/.smartclaw/hermes_prod
+alwaysApply: true
+---
+
+# Smartclaw Hermes — staging / prod parity
+
+- **Paths:** staging `HERMES_HOME=~/.smartclaw/hermes`, prod `HERMES_HOME=~/.smartclaw/hermes_prod`. LaunchAgents: `ai.smartclaw.hermes-staging`, `ai.smartclaw.hermes.prod`.
+- **Never change only one** `config.yaml` when adjusting shared behavior (model, diagnostics, memory, slack, compression, display, toolsets, cron, session_reset, etc.). Edit **both** files or copy after a single canonical edit; `diff -u ~/.smartclaw/hermes/config.yaml ~/.smartclaw/hermes_prod/config.yaml` must be empty before finishing.
+- **Restart both** gateways after substantive YAML changes: `launchctl kickstart -k gui/$(id -u)/ai.smartclaw.hermes-staging` and `…/ai.smartclaw.hermes.prod`.
+- **`.env` is per home** — duplicate new keys there when both environments need the same credentials.
+- **Slack:** one `SLACK_APP_TOKEN` ↔ one live Socket Mode gateway; do not run staging + prod both on the same Slack app token without stopping one or using separate apps.

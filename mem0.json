@@ -1,0 +1,13 @@
+{
+  "host": "http://localhost:8000",
+  "api_key": "local-dev",
+  "user_id": "smartclaw",
+  "agent_id": "smartclaw",
+  "ollama_base": "http://localhost:11434",
+  "embedder_model": "nomic-embed-text",
+  "embedder_dims": 768,
+  "llm_model": "gpt-oss:20b",
+  "collection": "smartclaw_mem0",
+  "qdrant_host": "localhost",
+  "qdrant_port": 6333
+}
