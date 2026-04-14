@@ -74,9 +74,9 @@ if echo "$PROD_GW" | grep -q "token already in use"; then
     # Only warn (deploy context) when both staging and prod are running.
     # If only prod is running, a token conflict is a real failure.
     local staging_count
-    staging_count=$(launchctl list 2>/dev/null | grep -c "ai.hermes-staging" || true)
+    staging_count=$(launchctl list 2>/dev/null | grep -c "ai.smartclaw.hermes-staging" || true)
     local prod_count
-    prod_count=$(launchctl list 2>/dev/null | grep -c "ai.hermes.prod" || true)
+    prod_count=$(launchctl list 2>/dev/null | grep -c "ai.smartclaw.hermes.prod" || true)
     local conflict_msg
     conflict_msg=$(echo "$PROD_GW" | grep 'token already in use' | head -1 | sed 's/^[ ]*⚠ //' | sed 's/ Stop.*//')
     if [[ "$staging_count" -gt 0 && "$prod_count" -gt 0 ]]; then
