@@ -62,8 +62,8 @@ die() {
   local stage="${2:-}"
   local system="${3:-Hermes}"
   echo "DEPLOY FAILED: $msg" >&2
-  if [[ -n "$slack_target" ]] && command -v hermes >/dev/null 2>&1; then
-    HERMES_HOME="$HERMES_PROD_HOME" "$HERMES_BIN" message send --target "$slack_target" --message "[DEPLOY FAILED] System: $system | Stage: $stage | Reason: $msg | Time: $(ts)" 2>/dev/null || true
+  if [[ -n "$MONITOR_FAILURE_SLACK_TARGET" ]] && command -v hermes >/dev/null 2>&1; then
+    HERMES_HOME="$HERMES_PROD_HOME" "$HERMES_BIN" message send --target "$MONITOR_FAILURE_SLACK_TARGET" --message "[DEPLOY FAILED] System: $system | Stage: $stage | Reason: $msg | Time: $(ts)" 2>/dev/null || true
   fi
   exit 1
 }
