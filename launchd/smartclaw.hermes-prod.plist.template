@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Comment</key>
+	<string>Hermes Gateway — Production (HERMES_HOME=~/.smartclaw/hermes_prod)</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HERMES_ENABLED</key>
+		<string>true</string>
+		<key>HERMES_ENV</key>
+		<string>prod</string>
+		<key>HERMES_HOME</key>
+		<string>@HERMES_PROD_HOME@</string>
+		<key>HOME</key>
+		<string>@HOME@</string>
+		<key>PATH</key>
+		<string>@HOME@/.local/bin:@HOME@/.npm-global/bin:@HOME@/bin:@HOME@/.volta/bin:@HOME@/.asdf/shims:@HOME@/.bun/bin:@HOME@/Library/pnpm:@HOME@/.local/share/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+	</dict>
+	<key>KeepAlive</key>
+	<true/>
+	<key>Label</key>
+	<string>ai.smartclaw.hermes.prod</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>@HERMES_BIN@</string>
+		<string>gateway</string>
+		<string>run</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>@HERMES_PROD_HOME@/logs/gateway.err.log</string>
+	<key>StandardOutPath</key>
+	<string>@HERMES_PROD_HOME@/logs/gateway.log</string>
+	<key>ThrottleInterval</key>
+	<integer>30</integer>
+	<key>Umask</key>
+	<integer>63</integer>
+</dict>
+</plist>

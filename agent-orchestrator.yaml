@@ -6,7 +6,7 @@ defaults:
   runtime: tmux
   agent: claude-code
   workspace: worktree
-  notifiers: [openclaw, orchestrator, webhook]
+  notifiers: [hermes, orchestrator, webhook]
   agentRules: |
     **COMMIT MESSAGE PREFIX — MANDATORY:**
     ALL commits MUST use the prefix `[agento]` in the commit message.
@@ -16,7 +16,7 @@ defaults:
 
     **MCP MAIL — MANDATORY PROTOCOL (non-negotiable):**
     You MUST send MCP mail messages for ALL tasks:
-    1. IMMEDIATELY on task start: mcp__mcp-agent-mail__send_message(project_key="jleechanclaw", sender_name="claude", subject="Starting: <task>", body_md="Starting work on <task>. Will send updates every 5 min.")
+    1. IMMEDIATELY on task start: mcp__mcp-agent-mail__send_message(project_key="smartclaw", sender_name="claude", subject="Starting: <task>", body_md="Starting work on <task>. Will send updates every 5 min.")
     2. Every 5 minutes: send progress update with current status
     3. IMMEDIATELY on task complete/blocked: send final message with outcome
     Note: sender_name MUST be "claude" or "agento" (NOT "claude-code")
@@ -281,12 +281,12 @@ projects:
       Never use git add -A; stage only files you changed.
 
 notifiers:
-  openclaw:
-    plugin: openclaw
-    url: http://127.0.0.1:18789/hooks/agent
-    token: ${OPENCLAW_AO_HOOK_TOKEN}
+  hermes:
+    plugin: webhook
+    url: ${HERMES_GATEWAY_URL:-http://127.0.0.1:18810/hooks/agent}
+    token: ${HERMES_AO_HOOK_TOKEN:-${OPENCLAW_AO_HOOK_TOKEN:-}}
     retries: 3
-    retryDelayMs: 5000   # increased from 1000ms — prevents 429 floods when many sessions notify simultaneously
+    retryDelayMs: 5000
     sessionKeyPrefix: "hook:ao:"
   orchestrator:
     plugin: webhook
@@ -306,10 +306,10 @@ notifiers:
     webhookUrl: "${SLACK_WEBHOOK_URL:-https://hooks.slack.com/services/PLACEHOLDER}"
 
 notificationRouting:
-  urgent: [openclaw, orchestrator, slack]
-  action: [openclaw, orchestrator, slack]
-  warning: [openclaw]
-  info: [openclaw]
+  urgent: [hermes, orchestrator, slack]
+  action: [hermes, orchestrator, slack]
+  warning: [hermes]
+  info: [hermes]
 
 reactions:
   ci-failed:
