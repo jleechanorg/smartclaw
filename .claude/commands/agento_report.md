@@ -9,30 +9,11 @@ execution_mode: background
 
 ## ⚡ EXECUTION INSTRUCTIONS FOR CLAUDE
 
-When this command is invoked, generate the agento PR report:
+Load and execute the skill at `.claude/skills/agento_report.md` (or `~/.claude/skills/agento_report.md`).
 
-1. Run the report script:
-```bash
-~/.claude/scripts/agento-report.sh
-```
-
-2. After the report is generated, read and display:
-```bash
-cat /tmp/agento-report.md
-```
-
-3. Post the summary to Slack:
-```bash
-source ~/.profile  # loads $AGENTO_CHANNEL
-mcp__slack__conversations_add_message --channel_id "$AGENTO_CHANNEL" --text "$(head -20 /tmp/agento-report.md)"
-```
-
-The report checks:
-- GREEN: All CI passing, MERGEABLE, no unresolved comments, CodeRabbit APPROVE
-- CI_FAILED: Required CI checks failing
-- CI_PENDING: CI checks still running
-- CONFLICT: mergeable is not MERGEABLE
-- NO_CR: No CodeRabbit APPROVE yet
-- COMMENTS: Unresolved review comments
-
-Skips PRs merged more than 12 hours ago.
+That skill contains the full step-by-step logic:
+1. Collect open + recently-merged PRs via GitHub API
+2. Apply 6-point green check per PR
+3. Check AO session status
+4. **Display the full report inline here** (table format with per-PR status)
+5. **Post Slack summary** to `#ai-slack-test` (${SLACK_CHANNEL_ID}) via `mcp__slack__conversations_add_message`

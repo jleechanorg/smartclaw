@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.smartclaw.schedule.pr-monitor-worldai</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>${HOME}/.smartclaw/scripts/ao7green-pr-monitor.launchd.sh</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>AO_MONITOR_REPO</key>
+        <string>jleechanorg/worldarchitect.ai</string>
+        <key>AO_MONITOR_PROJECT</key>
+        <string>worldarchitect</string>
+        <key>AO_MONITOR_LOG</key>
+        <string>${HOME}/.smartclaw/logs/pr-monitor-worldai.log</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StartInterval</key>
+    <integer>3600</integer>
+
+    <key>StandardOutPath</key>
+    <string>${HOME}/.smartclaw/logs/pr-monitor-worldai.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>${HOME}/.smartclaw/logs/pr-monitor-worldai.error.log</string>
+
+    <key>WorkingDirectory</key>
+    <string>${HOME}/.smartclaw</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <key>ThrottleInterval</key>
+    <integer>3600</integer>
+</dict>
+</plist>

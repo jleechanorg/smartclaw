@@ -7,7 +7,6 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>@NODE_PATH@</string>
         <string>@HOME@/bin/ao</string>
         <string>lifecycle-worker</string>
         <string>agent-orchestrator</string>

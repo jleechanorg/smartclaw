@@ -56,10 +56,17 @@ done
 
 # Wait for OpenClaw to start (max 30 seconds)
 for i in {1..30}; do
+    # Check new label first, then fall back to legacy label for migration.
+    LABEL=""
     if launchctl list | grep -q "ai.smartclaw.gateway"; then
-        PID=$(launchctl list | grep "ai.smartclaw.gateway" | awk '{print $1}')
+        LABEL="ai.smartclaw.gateway"
+    elif launchctl list | grep -q "com.smartclaw.gateway"; then
+        LABEL="com.smartclaw.gateway"
+    fi
+    if [[ -n "$LABEL" ]]; then
+        PID=$(launchctl list | grep "$LABEL" | awk '{print $1}')
         if [ "$PID" != "-" ] && [ -n "$PID" ]; then
-            echo "[$TIMESTAMP] ✅ OpenClaw started successfully (PID: $PID)" >> "$LOG_FILE"
+            echo "[$TIMESTAMP] ✅ OpenClaw started successfully (PID: $PID, label: $LABEL)" >> "$LOG_FILE"
 
             # Wait a bit more for WhatsApp to connect
             sleep 10

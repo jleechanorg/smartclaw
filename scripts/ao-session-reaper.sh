@@ -28,8 +28,8 @@ parse_session_info() {
     local session_name
     session_name=$(echo "$session_line" | awk '{print $1}')
     
-    # Skip if not jc-* session
-    if [[ ! "$session_name" =~ ^jc-[0-9]+$ ]]; then
+    # Skip if not a managed session (jc-* or ao-*)
+    if [[ ! "$session_name" =~ ^((jc)|(ao))-[0-9]+$ ]]; then
         return 1
     fi
     
@@ -232,10 +232,12 @@ main() {
             fi
         fi
         
-    done < <(tmux list-sessions 2>/dev/null | grep '^jc-')
+    done < <(tmux list-sessions 2>/dev/null | grep -E '^(jc|ao)-')
     
     log "=== Session reaper complete: $killed_count sessions killed ==="
 }
 
-# Run main
-main "$@"
+# Run main only when executed directly (not when sourced by tests)
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi

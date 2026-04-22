@@ -84,5 +84,29 @@ fi
 
 # Fire-and-return quickly; run the wake ping in background so this script stays fast.
 if command -v openclaw >/dev/null 2>&1; then
-  nohup openclaw agent --agent main -m "$PROMPT" >>"$LOG_DIR/thread-reply-nudge.log" 2>&1 &
+  timeout_bin="$(command -v timeout || command -v gtimeout || true)"
+  agent_help_output=""
+  if [[ -n "$timeout_bin" ]]; then
+    if agent_help_output="$("$timeout_bin" "${OPENCLAW_HELP_TIMEOUT_SECONDS:-10}" openclaw agent --help 2>&1)"; then
+      agent_help_ok=0
+    else
+      agent_help_ok=$?
+    fi
+  else
+    if agent_help_output="$(openclaw agent --help 2>&1)"; then
+      agent_help_ok=0
+    else
+      agent_help_ok=$?
+    fi
+  fi
+
+  if [[ "$agent_help_ok" -eq 0 ]]; then
+    agent_message_flag="--message"
+    if printf '%s\n' "$agent_help_output" | grep -q -- '--message'; then
+      agent_message_flag="--message"
+    elif printf '%s\n' "$agent_help_output" | grep -Eq '(^|[[:space:],])-m([,[:space:]]|$)'; then
+      agent_message_flag="-m"
+    fi
+    nohup openclaw agent --agent main "$agent_message_flag" "$PROMPT" >>"$LOG_DIR/thread-reply-nudge.log" 2>&1 &
+  fi
 fi
