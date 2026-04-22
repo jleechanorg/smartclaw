@@ -26,18 +26,18 @@ mock_tmux_list_sessions() {
     case "$session_type" in
         merged_pr)
             cat <<'EOF'
-jc-123	/tmp/worktrees/jleechanclaw/pr-123	(1) (04/02 14:30:25) (0)	/tmp/worktrees/jleechanclaw/pr-123 [branch: fix-bug]
-jc-456	/tmp/worktrees/jleechanclaw/pr-456	(1) (04/02 14:30:25) (0)	/tmp/worktrees/jleechanclaw/pr-456 [branch: feature-x]
+jc-123	/tmp/worktrees/smartclaw/pr-123	(1) (04/02 14:30:25) (0)	/tmp/worktrees/smartclaw/pr-123 [branch: fix-bug]
+jc-456	/tmp/worktrees/smartclaw/pr-456	(1) (04/02 14:30:25) (0)	/tmp/worktrees/smartclaw/pr-456 [branch: feature-x]
 EOF
             ;;
         closed_pr)
             cat <<'EOF'
-jc-789	/tmp/worktrees/jleechanclaw/pr-789	(1) (04/02 14:30:25) (0)	/tmp/worktrees/jleechanclaw/pr-789 [branch: fix-other]
+jc-789	/tmp/worktrees/smartclaw/pr-789	(1) (04/02 14:30:25) (0)	/tmp/worktrees/smartclaw/pr-789 [branch: fix-other]
 EOF
             ;;
         open_pr)
             cat <<'EOF'
-jc-101	/tmp/worktrees/jleechanclaw/pr-101	(1) (04/02 14:30:25) (0)	/tmp/worktrees/jleechanclaw/pr-101 [branch: open-feature]
+jc-101	/tmp/worktrees/smartclaw/pr-101	(1) (04/02 14:30:25) (0)	/tmp/worktrees/smartclaw/pr-101 [branch: open-feature]
 EOF
             ;;
         orphaned_old)
@@ -55,16 +55,16 @@ EOF
         mixed_stale)
             # 10 stale sessions - should only kill 5 due to cap
             cat <<'EOF'
-jc-1	/tmp/worktrees/jleechanclaw/pr-1	(1) (04/02 14:30:25) (0)	/tmp/worktrees/jleechanclaw/pr-1 [branch: closed-1]
-jc-2	/tmp/worktrees/jleechanclaw/pr-2	(1) (04/02 14:30:25) (0)	/tmp/worktrees/jleechanclaw/pr-2 [branch: closed-2]
-jc-3	/tmp/worktrees/jleechanclaw/pr-3	(1) (04/02 14:30:25) (0)	/tmp/worktrees/jleechanclaw/pr-3 [branch: closed-3]
-jc-4	/tmp/worktrees/jleechanclaw/pr-4	(1) (04/02 14:30:25) (0)	/tmp/worktrees/jleechanclaw/pr-4 [branch: closed-4]
-jc-5	/tmp/worktrees/jleechanclaw/pr-5	(1) (04/02 14:30:25) (0)	/tmp/worktrees/jleechanclaw/pr-5 [branch: closed-5]
-jc-6	/tmp/worktrees/jleechanclaw/pr-6	(1) (04/02 14:30:25) (0)	/tmp/worktrees/jleechanclaw/pr-6 [branch: closed-6]
-jc-7	/tmp/worktrees/jleechanclaw/pr-7	(1) (04/02 14:30:25) (0)	/tmp/worktrees/jleechanclaw/pr-7 [branch: closed-7]
-jc-8	/tmp/worktrees/jleechanclaw/pr-8	(1) (04/02 14:30:25) (0)	/tmp/worktrees/jleechanclaw/pr-8 [branch: closed-8]
-jc-9	/tmp/worktrees/jleechanclaw/pr-9	(1) (04/02 14:30:25) (0)	/tmp/worktrees/jleechanclaw/pr-9 [branch: closed-9]
-jc-10	/tmp/worktrees/jleechanclaw/pr-10	(1) (04/02 14:30:25) (0)	/tmp/worktrees/jleechanclaw/pr-10 [branch: closed-10]
+jc-1	/tmp/worktrees/smartclaw/pr-1	(1) (04/02 14:30:25) (0)	/tmp/worktrees/smartclaw/pr-1 [branch: closed-1]
+jc-2	/tmp/worktrees/smartclaw/pr-2	(1) (04/02 14:30:25) (0)	/tmp/worktrees/smartclaw/pr-2 [branch: closed-2]
+jc-3	/tmp/worktrees/smartclaw/pr-3	(1) (04/02 14:30:25) (0)	/tmp/worktrees/smartclaw/pr-3 [branch: closed-3]
+jc-4	/tmp/worktrees/smartclaw/pr-4	(1) (04/02 14:30:25) (0)	/tmp/worktrees/smartclaw/pr-4 [branch: closed-4]
+jc-5	/tmp/worktrees/smartclaw/pr-5	(1) (04/02 14:30:25) (0)	/tmp/worktrees/smartclaw/pr-5 [branch: closed-5]
+jc-6	/tmp/worktrees/smartclaw/pr-6	(1) (04/02 14:30:25) (0)	/tmp/worktrees/smartclaw/pr-6 [branch: closed-6]
+jc-7	/tmp/worktrees/smartclaw/pr-7	(1) (04/02 14:30:25) (0)	/tmp/worktrees/smartclaw/pr-7 [branch: closed-7]
+jc-8	/tmp/worktrees/smartclaw/pr-8	(1) (04/02 14:30:25) (0)	/tmp/worktrees/smartclaw/pr-8 [branch: closed-8]
+jc-9	/tmp/worktrees/smartclaw/pr-9	(1) (04/02 14:30:25) (0)	/tmp/worktrees/smartclaw/pr-9 [branch: closed-9]
+jc-10	/tmp/worktrees/smartclaw/pr-10	(1) (04/02 14:30:25) (0)	/tmp/worktrees/smartclaw/pr-10 [branch: closed-10]
 EOF
             ;;
         none)
@@ -234,7 +234,7 @@ test_log_entry_written() {
     log_info "Test: Log entry should be written for every kill"
     
     # The reaper should log each kill
-    local log_entry="[2026-04-02 15:30:00] KILLED jc-123 (merged PR) /tmp/worktrees/jleechanclaw/pr-123"
+    local log_entry="[2026-04-02 15:30:00] KILLED jc-123 (merged PR) /tmp/worktrees/smartclaw/pr-123"
     
     if [[ -n "$log_entry" ]]; then
         log_pass "Log entry written for every kill"

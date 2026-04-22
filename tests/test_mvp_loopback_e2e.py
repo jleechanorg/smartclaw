@@ -31,7 +31,7 @@ from urllib.request import Request, urlopen
 import pytest
 
 from orchestration.dispatch_task import dispatch
-from orchestration.openclaw_notifier import (
+from orchestration.smartclaw_notifier import (
     drain_outbox,
     read_outbox,
 )
@@ -39,8 +39,8 @@ from orchestration.reconciliation import reconcile_registry_once
 from orchestration.session_registry import BeadSessionMapping, get_mapping, upsert_mapping
 
 MCTRL_ROOT = Path(__file__).resolve().parent.parent.parent
-_DM_CHANNEL = os.environ.get("SMARTCLAW_DM_CHANNEL", "")
-_AI_GENERAL = os.environ.get("SMARTCLAW_TRIGGER_CHANNEL", "")
+_DM_CHANNEL = os.environ.get("MCTRL_TEST_DM_CHANNEL", "")
+_AI_GENERAL = os.environ.get("MCTRL_TEST_TRIGGER_CHANNEL", "")
 
 
 def _slack_post(token: str, channel: str, text: str) -> dict[str, Any]:
@@ -182,7 +182,7 @@ def test_e2e_registry_to_outbox_to_delivery(monkeypatch: pytest.MonkeyPatch, tmp
     # Stub the underlying sender (not notify_openclaw itself) so enqueue_outbox
     # still runs on failure — that is what this test exercises.
     monkeypatch.setattr("orchestration.reconciliation.run_tmux_sessions", lambda: set())
-    monkeypatch.setattr("orchestration.openclaw_notifier._send_via_mcp_agent_mail", lambda p: False)
+    monkeypatch.setattr("orchestration.smartclaw_notifier._send_via_mcp_agent_mail", lambda p: False)
     emitted = reconcile_registry_once(
         registry_path=str(registry),
         outbox_path=str(outbox),
@@ -207,8 +207,8 @@ def test_e2e_registry_to_outbox_to_delivery(monkeypatch: pytest.MonkeyPatch, tmp
 
 
 @pytest.mark.skipif(
-    not os.environ.get("SLACK_USER_TOKEN") or not os.environ.get("OPENCLAW_SLACK_BOT_TOKEN"),
-    reason="Requires SLACK_USER_TOKEN and OPENCLAW_SLACK_BOT_TOKEN (source ~/.profile and ~/.openclaw/set-slack-env.sh)",
+    not os.environ.get("SLACK_USER_TOKEN") or not os.environ.get("SLACK_BOT_TOKEN"),
+    reason="Requires SLACK_USER_TOKEN and SLACK_BOT_TOKEN (source ~/.profile and ~/.smartclaw/set-slack-env.sh)",
 )
 def test_slack_loopback_roundtrip(tmp_path: Path) -> None:
     """Full real-system loopback proof. No monkeypatching of any kind.
@@ -221,17 +221,17 @@ def test_slack_loopback_roundtrip(tmp_path: Path) -> None:
       5. OpenClaw notification handling posts real DM + real threaded reply
       6. Poll Slack API to confirm DM and thread reply both landed
 
-    Requires: SLACK_USER_TOKEN, OPENCLAW_SLACK_BOT_TOKEN, ai_orch in PATH
+    Requires: SLACK_USER_TOKEN, SLACK_BOT_TOKEN, ai_orch in PATH
     Duration: 3–10 minutes (real agent execution time)
     """
     user_token = os.environ.get("SLACK_USER_TOKEN", "")
     bot_token = (
-        os.environ.get("OPENCLAW_SLACK_BOT_TOKEN")
+        os.environ.get("SLACK_BOT_TOKEN")
         or os.environ.get("SLACK_BOT_TOKEN")
         or ""
     )
     assert user_token, "SLACK_USER_TOKEN must be set (source ~/.profile)"
-    assert bot_token, "OPENCLAW_SLACK_BOT_TOKEN must be set — bot token required to verify bot posted"
+    assert bot_token, "SLACK_BOT_TOKEN must be set — bot token required to verify bot posted"
     assert subprocess.run(["which", "ai_orch"], capture_output=True).returncode == 0, (
         "ai_orch must be in PATH"
     )

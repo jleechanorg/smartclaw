@@ -6,14 +6,7 @@ defaults:
   runtime: tmux
   agent: claude-code
   workspace: worktree
-  notifiers: [hermes, orchestrator, webhook]
-  modelByCli:
-    minimax:
-      model: MiniMax-M2.7
-    codex:
-      model: gpt-5.4
-    claude-code:
-      model: claude-haiku-4-5-20251001
+  notifiers: [openclaw, orchestrator, webhook]
   agentRules: |
     **COMMIT MESSAGE PREFIX — MANDATORY:**
     ALL commits MUST use the prefix `[agento]` in the commit message.
@@ -111,15 +104,15 @@ plugins:
     token: ${GITHUB_TOKEN}
 
 projects:
-  jleechanclaw:
-    name: jleechanclaw orchestration
-    repo: jleechanorg/jleechanclaw
-    path: ~/.openclaw
+  smartclaw:
+    name: smartclaw orchestration
+    repo: jleechanorg/smartclaw
+    path: ~/.smartclaw
     agentRulesFile: workspace/AGENT_BASE_RULES.md
     defaultBranch: main
     sessionPrefix: jc
     workspace: worktree
-    worktreeDir: ~/.worktrees/jleechanclaw-main
+    worktreeDir: ~/.worktrees/smartclaw-main
     backfillAllPRs: true   # handle all open PRs, not just [agento]-tagged ones
 
     agentConfig:
@@ -127,7 +120,7 @@ projects:
       model: claude-sonnet-4-6
 
     agentRules: |
-      You are working in the jleechanclaw orchestration repo.
+      You are working in the smartclaw orchestration repo.
 
       **CI UNSTABLE / FAILURE — ACT IMMEDIATELY, NEVER PAUSE:**
       When mergeable_state=unstable OR any CI check shows FAILURE or in_progress:
@@ -288,12 +281,12 @@ projects:
       Never use git add -A; stage only files you changed.
 
 notifiers:
-  hermes:
-    plugin: webhook
-    url: ${HERMES_GATEWAY_URL:-http://127.0.0.1:18810/hooks/agent}
-    token: ${HERMES_AO_HOOK_TOKEN:-${OPENCLAW_AO_HOOK_TOKEN:-}}
+  openclaw:
+    plugin: openclaw
+    url: http://127.0.0.1:18789/hooks/agent
+    token: ${OPENCLAW_AO_HOOK_TOKEN}
     retries: 3
-    retryDelayMs: 5000
+    retryDelayMs: 5000   # increased from 1000ms — prevents 429 floods when many sessions notify simultaneously
     sessionKeyPrefix: "hook:ao:"
   orchestrator:
     plugin: webhook
@@ -313,10 +306,10 @@ notifiers:
     webhookUrl: "${SLACK_WEBHOOK_URL:-https://hooks.slack.com/services/PLACEHOLDER}"
 
 notificationRouting:
-  urgent: [hermes, orchestrator, slack]
-  action: [hermes, orchestrator, slack]
-  warning: [hermes]
-  info: [hermes]
+  urgent: [openclaw, orchestrator, slack]
+  action: [openclaw, orchestrator, slack]
+  warning: [openclaw]
+  info: [openclaw]
 
 reactions:
   ci-failed:

@@ -4,12 +4,12 @@
 
 set -u
 
-LOG_FILE="$HOME/.openclaw/logs/health-check.log"
+LOG_FILE="$HOME/.smartclaw/logs/health-check.log"
 LOG_DIR="$(dirname "$LOG_FILE")"
-LOCK_DIR="$HOME/.openclaw/locks/health-check.lock"
+LOCK_DIR="$HOME/.smartclaw/locks/health-check.lock"
 LOCK_PID_FILE="$LOCK_DIR/pid"
 LOCK_MAX_AGE_SECONDS="${OPENCLAW_HEALTH_LOCK_MAX_AGE_SECONDS:-900}"
-STATE_DIR="$HOME/.openclaw/state"
+STATE_DIR="$HOME/.smartclaw/state"
 ESCALATION_STAMP="$STATE_DIR/health-check-last-escalation.ts"
 ALERT_STAMP_UNHEALTHY="$STATE_DIR/health-check-last-alert-unhealthy.ts"
 ALERT_STAMP_RECOVERED="$STATE_DIR/health-check-last-alert-recovered.ts"
@@ -58,11 +58,11 @@ gateway_health_ok() {
 }
 
 service_loaded() {
-  launchctl list | grep -q "ai.openclaw.gateway"
+  launchctl list | grep -q "ai.smartclaw.gateway"
 }
 
 service_running_pid() {
-  launchctl list | awk '/ai\.openclaw\.gateway/{print $1}'
+  launchctl list | awk '/ai\.smartclaw\.gateway/{print $1}'
 }
 
 is_placeholder_gateway_token() {
@@ -80,8 +80,8 @@ is_placeholder_gateway_token() {
 resolve_gateway_token() {
   local token=""
   local var_name=""
-  local cfg_path="$HOME/.openclaw/openclaw.json"
-  local plist_path="$HOME/Library/LaunchAgents/ai.openclaw.gateway.plist"
+  local cfg_path="$HOME/.smartclaw/openclaw.json"
+  local plist_path="$HOME/Library/LaunchAgents/ai.smartclaw.gateway.plist"
 
   # Prefer the live plist token (most reliable under launchd) over the caller's shell env.
   # Shell env may hold a stale value that differs from what launchd actually injected.
@@ -116,7 +116,7 @@ restart_gateway() {
   fi
 
   log "openclaw CLI unavailable or restart failed; trying launchctl kickstart fallback."
-  launchctl kickstart -k "gui/$(id -u)/ai.openclaw.gateway" >> "$LOG_FILE" 2>&1
+  launchctl kickstart -k "gui/$(id -u)/ai.smartclaw.gateway" >> "$LOG_FILE" 2>&1
 }
 
 install_gateway() {
@@ -134,7 +134,7 @@ install_gateway() {
   fi
 
   log "openclaw CLI unavailable or install failed; trying launchctl bootstrap fallback."
-  launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/ai.openclaw.gateway.plist" >> "$LOG_FILE" 2>&1
+  launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/ai.smartclaw.gateway.plist" >> "$LOG_FILE" 2>&1
 }
 
 doctor_fix() {
@@ -249,7 +249,7 @@ send_alert() {
 escalate_to_agent() {
   local reason="$1"
   local task
-  task="OpenClaw gateway self-heal escalation: ${reason}. Investigate gateway health, recover service, and leave findings in ~/.openclaw/logs/health-check.log and ~/.openclaw/logs/gateway.err.log."
+  task="OpenClaw gateway self-heal escalation: ${reason}. Investigate gateway health, recover service, and leave findings in ~/.smartclaw/logs/health-check.log and ~/.smartclaw/logs/gateway.err.log."
 
   if ! cooldown_allows "$ESCALATION_STAMP" "$ESCALATION_COOLDOWN_SECONDS"; then
     log "Escalation suppressed by cooldown (${ESCALATION_COOLDOWN_SECONDS}s)."
@@ -369,9 +369,9 @@ if gateway_health_ok; then
 fi
 
 log "Gateway still unhealthy after all remediation steps."
-if [ -f "$HOME/.openclaw/logs/gateway.err.log" ]; then
+if [ -f "$HOME/.smartclaw/logs/gateway.err.log" ]; then
   log "Recent gateway.err.log tail:"
-  tail -n "$MAX_LOG_TAIL_LINES" "$HOME/.openclaw/logs/gateway.err.log" >> "$LOG_FILE" 2>/dev/null || true
+  tail -n "$MAX_LOG_TAIL_LINES" "$HOME/.smartclaw/logs/gateway.err.log" >> "$LOG_FILE" 2>/dev/null || true
 fi
 
 if [ "$DOCTOR_FIX_ENABLED" = "1" ]; then

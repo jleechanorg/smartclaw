@@ -22,7 +22,7 @@ SENSITIVE_PATTERNS = [
 def test_mem0_history_db_path_uses_home_placeholder() -> None:
     if not OPENCLAW_CONFIG.exists():
         import pytest
-        pytest.skip("openclaw.json not present (gitignored — run from ~/.openclaw/)")
+        pytest.skip("openclaw.json not present (gitignored — run from ~/.smartclaw/)")
     cfg = json.loads(OPENCLAW_CONFIG.read_text(encoding="utf-8"))
     found: list[str] = []
 
@@ -39,8 +39,8 @@ def test_mem0_history_db_path_uses_home_placeholder() -> None:
     walk(cfg)
     # openclaw does not expand ${HOME} at runtime; accept the absolute path
     acceptable = {
-        "${HOME}/.openclaw/mem0-history.db",
-        str(Path.home() / ".openclaw" / "mem0-history.db"),
+        "${HOME}/.smartclaw/mem0-history.db",
+        str(Path.home() / ".smartclaw" / "mem0-history.db"),
     }
     assert any(v in acceptable for v in found), (
         f"historyDbPath values {found!r} must be one of {acceptable}"

@@ -6,9 +6,9 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LOG_FILE="${HOME}/.openclaw/logs/session-reaper.log"
+LOG_FILE="${HOME}/.smartclaw/logs/session-reaper.log"
 MAX_KILLS=5
-REPO="jleechanorg/jleechanclaw"
+REPO="jleechanorg/smartclaw"
 
 # Ensure log directory exists
 mkdir -p "$(dirname "$LOG_FILE")"

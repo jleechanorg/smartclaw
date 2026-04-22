@@ -58,19 +58,19 @@ docker start openclaw-mem0-qdrant >/dev/null 2>&1 || true
 
 # Resume from checkpointed state
 cd "$(pwd)"
-nohup node "$HOME/.openclaw/scripts/mem0_ingest_all4_careful.mjs" >> "$HOME/.openclaw/mem0-ingest-all4/progress.log" 2>&1 &
+nohup node "$HOME/.smartclaw/scripts/mem0_ingest_all4_careful.mjs" >> "$HOME/.smartclaw/mem0-ingest-all4/progress.log" 2>&1 &
 ```
 
 ## Progress Snapshot
 ```bash
-node -e 'const s=require(process.env.HOME+"/.openclaw/mem0-ingest-all4/state.json"); const left=s.files.length-s.cursor; const pct=(s.cursor/s.files.length*100).toFixed(2); console.log({cursor:s.cursor,total:s.files.length,left,pct,ingested:s.totals.ingested,skipped:s.totals.skipped,errors:s.totals.errors});'
+node -e 'const s=require(process.env.HOME+"/.smartclaw/mem0-ingest-all4/state.json"); const left=s.files.length-s.cursor; const pct=(s.cursor/s.files.length*100).toFixed(2); console.log({cursor:s.cursor,total:s.files.length,left,pct,ingested:s.totals.ingested,skipped:s.totals.skipped,errors:s.totals.errors});'
 ```
 
 ## Storage Paths
-- Ingest state: `$HOME/.openclaw/mem0-ingest-all4/state.json`
-- Ingest log: `$HOME/.openclaw/mem0-ingest-all4/progress.log`
-- Ingest script: `$HOME/.openclaw/scripts/mem0_ingest_all4_careful.mjs`
-- Qdrant storage: `$HOME/.openclaw/qdrant_storage`
+- Ingest state: `$HOME/.smartclaw/mem0-ingest-all4/state.json`
+- Ingest log: `$HOME/.smartclaw/mem0-ingest-all4/progress.log`
+- Ingest script: `$HOME/.smartclaw/scripts/mem0_ingest_all4_careful.mjs`
+- Qdrant storage: `$HOME/.smartclaw/qdrant_storage`
 
 ## Rules
 - Do not treat canary (`--agent memqa`) totals as production totals.

@@ -1,6 +1,6 @@
-# OpenClaw ~/.openclaw Backup Automation
+# OpenClaw ~/.smartclaw Backup Automation
 
-This repository includes a recurring backup workflow for `~/.openclaw` that runs on:
+This repository includes a recurring backup workflow for `~/.smartclaw` that runs on:
 
 - `launchd` (24/7 Apple scheduler)
 
@@ -10,11 +10,11 @@ Guardrail:
 
 Backups are written into this repository as redacted snapshots under:
 
-- `.openclaw-backups/<YYYYMMDD_HHMMSS>/`
+- `.smartclaw-backups/<YYYYMMDD_HHMMSS>/`
 
 ## What gets backed up
 
-The backup script mirrors `~/.openclaw` contents and performs in-band redaction/scrubbing:
+The backup script mirrors `~/.smartclaw` contents and performs in-band redaction/scrubbing:
 
 - masks common secret-bearing environment/key/token patterns in text files
 - redacts obvious embedded credential strings
@@ -31,19 +31,19 @@ The backup script mirrors `~/.openclaw` contents and performs in-band redaction/
 ## Install recurring jobs
 
 ```bash
-cd ~/.openclaw/workspace/openclaw
+cd ~/.smartclaw/workspace/openclaw
 ./scripts/install-openclaw-backup-jobs.sh
 ```
 
 This creates:
 
-- `com.openclaw.backup` launchd job at `~/Library/LaunchAgents/`
+- `com.smartclaw.backup` launchd job at `~/Library/LaunchAgents/`
 
 ## Verify
 
 ```bash
 # launchd status
-launchctl print gui/$(id -u)/com.openclaw.backup
+launchctl print gui/$(id -u)/com.smartclaw.backup
 # run once now
 ./scripts/run-openclaw-backup.sh
 ```

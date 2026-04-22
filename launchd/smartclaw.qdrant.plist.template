@@ -3,19 +3,19 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>ai.openclaw.qdrant</string>
+  <string>ai.smartclaw.qdrant</string>
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>@HOME@/.openclaw/scripts/start-qdrant-container.sh</string>
+    <string>@HOME@/.smartclaw/scripts/start-qdrant-container.sh</string>
   </array>
   <!-- Run on login to start the qdrant Docker container -->
   <key>RunAtLoad</key>
   <true/>
   <key>StandardOutPath</key>
-  <string>@HOME@/.openclaw/logs/qdrant.log</string>
+  <string>@HOME@/.smartclaw/logs/qdrant.log</string>
   <key>StandardErrorPath</key>
-  <string>@HOME@/.openclaw/logs/qdrant.err.log</string>
+  <string>@HOME@/.smartclaw/logs/qdrant.err.log</string>
   <key>EnvironmentVariables</key>
   <dict>
     <key>HOME</key>

@@ -339,7 +339,7 @@ class TestReceiveGitHubEvent:
         self,
         pr_number: int = 1,
         association: str = "OWNER",
-        body: str = "@jleechanclaw fix the tests",
+        body: str = "@smartclaw fix the tests",
         repo: str = "owner/repo",
     ) -> dict:
         return {
@@ -388,7 +388,7 @@ class TestReceiveGitHubEvent:
         payload = {
             "action": "created",
             "issue": {"number": 5},  # no pull_request key
-            "comment": {"body": "@jleechanclaw", "author_association": "OWNER"},
+            "comment": {"body": "@smartclaw", "author_association": "OWNER"},
             "sender": {"login": "owner"},
             "repository": {"full_name": "owner/repo"},
         }
@@ -569,7 +569,7 @@ class TestReceiveGitHubEvent:
                 "conclusion": "success",
                 "pull_requests": [],  # No PRs associated
             },
-            "repository": {"full_name": "jleechanorg/jleechanclaw"},
+            "repository": {"full_name": "jleechanorg/smartclaw"},
             "sender": {"login": "github-actions[bot]"},
         }
         # Must provide valid webhook secret since GITHUB_WEBHOOK_SECRET is set
@@ -595,7 +595,7 @@ class TestReceiveGitHubEvent:
                 "conclusion": "failure",
                 "pull_requests": [],  # No PRs associated
             },
-            "repository": {"full_name": "jleechanorg/jleechanclaw"},
+            "repository": {"full_name": "jleechanorg/smartclaw"},
             "sender": {"login": "github-actions[bot]"},
         }
         # Must provide valid webhook secret since GITHUB_WEBHOOK_SECRET is set

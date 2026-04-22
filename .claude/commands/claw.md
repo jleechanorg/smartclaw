@@ -27,7 +27,7 @@ Before dispatching, check if the gateway holds a session lock that would cause t
 
 ```bash
 # Check for stale session lock files (gateway holds lock during active orchestrator loops)
-LOCK_FILES=$(find ~/.openclaw/agents/main/sessions -name "*.jsonl.lock" -mmin -5 2>/dev/null | wc -l)
+LOCK_FILES=$(find ~/.smartclaw/agents/main/sessions -name "*.jsonl.lock" -mmin -5 2>/dev/null | wc -l)
 if [ "$LOCK_FILES" -gt 0 ]; then
   echo "⚠️ Gateway session lock detected ($LOCK_FILES lock files < 5 min old)"
   echo "   Falling back to Slack dispatch path..."
@@ -44,14 +44,14 @@ Post the task to `#ai-slack-test` so OpenClaw picks it up through the orchestrat
 
 ```bash
 TASK_DESCRIPTION="$ARGUMENTS"
-SLACK_CHANNEL="C0AKALZ4CKW"  # #ai-slack-test
+SLACK_CHANNEL="${SLACK_CHANNEL_ID}"  # #ai-slack-test
 
 # Format message with clear task delineation for the orchestrator
 MESSAGE="[claw dispatch] $TASK_DESCRIPTION"
 
 # Post to Slack using bot token (orchestrator loop picks up from #ai-slack-test)
 RESPONSE=$(curl -s -X POST https://slack.com/api/chat.postMessage \
-  -H "Authorization: Bearer $OPENCLAW_SLACK_BOT_TOKEN" \
+  -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"channel\":\"$SLACK_CHANNEL\",\"text\":\"$MESSAGE\"}")
 
@@ -90,7 +90,7 @@ fi
 ## Requirements
 
 - OpenClaw gateway running and monitoring `#ai-slack-test`
-- `OPENCLAW_SLACK_BOT_TOKEN` environment variable set
+- `SLACK_BOT_TOKEN` environment variable set
 - Gateway has `requireMention: false` for `#ai-slack-test` (so it picks up all messages)
 
 ## Checking Progress
@@ -102,8 +102,8 @@ fi
 
 | Variable | Source | Purpose |
 |----------|--------|---------|
-| `OPENCLAW_SLACK_BOT_TOKEN` | Gateway config | Bot token for posting to Slack |
-| `SLACK_CHANNEL` | Hardcoded | `#ai-slack-test` (C0AKALZ4CKW) |
+| `SLACK_BOT_TOKEN` | Gateway config | Bot token for posting to Slack |
+| `SLACK_CHANNEL` | Hardcoded | `#ai-slack-test` (${SLACK_CHANNEL_ID}) |
 
 ## Notes
 

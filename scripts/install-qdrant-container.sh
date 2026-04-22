@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Create or verify the openclaw-mem0-qdrant Docker container.
 # Idempotent: skips creation if container already exists.
-# Storage is persisted at ~/.openclaw/qdrant_storage/
+# Storage is persisted at ~/.smartclaw/qdrant_storage/
 set -euo pipefail
 
 CONTAINER="openclaw-mem0-qdrant"
 IMAGE="qdrant/qdrant:latest"
-STORAGE_DIR="${HOME}/.openclaw/qdrant_storage"
+STORAGE_DIR="${HOME}/.smartclaw/qdrant_storage"
 HOST_PORT=6333
 
 if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then

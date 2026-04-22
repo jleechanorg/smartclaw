@@ -18,7 +18,7 @@ Replaces 3 separate plists:
 		<string>1</string>
 		<key>AO_CONFIG_PATH</key>
 		<string>@HOME@/projects_reference/agent-orchestrator/agent-orchestrator.yaml</string>
-		<!-- GITHUB_TOKEN, GH_TOKEN, OPENCLAW_SLACK_BOT_TOKEN omitted — set in openclaw.json or shell environment -->
+		<!-- GITHUB_TOKEN, GH_TOKEN, SLACK_BOT_TOKEN omitted — set in openclaw.json or shell environment -->
 	</dict>
 	<key>KeepAlive</key>
 	<true/>
@@ -32,14 +32,14 @@ Replaces 3 separate plists:
 
 # Dashboard - starts all project agents
 echo "[agento-manager] Starting dashboard..."
-for p in worldai-pr5938 worldai-pr5933 worldai-pr5961 jleechanclaw-main; do
+for p in worldai-pr5938 worldai-pr5933 worldai-pr5961 smartclaw-main; do
     @HOME@/bin/ao start "$p" --no-dashboard 2>/dev/null || true
 done
 
 # Backfill - periodic sync
 echo "[agento-manager] Starting backfill worker..."
 while true; do
-    @HOME@/.openclaw/scripts/ao-backfill.sh
+    @HOME@/.smartclaw/scripts/ao-backfill.sh
     sleep 900  # 15 minutes
 done &
 BACKFILL_PID=$!
@@ -53,7 +53,7 @@ echo "[agento-manager] Starting notifier..."
 
 # Notifier - event-driven notifications (foreground; script exits when it exits)
 # Path to notifier script - adjust if your setup differs
-NOTIFIER_SCRIPT="${AO_NOTIFIER_SCRIPT:-$HOME/.openclaw/scripts/agento-notifier.py}"
+NOTIFIER_SCRIPT="${AO_NOTIFIER_SCRIPT:-$HOME/.smartclaw/scripts/agento-notifier.py}"
 if [[ -f "$NOTIFIER_SCRIPT" ]]; then
     echo "[agento-manager] Starting notifier from $NOTIFIER_SCRIPT..."
     @PYTHON3_PATH@ "$NOTIFIER_SCRIPT"

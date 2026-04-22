@@ -23,12 +23,12 @@ REDACTED_CONFIG = REPO_ROOT / "openclaw.json.redacted"
 # redacted file and asserts it equals the live config — catching drift between the two.
 _REDACTION_MAP: list[tuple[list[str], str]] = [
     (["env", "XAI_API_KEY"],                                     "XAI_API_KEY"),
-    (["env", "OPENCLAW_SLACK_BOT_TOKEN"],                        "OPENCLAW_SLACK_BOT_TOKEN"),
+    (["env", "SLACK_BOT_TOKEN"],                        "SLACK_BOT_TOKEN"),
     (["env", "OPENCLAW_SLACK_APP_TOKEN"],                        "OPENCLAW_SLACK_APP_TOKEN"),
     (["env", "OPENCLAW_HOOKS_TOKEN"],                            "OPENCLAW_HOOKS_TOKEN"),
     (["models", "providers", "minimax-portal", "apiKey"],        "MINIMAX_API_KEY"),
     (["hooks", "token"],                                          "OPENCLAW_HOOKS_TOKEN"),
-    (["channels", "slack", "botToken"],                           "OPENCLAW_SLACK_BOT_TOKEN"),
+    (["channels", "slack", "botToken"],                           "SLACK_BOT_TOKEN"),
     (["channels", "slack", "appToken"],                           "OPENCLAW_SLACK_APP_TOKEN"),
     (["gateway", "auth", "token"],                                "OPENCLAW_GATEWAY_TOKEN"),
     (["gateway", "remote", "token"],                              "OPENCLAW_GATEWAY_REMOTE_TOKEN"),
@@ -41,10 +41,10 @@ _VOLATILE_PATHS: list[tuple[list[str], ...]] = [
     (["meta", "lastTouchedAt"],),
     (["wizard", "lastRunAt"],),
 ]
-MC_PLIST = REPO_ROOT / "ai.openclaw.mission-control.plist"
+MC_PLIST = REPO_ROOT / "ai.smartclaw.mission-control.plist"
 START_MC_SCRIPT = REPO_ROOT / "scripts" / "start-mc.sh"
 GATEWAY_INSTALL_SCRIPT = REPO_ROOT / "scripts" / "install-launchagents.sh"
-STARTUP_CHECK_PLIST = REPO_ROOT / "ai.openclaw.startup-check.plist"
+STARTUP_CHECK_PLIST = REPO_ROOT / "ai.smartclaw.startup-check.plist"
 STARTUP_CHECK_SCRIPT = REPO_ROOT / "startup-check.sh"
 MCTRL_SUPERVISOR_PLIST = REPO_ROOT / "scripts" / "mctrl-supervisor.plist.template"
 
@@ -79,7 +79,7 @@ def discord_cfg() -> dict:
 @pytest.fixture(scope="module")
 def main_cfg() -> dict:
     if not MAIN_CONFIG.exists():
-        pytest.skip("openclaw.json not present (gitignored — run from ~/.openclaw/)")
+        pytest.skip("openclaw.json not present (gitignored — run from ~/.smartclaw/)")
     return json.loads(MAIN_CONFIG.read_text())
 
 
@@ -296,7 +296,7 @@ class TestLaunchAgentInstallers:
     def test_install_launchagents_installs_startup_check(self):
         """Startup-check launch agent must be installed alongside the gateway."""
         script_text = GATEWAY_INSTALL_SCRIPT.read_text(encoding="utf-8")
-        assert "ai.openclaw.startup-check.plist" in script_text
+        assert "ai.smartclaw.startup-check.plist" in script_text
 
     def test_install_launchagents_refreshes_runtime_startup_script(self):
         """The installer must update the script the launch agent actually executes."""
@@ -308,7 +308,7 @@ class TestLaunchAgentInstallers:
         script_text = GATEWAY_INSTALL_SCRIPT.read_text(encoding="utf-8")
         assert 'if [[ -f "$MC_BACKEND_PLIST" ]]; then' in script_text
         assert 'if [[ -f "$MC_FRONTEND_PLIST" ]]; then' in script_text
-        assert 'skipping ai.openclaw.mission-control' in script_text
+        assert 'skipping ai.smartclaw.mission-control' in script_text
 
     def test_install_launchagents_rejects_placeholder_mc_token(self):
         """Launchd installer must not stamp the checked-in placeholder token into services."""
@@ -320,9 +320,9 @@ class TestLaunchAgentInstallers:
     def test_startup_check_plist_runs_at_load(self):
         """Startup verification should trigger automatically after login/restart."""
         if not STARTUP_CHECK_PLIST.exists():
-            pytest.skip("ai.openclaw.startup-check.plist not present in this checkout")
+            pytest.skip("ai.smartclaw.startup-check.plist not present in this checkout")
         plist_text = STARTUP_CHECK_PLIST.read_text(encoding="utf-8")
-        assert "<string>ai.openclaw.startup-check</string>" in plist_text
+        assert "<string>ai.smartclaw.startup-check</string>" in plist_text
         assert "<key>RunAtLoad</key>" in plist_text
         assert "<true/>" in plist_text  # RunAtLoad must be enabled, not just present
 
@@ -389,7 +389,7 @@ class TestSlackEnabled:
         token = slack.get("botToken", "")
         assert re.match(r"^\$\{[A-Z][A-Z0-9_]+\}$", token), (
             f"channels.slack.botToken={token!r} must be an env var ref like "
-            "'${OPENCLAW_SLACK_BOT_TOKEN}' — never hardcode credentials (ORCH-sl0)"
+            "'${SLACK_BOT_TOKEN}' — never hardcode credentials (ORCH-sl0)"
         )
 
     def test_slack_app_token_is_env_ref(self, main_cfg: dict):
@@ -557,7 +557,7 @@ class TestOpsScriptRegressions:
         )
 
     def test_monitor_thread_probe_resolves_bot_token_from_config(self):
-        """thread probe should resolve bot token from ~/.openclaw/openclaw.json when env is missing."""
+        """thread probe should resolve bot token from ~/.smartclaw/openclaw.json when env is missing."""
         script_text = (REPO_ROOT / "monitor-agent.sh").read_text(
             encoding="utf-8"
         )

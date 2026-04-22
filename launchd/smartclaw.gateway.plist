@@ -9,7 +9,7 @@
 		<key>GOOGLE_CLOUD_PROJECT</key>
 		<string>infinite-zephyr-487405-d0</string>
 		<key>HOME</key>
-		<string>/Users/jleechan</string>
+		<string>${HOME}</string>
 		<key>MISSION_CONTROL_BASE_URL</key>
 		<string>http://localhost:9010</string>
 		<key>MISSION_CONTROL_BOARD_ID</key>
@@ -21,7 +21,7 @@
 		<key>OPENCLAW_GATEWAY_PORT</key>
 		<string>18789</string>
 		<key>OPENCLAW_LAUNCHD_LABEL</key>
-		<string>ai.openclaw.gateway</string>
+		<string>ai.smartclaw.gateway</string>
 		<key>OPENCLAW_RAW_STREAM</key>
 		<string>1</string>
 		<key>OPENCLAW_RAW_STREAM_PATH</key>
@@ -37,7 +37,7 @@
 		<key>OPENCLAW_WINDOWS_TASK_NAME</key>
 		<string>OpenClaw Gateway</string>
 		<key>PATH</key>
-		<string>/Users/jleechan/.local/bin:/Users/jleechan/.npm-global/bin:/Users/jleechan/bin:/Users/jleechan/.volta/bin:/Users/jleechan/.asdf/shims:/Users/jleechan/.bun/bin:/Users/jleechan/Library/Application Support/fnm/aliases/default/bin:/Users/jleechan/.fnm/aliases/default/bin:/Users/jleechan/Library/pnpm:/Users/jleechan/.local/share/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+		<string>${HOME}/.local/bin:${HOME}/.npm-global/bin:${HOME}/bin:${HOME}/.volta/bin:${HOME}/.asdf/shims:${HOME}/.bun/bin:${HOME}/Library/Application Support/fnm/aliases/default/bin:${HOME}/.fnm/aliases/default/bin:${HOME}/Library/pnpm:${HOME}/.local/share/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
 		<key>SHELL</key>
 		<string>/opt/homebrew/bin/bash</string>
 		<key>TMPDIR</key>
@@ -46,11 +46,11 @@
 	<key>KeepAlive</key>
 	<true/>
 	<key>Label</key>
-	<string>ai.openclaw.gateway</string>
+	<string>ai.smartclaw.gateway</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>/Users/jleechan/.nvm/versions/node/v22.22.0/bin/node</string>
-		<string>/Users/jleechan/.nvm/versions/node/v22.22.0/lib/node_modules/openclaw/dist/index.js</string>
+		<string>${HOME}/.nvm/versions/node/v22.22.0/bin/node</string>
+		<string>${HOME}/.nvm/versions/node/v22.22.0/lib/node_modules/openclaw/dist/index.js</string>
 		<string>gateway</string>
 		<string>--port</string>
 		<string>18789</string>
@@ -58,9 +58,9 @@
 	<key>RunAtLoad</key>
 	<true/>
 	<key>StandardErrorPath</key>
-	<string>/Users/jleechan/.openclaw/logs/gateway.err.log</string>
+	<string>${HOME}/.smartclaw/logs/gateway.err.log</string>
 	<key>StandardOutPath</key>
-	<string>/Users/jleechan/.openclaw/logs/gateway.log</string>
+	<string>${HOME}/.smartclaw/logs/gateway.log</string>
 	<key>ThrottleInterval</key>
 	<integer>30</integer>
 	<key>Umask</key>

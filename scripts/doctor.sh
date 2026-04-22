@@ -4,21 +4,21 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-LIVE_OPENCLAW="$HOME/.openclaw"
+LIVE_OPENCLAW="$HOME/.smartclaw"
 LAUNCHD_DIR="$HOME/Library/LaunchAgents"
-GATEWAY_LABEL="ai.openclaw.gateway"
+GATEWAY_LABEL="ai.smartclaw.gateway"
 GATEWAY_PLIST="$LAUNCHD_DIR/$GATEWAY_LABEL.plist"
 AO_DASHBOARD_LABEL="ai.agento.dashboard"
 AO_DASHBOARD_LEGACY_LABEL="ai.agent-orchestrator.dashboard"
 AO_DASHBOARD_PLIST="$LAUNCHD_DIR/$AO_DASHBOARD_LABEL.plist"
 AO_DASHBOARD_LEGACY_PLIST="$LAUNCHD_DIR/$AO_DASHBOARD_LEGACY_LABEL.plist"
 SCHEDULED_LABELS=(
-  "ai.openclaw.schedule.daily-checkin-9am"
-  "ai.openclaw.schedule.daily-checkin-12pm"
-  "ai.openclaw.schedule.daily-checkin-6pm"
-  # backup-4h20 intentionally unloaded: ~/.openclaw/ is git-backed, backup job is redundant
-  "ai.openclaw.schedule.genesis-memory-curation-weekly"
-  "ai.openclaw.schedule.genesis-pattern-extraction-weekly"
+  "ai.smartclaw.schedule.daily-checkin-9am"
+  "ai.smartclaw.schedule.daily-checkin-12pm"
+  "ai.smartclaw.schedule.daily-checkin-6pm"
+  # backup-4h20 intentionally unloaded: ~/.smartclaw/ is git-backed, backup job is redundant
+  "ai.smartclaw.schedule.genesis-memory-curation-weekly"
+  "ai.smartclaw.schedule.genesis-pattern-extraction-weekly"
 )
 MIGRATED_JOB_IDS=()
 
@@ -207,7 +207,7 @@ printf '\n'
 load_migrated_job_ids
 printf '\n'
 
-require_dir "$LIVE_OPENCLAW" 'live ~/.openclaw'
+require_dir "$LIVE_OPENCLAW" 'live ~/.smartclaw'
 require_file "$LIVE_OPENCLAW/openclaw.json" 'live openclaw config'
 require_file "$LIVE_OPENCLAW/cron/jobs.json" 'live cron jobs'
 require_dir "$LIVE_OPENCLAW/logs" 'live logs dir'
@@ -254,16 +254,16 @@ if [[ "$IS_DARWIN" -eq 1 && -f "$GATEWAY_PLIST" ]]; then
 fi
 
 if ! is_placeholder_token "$live_token"; then
-  pass 'gateway auth token is set in ~/.openclaw/openclaw.json'
+  pass 'gateway auth token is set in ~/.smartclaw/openclaw.json'
 elif ! is_placeholder_token "$plist_token"; then
   pass 'gateway token provided via launchd EnvironmentVariables'
 else
-  fail 'gateway token missing/placeholder in both ~/.openclaw/openclaw.json and launchd EnvironmentVariables'
+  fail 'gateway token missing/placeholder in both ~/.smartclaw/openclaw.json and launchd EnvironmentVariables'
 fi
 
 shell_token="${OPENCLAW_GATEWAY_TOKEN:-}"
 if ! is_placeholder_token "$shell_token" && ! is_placeholder_token "$live_token" && [[ "$shell_token" != "$live_token" ]]; then
-  warn 'shell OPENCLAW_GATEWAY_TOKEN differs from ~/.openclaw/openclaw.json; gateway probes will use config token'
+  warn 'shell OPENCLAW_GATEWAY_TOKEN differs from ~/.smartclaw/openclaw.json; gateway probes will use config token'
 fi
 
 printf '\n'
@@ -290,13 +290,13 @@ if [[ -f "$LIVE_OPENCLAW/cron/jobs.json" ]] && json_valid "$LIVE_OPENCLAW/cron/j
   done
 
   if [[ -n "$missing_ids" ]]; then
-    warn "legacy migrated cron job IDs are missing from ~/.openclaw/cron/jobs.json (non-fatal): $missing_ids"
+    warn "legacy migrated cron job IDs are missing from ~/.smartclaw/cron/jobs.json (non-fatal): $missing_ids"
   fi
   if [[ -n "$still_enabled" ]]; then
-    warn "legacy migrated cron job IDs are still enabled in ~/.openclaw/cron/jobs.json (non-fatal): $still_enabled"
+    warn "legacy migrated cron job IDs are still enabled in ~/.smartclaw/cron/jobs.json (non-fatal): $still_enabled"
   fi
   if [[ -z "$missing_ids" && -z "$still_enabled" ]]; then
-    pass 'legacy migrated OpenClaw cron jobs are all absent/disabled in ~/.openclaw/cron/jobs.json'
+    pass 'legacy migrated OpenClaw cron jobs are all absent/disabled in ~/.smartclaw/cron/jobs.json'
   fi
 else
   fail 'could not validate live cron jobs JSON'
@@ -322,7 +322,7 @@ if [[ "$IS_DARWIN" -eq 1 ]]; then
     if ! is_placeholder_token "$plist_token"; then
       pass 'gateway token present in launchd EnvironmentVariables'
     elif ! is_placeholder_token "$live_token"; then
-      pass 'gateway token sourced from ~/.openclaw/openclaw.json'
+      pass 'gateway token sourced from ~/.smartclaw/openclaw.json'
     else
       warn 'gateway token missing/placeholder in launchd EnvironmentVariables (may still work via openclaw.json token)'
     fi
@@ -348,7 +348,7 @@ if [[ "$IS_DARWIN" -eq 1 ]]; then
       fail 'launchd job is not in running state'
     fi
   else
-    fail 'launchctl print failed for ai.openclaw.gateway'
+    fail 'launchctl print failed for ai.smartclaw.gateway'
   fi
 
   # Check AO dashboard launchd (current label first, then legacy label).
@@ -657,7 +657,7 @@ if command -v openclaw >/dev/null 2>&1; then
   INFER_TIMEOUT=60
 
   # 1. Slack message send via openclaw CLI
-  SLACK_PROBE_TARGET="${OPENCLAW_DOCTOR_SLACK_PROBE_TARGET:-C0AKYEY48GM}"
+  SLACK_PROBE_TARGET="${OPENCLAW_DOCTOR_SLACK_PROBE_TARGET:-${SLACK_CHANNEL_ID:-}}"
   slack_out="$(openclaw message send --channel slack --target "$SLACK_PROBE_TARGET" \
     --message "[doctor.sh probe] $(date '+%Y-%m-%d %H:%M:%S %Z')" 2>&1)"
   if printf '%s\n' "$slack_out" | grep -q '"ok"\|messageId\|Message ID'; then
@@ -667,7 +667,7 @@ if command -v openclaw >/dev/null 2>&1; then
   fi
 
   # 2. OpenClaw MCP adapter — stdio initialize handshake
-  OPENCLAW_MCP_BIN="/Users/jleechan/.nvm/versions/node/v22.22.0/lib/node_modules/openclaw-mcp/dist/index.js"
+  OPENCLAW_MCP_BIN="${HOME}/.nvm/versions/node/v22.22.0/lib/node_modules/openclaw-mcp/dist/index.js"
   if [[ -f "$OPENCLAW_MCP_BIN" ]]; then
     mcp_init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"doctor","version":"0.1.0"}}}'
     mcp_out="$(printf '%s\n' "$mcp_init" | timeout "$PROBE_TIMEOUT" node "$OPENCLAW_MCP_BIN" 2>&1)"
@@ -733,7 +733,7 @@ if [[ -f "$REPO_ROOT/scripts/verify-config-from-redacted.sh" ]]; then
   else
     # Only fail if we have all required env vars; otherwise just warn
     missing_redaction_vars=()
-    for var in XAI_API_KEY OPENCLAW_SLACK_BOT_TOKEN OPENCLAW_SLACK_APP_TOKEN OPENCLAW_HOOKS_TOKEN MINIMAX_API_KEY OPENCLAW_GATEWAY_TOKEN OPENCLAW_GATEWAY_REMOTE_TOKEN OPENAI_API_KEY GROQ_API_KEY; do
+    for var in XAI_API_KEY SLACK_BOT_TOKEN OPENCLAW_SLACK_APP_TOKEN OPENCLAW_HOOKS_TOKEN MINIMAX_API_KEY OPENCLAW_GATEWAY_TOKEN OPENCLAW_GATEWAY_REMOTE_TOKEN OPENAI_API_KEY GROQ_API_KEY; do
       if [[ -z "${!var:-}" ]]; then
         missing_redaction_vars+=("$var")
       fi

@@ -179,7 +179,7 @@ def test_registry_paths_to_reconcile_auto_discovers_sibling_registry(
 
     workspace_root = tmp_path / "project"
     mctrl_repo = workspace_root / "mctrl"
-    app_repo = workspace_root / "jleechanclaw"
+    app_repo = workspace_root / "smartclaw"
     messages = tmp_path / "shared" / "messages"
     messages.mkdir(parents=True)
 
@@ -208,7 +208,7 @@ def test_registry_paths_auto_discovery_with_absolute_default_registry_path(
 
     workspace_root = tmp_path / "project"
     mctrl_repo = workspace_root / "mctrl"
-    app_repo = workspace_root / "jleechanclaw"
+    app_repo = workspace_root / "smartclaw"
     messages = tmp_path / "shared" / "messages"
     messages.mkdir(parents=True)
 
@@ -253,11 +253,11 @@ def test_run_once_reconciles_each_registry(monkeypatch) -> None:
     monkeypatch.setattr("orchestration.reconciliation.reconcile_registry_once", _reconcile)
     monkeypatch.setattr("orchestration.session_registry.archive_terminal_mappings", _archive)
     monkeypatch.setattr(
-        "orchestration.openclaw_notifier.outbox_health_snapshot",
+        "orchestration.smartclaw_notifier.outbox_health_snapshot",
         lambda **_: {"pending_count": 0, "dead_letter_count": 0, "oldest_age_seconds": None},
     )
     monkeypatch.setattr(
-        "orchestration.openclaw_notifier.notify_slack_outbox_alert",
+        "orchestration.smartclaw_notifier.notify_slack_outbox_alert",
         lambda payload: True,
     )
 
@@ -289,11 +289,11 @@ def test_run_once_continues_after_single_registry_failure(monkeypatch) -> None:
         lambda **_: 0,
     )
     monkeypatch.setattr(
-        "orchestration.openclaw_notifier.outbox_health_snapshot",
+        "orchestration.smartclaw_notifier.outbox_health_snapshot",
         lambda **_: {"pending_count": 0, "dead_letter_count": 0, "oldest_age_seconds": None},
     )
     monkeypatch.setattr(
-        "orchestration.openclaw_notifier.notify_slack_outbox_alert",
+        "orchestration.smartclaw_notifier.notify_slack_outbox_alert",
         lambda payload: True,
     )
 

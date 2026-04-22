@@ -104,7 +104,7 @@ import pathlib
 import re
 from collections import defaultdict
 
-base = pathlib.Path.home() / '.openclaw' / 'memory' / 'slack-history'
+base = pathlib.Path.home() / '.smartclaw' / 'memory' / 'slack-history'
 mds = sorted(base.glob('*.md'))
 text = '\n'.join(p.read_text(errors='ignore') for p in mds)
 

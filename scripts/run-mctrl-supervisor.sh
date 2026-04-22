@@ -6,10 +6,10 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Load Slack bot token if not already in env
-if [[ -z "${SLACK_BOT_TOKEN:-}" && -z "${OPENCLAW_SLACK_BOT_TOKEN:-}" ]]; then
-  if [[ -f "$HOME/.openclaw/set-slack-env.sh" ]]; then
+if [[ -z "${SLACK_BOT_TOKEN:-}" && -z "${SLACK_BOT_TOKEN:-}" ]]; then
+  if [[ -f "$HOME/.smartclaw/set-slack-env.sh" ]]; then
     # shellcheck disable=SC1091
-    source "$HOME/.openclaw/set-slack-env.sh" 2>/dev/null || true
+    source "$HOME/.smartclaw/set-slack-env.sh" 2>/dev/null || true
   fi
 fi
 

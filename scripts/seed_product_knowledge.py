@@ -12,7 +12,7 @@ Usage:
     # Seed sessions for one repo (slower)
     python3.13 scripts/seed_product_knowledge.py --sessions worldarchitect.ai
     python3.13 scripts/seed_product_knowledge.py --sessions worldai_claw
-    python3.13 scripts/seed_product_knowledge.py --sessions jleechanclaw
+    python3.13 scripts/seed_product_knowledge.py --sessions smartclaw
 
     # Full seed (docs + all sessions)
     python3.13 scripts/seed_product_knowledge.py --all
@@ -43,14 +43,14 @@ STATIC_SOURCES: list[tuple[str, Path]] = [
     ("PRODUCT/ARCHITECTURE", HOME / "projects/worldarchitect.ai/CLAUDE.md"),
     ("PRODUCT/ARCHITECTURE", HOME / "projects/worldai_claw/CLAUDE.md"),
     # OpenClaw harness — identity + routing rules
-    ("PRODUCT/INTENT",       HOME / ".openclaw/SOUL.md"),
-    ("PRODUCT/INTENT",       HOME / ".openclaw/HEARTBEAT.md"),
+    ("PRODUCT/INTENT",       HOME / ".smartclaw/SOUL.md"),
+    ("PRODUCT/INTENT",       HOME / ".smartclaw/HEARTBEAT.md"),
     # Note: Add project-specific CLAUDE.md via CLI arg or env var for portability
-    # ("PRODUCT/INTENT", Path("/Users/jleechan/project_jleechanclaw/worktree_memory_followups3/CLAUDE.md")),
+    # ("PRODUCT/INTENT", Path("${HOME}/project_smartclaw/worktree_memory_followups3/CLAUDE.md")),
     # Curated product memory files
-    ("PRODUCT/ARCHITECTURE", HOME / ".claude/projects/-Users-jleechan-project-jleechanclaw-jleechanclaw/memory/project_worldarchitect_ai.md"),
-    ("PRODUCT/ARCHITECTURE", HOME / ".claude/projects/-Users-jleechan-project-jleechanclaw-jleechanclaw/memory/project_worldai_claw.md"),
-    ("PRODUCT/INTENT",       HOME / ".claude/projects/-Users-jleechan-project-jleechanclaw-jleechanclaw/memory/project_jleechanclaw_goals.md"),
+    ("PRODUCT/ARCHITECTURE", HOME / ".claude/projects/-Users-jleechan-project-smartclaw-smartclaw/memory/project_worldarchitect_ai.md"),
+    ("PRODUCT/ARCHITECTURE", HOME / ".claude/projects/-Users-jleechan-project-smartclaw-smartclaw/memory/project_worldai_claw.md"),
+    ("PRODUCT/INTENT",       HOME / ".claude/projects/-Users-jleechan-project-smartclaw-smartclaw/memory/project_smartclaw_goals.md"),
 ]
 
 # ADRs
@@ -58,7 +58,7 @@ ADR_DIRS: list[Path] = [
     HOME / "projects/worldarchitect.ai/docs/adr",
 ]
 
-# Key roadmap docs (by name, searched in jleechanclaw and worldarchitect.ai roadmap dirs)
+# Key roadmap docs (by name, searched in smartclaw and worldarchitect.ai roadmap dirs)
 PRIORITY_ROADMAP_DOCS = [
     "ORCHESTRATION_DESIGN.md",
     "NATURAL_LANGUAGE_DISPATCH.md",
@@ -79,7 +79,7 @@ ROADMAP_SEARCH_DIRS: list[Path] = [
 REPO_DIR_PATTERNS: dict[str, list[str]] = {
     "worldarchitect.ai": ["worldarchitect", "worldarchitect-ai"],
     "worldai_claw":      ["worldai-claw", "worldai_claw", "worldaiclaw"],
-    "jleechanclaw":      ["jleechanclaw", "project-jleechanclaw", "openclaw-workspace-jleechanclaw"],
+    "smartclaw":      ["smartclaw", "project-smartclaw", "openclaw-workspace-smartclaw"],
 }
 
 CHUNK_SIZE = 800
@@ -249,7 +249,7 @@ def main() -> None:
         projects_base = Path(args.projects_dir)
         if projects_base.is_dir():
             ROADMAP_SEARCH_DIRS.append(projects_base / "worldarchitect.ai" / "roadmap")
-            ROADMAP_SEARCH_DIRS.append(projects_base / "jleechanclaw" / "roadmap")
+            ROADMAP_SEARCH_DIRS.append(projects_base / "smartclaw" / "roadmap")
 
     total = 0
     if args.docs_only or args.all:

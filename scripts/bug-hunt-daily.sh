@@ -6,8 +6,8 @@
 set -euo pipefail
 
 # Configuration
-BUG_REPORTS_DIR="${HOME}/.openclaw/logs/bug_reports"
-REPOS=("jleechanorg/jleechanclaw" "jleechanorg/worldarchitect.ai" "jleechanorg/ai_universe" "jleechanorg/beads")
+BUG_REPORTS_DIR="${HOME}/.smartclaw/logs/bug_reports"
+REPOS=("jleechanorg/smartclaw" "jleechanorg/worldarchitect.ai" "jleechanorg/ai_universe" "jleechanorg/beads")
 DAYS_LOOKBACK=2
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 REPORT_FILE="${BUG_REPORTS_DIR}/bug-hunt-${TIMESTAMP}.md"
@@ -201,7 +201,7 @@ if [ -f "$HOME/.profile" ]; then
     source "$HOME/.profile" 2>/dev/null || true
 fi
 if [ -n "${SLACK_USER_TOKEN:-}" ]; then
-    SLACK_CHANNEL_ID="${BUG_HUNT_SLACK_CHANNEL_ID:-C09GRLXF9GR}"  # default to #bug-hunt
+    SLACK_CHANNEL_ID="${BUG_HUNT_SLACK_CHANNEL_ID:-${SLACK_CHANNEL_ID}}"  # default to #bug-hunt
     SLACK_RESPONSE=""
     if SLACK_RESPONSE=$(curl -s -X POST "https://slack.com/api/chat.postMessage" \
         -H "Authorization: Bearer $SLACK_USER_TOKEN" \

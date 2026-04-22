@@ -32,7 +32,7 @@ from orchestration.dispatch_task import (
 # ---------------------------------------------------------------------------
 
 PORCELAIN_TWO_WORKTREES = textwrap.dedent("""\
-    worktree /tmp/test-project/mctrl
+    worktree ${HOME}/project_smartclaw/mctrl
     HEAD abc123
     branch refs/heads/main
 
@@ -69,13 +69,13 @@ def test_find_existing_worktree_not_found():
 def test_find_existing_worktree_skips_main_worktree():
     """The primary worktree (first block) must not be returned even if branch matches."""
     porcelain = textwrap.dedent("""\
-        worktree /tmp/test-project/mctrl
+        worktree ${HOME}/project_smartclaw/mctrl
         HEAD abc123
         branch refs/heads/feat/xyz
 
     """)
     with patch("subprocess.run", return_value=_mock_wt_list(porcelain)):
-        result = find_existing_worktree("feat/xyz", repo_root="/tmp/test-project/mctrl")
+        result = find_existing_worktree("feat/xyz", repo_root="${HOME}/project_smartclaw/mctrl")
     # Primary worktree is the repo root — should not dispatch into it
     assert result is None
 
@@ -426,7 +426,7 @@ def test_dispatch_passes_clean_user_site_packages_to_ai_orch(tmp_path: Path):
 
     with patch.dict("os.environ", {"PYTHONPATH": "/existing/pythonpath"}, clear=False), \
          patch("orchestration.dispatch_task.site.getusersitepackages",
-               return_value="/tmp/test-venv/lib/python3.13/site-packages"), \
+               return_value="${HOME}/Library/Python/3.13/lib/python/site-packages"), \
          patch("subprocess.run", side_effect=fake_run), \
          patch("orchestration.dispatch_task.upsert_mapping"), \
          patch("orchestration.dispatch_task.notify_slack_started", return_value=True), \
@@ -441,7 +441,7 @@ def test_dispatch_passes_clean_user_site_packages_to_ai_orch(tmp_path: Path):
     ai_orch_env = next(env for env in env_log if env is not None)
     assert ai_orch_env is not None
     assert ai_orch_env["PYTHONPATH"] == (
-        "/tmp/test-venv/lib/python3.13/site-packages"
+        "${HOME}/Library/Python/3.13/lib/python/site-packages"
     )
 
 

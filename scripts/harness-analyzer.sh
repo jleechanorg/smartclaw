@@ -1,15 +1,15 @@
 #!/bin/bash
 #
 # Harness Engineering Analyzer
-# Daily 9am job that analyzes jleechanclaw for harness engineering violations
+# Daily 9am job that analyzes smartclaw for harness engineering violations
 # and creates PRs to fix issues + comments on open PRs with suggestions
 #
 
 set -e
 
-REPO="jleechanorg/jleechanclaw"
+REPO="jleechanorg/smartclaw"
 WORK_DIR="/tmp/harness-analyzer-$$"
-LOG_FILE="$HOME/.openclaw/logs/harness-analyzer.log"
+LOG_FILE="$HOME/.smartclaw/logs/harness-analyzer.log"
 GITHUB_TOKEN_SOURCE="${GITHUB_TOKEN:-$HOME/.github_token}"
 
 log() {

@@ -1,11 +1,11 @@
 #!/bin/bash
 # Run auto_fact_capture.py on new sessions since last run
-# State tracked in ~/.openclaw/memory/auto_fact_capture_state.json
-# Called by launchd (ai.openclaw.auto-fact-capture) every 15 minutes
+# State tracked in ~/.smartclaw/memory/auto_fact_capture_state.json
+# Called by launchd (ai.smartclaw.auto-fact-capture) every 15 minutes
 
-STATE_FILE="$HOME/.openclaw/memory/auto_fact_capture_state.json"
-SESSION_DIR="$HOME/.openclaw/agents/main/sessions"
-SCRIPT="$HOME/.openclaw/scripts/auto_fact_capture.py"
+STATE_FILE="$HOME/.smartclaw/memory/auto_fact_capture_state.json"
+SESSION_DIR="$HOME/.smartclaw/agents/main/sessions"
+SCRIPT="$HOME/.smartclaw/scripts/auto_fact_capture.py"
 
 mkdir -p "$(dirname "$STATE_FILE")"
 

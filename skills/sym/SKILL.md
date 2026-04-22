@@ -49,7 +49,7 @@ scripts/sym-send-5-swebench-verified.sh
 
 ## Post-merge
 
-After editing this `openclaw-config` file, sync it to `~/.openclaw/` and reload the gateway:
+After editing this `openclaw-config` file, sync it to `~/.smartclaw/` and reload the gateway:
 
 ```bash
 kill -HUP $(pgrep -f openclaw-gateway)
