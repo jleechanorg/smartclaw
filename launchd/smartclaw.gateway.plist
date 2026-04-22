@@ -9,7 +9,11 @@
 		<key>GOOGLE_CLOUD_PROJECT</key>
 		<string>infinite-zephyr-487405-d0</string>
 		<key>HOME</key>
-		<string>${HOME}</string>
+		<string>/Users/jleechan</string>
+		<key>OPENCLAW_STATE_DIR</key>
+		<string>${HOME}/.smartclaw_prod</string>
+		<key>OPENCLAW_CONFIG_PATH</key>
+		<string>${HOME}/.smartclaw_prod/openclaw.json</string>
 		<key>MISSION_CONTROL_BASE_URL</key>
 		<string>http://localhost:9010</string>
 		<key>MISSION_CONTROL_BOARD_ID</key>
@@ -23,7 +27,7 @@
 		<key>OPENCLAW_LAUNCHD_LABEL</key>
 		<string>ai.smartclaw.gateway</string>
 		<key>OPENCLAW_RAW_STREAM</key>
-		<string>1</string>
+		<string>0</string>
 		<key>OPENCLAW_RAW_STREAM_PATH</key>
 		<string>/tmp/openclaw/raw-stream.jsonl</string>
 		<key>OPENCLAW_SERVICE_KIND</key>
@@ -54,13 +58,14 @@
 		<string>gateway</string>
 		<string>--port</string>
 		<string>18789</string>
+		<string>--allow-unconfigured</string>
 	</array>
 	<key>RunAtLoad</key>
 	<true/>
 	<key>StandardErrorPath</key>
-	<string>${HOME}/.smartclaw/logs/gateway.err.log</string>
+	<string>${HOME}/.smartclaw_prod/logs/gateway.err.log</string>
 	<key>StandardOutPath</key>
-	<string>${HOME}/.smartclaw/logs/gateway.log</string>
+	<string>${HOME}/.smartclaw_prod/logs/gateway.log</string>
 	<key>ThrottleInterval</key>
 	<integer>30</integer>
 	<key>Umask</key>

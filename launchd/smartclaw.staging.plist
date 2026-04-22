@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.smartclaw.staging</string>
+
+    <key>Comment</key>
+    <string>OpenClaw staging gateway (port 18810, ~/.smartclaw/ = staging dir)</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>@OPENCLAW_BIN@</string>
+        <string>gateway</string>
+        <string>--port</string>
+        <string>18810</string>
+        <string>--allow-unconfigured</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>@NODE_BIN_DIR@:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>HOME</key>
+        <string>@HOME@</string>
+        <key>OPENCLAW_STATE_DIR</key>
+        <string>@HOME@/.smartclaw</string>
+        <key>OPENCLAW_CONFIG_PATH</key>
+        <string>@HOME@/.smartclaw/openclaw.staging.json</string>
+        <key>OPENCLAW_GATEWAY_PORT</key>
+        <string>18810</string>
+        <key>OPENCLAW_PROFILE</key>
+        <string>staging</string>
+        <key>OPENCLAW_SERVICE_KIND</key>
+        <string>gateway</string>
+        <key>OPENCLAW_SERVICE_MARKER</key>
+        <string>openclaw-staging</string>
+        <key>OPENCLAW_RAW_STREAM</key>
+        <string>0</string>
+        <key>OPENCLAW_RAW_STREAM_PATH</key>
+        <string>/tmp/openclaw/staging-raw-stream.jsonl</string>
+    </dict>
+
+    <key>WorkingDirectory</key>
+    <string>@HOME@/.smartclaw</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>@HOME@/.smartclaw/logs/staging-gateway.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>@HOME@/.smartclaw/logs/staging-gateway.err.log</string>
+
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+</dict>
+</plist>

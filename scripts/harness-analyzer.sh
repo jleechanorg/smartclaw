@@ -61,6 +61,18 @@ resolve_gh_token() {
         return 0
     fi
 
+    # Fallback: only allow gh CLI token when explicitly opted in
+    # Do NOT silently use a developer's personal gh token in automated contexts;
+    # require opt-in so GITHUB_TOKEN="" (intentional empty = no-token) is respected.
+    if [ "${HARNESS_ANALYZER_ALLOW_GH_CLI_FALLBACK:-0}" = "1" ] && [ -z "${GITHUB_TOKEN:-}" ] && command -v gh >/dev/null 2>&1; then
+        local gh_token
+        gh_token="$(gh auth token 2>/dev/null | tr -d '\r\n' || true)"
+        if [ -n "$gh_token" ]; then
+            printf '%s' "$gh_token"
+            return 0
+        fi
+    fi
+
     return 1
 }
 
@@ -177,9 +189,14 @@ check_ao_config() {
 check_deprecated_patterns() {
     log "Checking for deprecated patterns..."
     
-    # Check for mctrl references (should use agento)
-    if grep -rq "mctrl" --include="*.md" . 2>/dev/null; then
-        ISSUES_FOUND+=("Found 'mctrl' references - should use 'agento' instead")
+    # Check for mctrl references in routing/policy contexts (should use agento/agento).
+    # Exclude: docs/ (audit/historical context), file paths (mctrl/src/...), git remotes (mctrl_test),
+    # test files (test_mctrl_...), launchd service names (ai.mctrl.*), and shell prompts (mctrl$).
+    # Flag only: agent/task routing, CLI dispatch, or "use mctrl" imperative patterns.
+    if grep -rh "mctrl" --include="*.md" . 2>/dev/null \
+        | grep -Ev "^#.*mctrl|mctrl_test|mctrl/|/mctrl/|test_mctrl|ai[.]mctrl[.]|mctrl$|mctrl.*report|mctrl.*audit|mctrl.*finding|mctrl.*roadmap" \
+        | grep -Eqi "spawn|dispatch|route|agento|agent.*task|use.*mctrl|mctrl.*cli|mctrl.*command|instead.*mctrl"; then
+        ISSUES_FOUND+=("Found 'mctrl' references in routing/policy contexts - should use 'agento' instead")
     fi
     
     # Check for hardcoded cron (should use launchd)
@@ -243,7 +260,7 @@ create_fix_pr() {
 
 - Coding tasks = anything involving code changes, PRs, CI fixes, feature implementation
 - `agento` → calls `ao` CLI → spawns agent in isolated worktree
-- Only use `mctrl` if explicitly requested
+- `ao` is canonical; only use alternatives if explicitly requested
 EOF
             log "Added Coding Task Routing section to CLAUDE.md"
         fi
@@ -259,12 +276,13 @@ A PR is only "green" when ALL conditions hold:
 
 | # | Condition |
 |---|-----------|
-| 1 | `mergeable == true` (no conflicts) |
-| 2 | `mergeable_state` not `dirty` or `unstable` |
-| 3 | CodeRabbit has reviewed |
-| 4 | Bugbot has reviewed |
-| 5 | Bugbot's latest review is NOT `CHANGES_REQUESTED` |
-| 6 | Evidence PASS comment from self-review |
+| 1 | CI green — all GH Actions checks pass |
+| 2 | No conflicts — `mergeable == true`, `mergeable_state` not `dirty` or `unstable` |
+| 3 | CR APPROVED — coderabbitai[bot] latest review is APPROVED |
+| 4 | Bugbot clean — cursor[bot] zero error-severity comments |
+| 5 | Comments resolved — zero unresolved non-nit inline review comments |
+| 6 | Evidence pass — evidence-review-bot APPROVED or evidence-gate CI passed |
+| 7 | Skeptic PASS — github-actions[bot] posted VERDICT: PASS |
 
 **Never run `gh pr merge` yourself.** The orchestrator merges automatically.
 EOF
@@ -356,7 +374,7 @@ comment_on_open_prs() {
         local suggestions=()
         
         # Check PR title for patterns
-        if echo "$pr_info" | grep -qi "fix\|bug\|hotfix"; then
+        if echo "$pr_info" | grep -Eqi "fix|bug|hotfix"; then
             suggestions+=("- Consider adding 'Closes #<issue>' to PR description for issue tracking")
         fi
         

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from dataclasses import dataclass
 from enum import StrEnum
@@ -49,21 +50,42 @@ class EmbedderConfig:
 _MEM0_CONFIG_CACHE: dict | None = None
 
 
+def _make_qdrant_client(host: str, port: int) -> Any:
+    """Qdrant HTTP client; check_compatibility=False avoids failures when local
+    qdrant-client pip version lags the server (e.g. 1.13 vs 1.17)."""
+    from qdrant_client import QdrantClient
+
+    return QdrantClient(host=host, port=port, check_compatibility=False)
+
+
 def _load_openclaw_mem0_config() -> dict:
     global _MEM0_CONFIG_CACHE
     if _MEM0_CONFIG_CACHE is not None:
         return _MEM0_CONFIG_CACHE
 
-    cfg_path = Path.home() / ".smartclaw" / "openclaw.json"
-    cfg = json.loads(cfg_path.read_text())
+    env_path = os.environ.get("OPENCLAW_CONFIG_PATH")
+    cfg_path = Path(os.path.expanduser(env_path)) if env_path else Path.home() / ".smartclaw" / "openclaw.json"
+    cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
     oss = cfg["plugins"]["entries"]["openclaw-mem0"]["config"]["oss"]
 
     # Normalize camelCase keys to snake_case and expand env vars
-    _CAMEL_TO_SNAKE = {"apiKey": "api_key", "modelName": "model_name"}
+    _CAMEL_TO_SNAKE = {
+        "apiKey": "api_key",
+        "modelName": "model_name",
+        "embeddingDims": "embedding_dims",
+        "embeddingModelDims": "embedding_model_dims",
+        "collectionName": "collection_name",
+    }
 
     def expand(obj: Any) -> Any:
         if isinstance(obj, str):
-            return os.path.expandvars(obj)
+            if not obj:
+                return obj
+            expanded = os.path.expandvars(obj)
+            # If expansion failed (remains $VAR or ${VAR}), treat as empty
+            if "$" in expanded and re.match(r"^\$[A-Za-z0-9_]+$|^\$\{[A-Za-z0-9_]+\}$", expanded):
+                return ""
+            return expanded
         if isinstance(obj, dict):
             return {_CAMEL_TO_SNAKE.get(k, k): expand(v) for k, v in obj.items()}
         if isinstance(obj, list):
@@ -81,8 +103,8 @@ def _load_openclaw_mem0_config() -> dict:
             "config": {
                 "host": oss["vectorStore"]["config"]["host"],
                 "port": oss["vectorStore"]["config"]["port"],
-                "collection_name": oss["vectorStore"]["config"]["collectionName"],
-                "embedding_model_dims": oss["vectorStore"]["config"]["embeddingModelDims"],
+                "collection_name": oss["vectorStore"]["config"]["collection_name"],
+                "embedding_model_dims": oss["vectorStore"]["config"]["embedding_model_dims"],
             },
         },
         "history_db_path": oss["historyDbPath"],
@@ -221,10 +243,21 @@ def _get_embedding(query: str, embedder_cfg: EmbedderConfig) -> list[float]:
     if embedder_cfg.provider == EmbedderProvider.OPENAI:
         import os
         from openai import OpenAI
+
         api_key = config.get("api_key", "") or os.environ.get("OPENAI_API_KEY", "")
         model = config.get("model", "text-embedding-3-small")
         client = OpenAI(api_key=api_key)
-        response = client.embeddings.create(model=model, input=query)
+        # Must match vector store / collection (e.g. text-embedding-3-small defaults to 1536;
+        # openclaw.json uses embeddingDims 768 for Qdrant openclaw_mem0).
+        dims = config.get("embedding_dims") or config.get("embeddingDims")
+        create_kwargs: dict[str, Any] = {
+            "model": model,
+            "input": query,
+            "encoding_format": "float",
+        }
+        if dims is not None:
+            create_kwargs["dimensions"] = int(dims)
+        response = client.embeddings.create(**create_kwargs)
         return response.data[0].embedding
 
     raise ValueError(f"Unknown embedder provider: {embedder_cfg.provider}. Supported: {list(EmbedderProvider)}")
@@ -232,7 +265,6 @@ def _get_embedding(query: str, embedder_cfg: EmbedderConfig) -> list[float]:
 
 def _search_via_raw_client(query: str, user_id: str, limit: int, filter: dict | None) -> list[dict]:
     """Fallback search via raw qdrant_client when mem0 doesn't support filter."""
-    from qdrant_client import QdrantClient
     from qdrant_client.models import Filter, FieldCondition, MatchValue
 
     cfg = _load_openclaw_mem0_config()
@@ -247,7 +279,7 @@ def _search_via_raw_client(query: str, user_id: str, limit: int, filter: dict | 
     vector = _get_embedding(query, embedder_cfg)
 
     # Search qdrant directly
-    qdrant = QdrantClient(host=vs["host"], port=vs["port"])
+    qdrant = _make_qdrant_client(vs["host"], vs["port"])
 
     # Build qdrant filter: exclude is_legacy + scope to user_id
     must = [FieldCondition(key="user_id", match=MatchValue(value=user_id))]
@@ -342,10 +374,9 @@ def add_memory(
             if point_ids:
                 # Use cached client to avoid connection overhead on every call
                 if not hasattr(add_memory, "_qdrant_client"):
-                    from qdrant_client import QdrantClient
                     cfg = _load_openclaw_mem0_config()
                     vs = cfg["vector_store"]["config"]
-                    add_memory._qdrant_client = QdrantClient(host=vs["host"], port=vs["port"])
+                    add_memory._qdrant_client = _make_qdrant_client(vs["host"], vs["port"])
                     add_memory._collection_name = vs["collection_name"]
                 add_memory._qdrant_client.set_payload(
                     collection_name=add_memory._collection_name,
@@ -362,10 +393,9 @@ def add_memory(
 def get_stats() -> dict:
     """Return basic stats about the shared memory store."""
     try:
-        from qdrant_client import QdrantClient  # type: ignore
         cfg = _load_openclaw_mem0_config()
         vs = cfg["vector_store"]["config"]
-        client = QdrantClient(host=vs["host"], port=vs["port"])
+        client = _make_qdrant_client(vs["host"], vs["port"])
         info = client.get_collection(vs["collection_name"])
         return {
             "points_count": info.points_count,
