@@ -65,51 +65,6 @@ service_running_pid() {
   launchctl list | awk '/ai\.smartclaw\.gateway/{print $1}'
 }
 
-is_placeholder_gateway_token() {
-  local token="${1:-}"
-  case "$token" in
-    ""|null|'${OPENCLAW_GATEWAY_TOKEN}'|REDACTED|PLACEHOLDER*|*PLACEHOLDER*|your-*)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
-resolve_gateway_token() {
-  local token=""
-  local var_name=""
-  local cfg_path="$HOME/.smartclaw/openclaw.json"
-  local plist_path="$HOME/Library/LaunchAgents/ai.smartclaw.gateway.plist"
-
-  # Prefer the live plist token (most reliable under launchd) over the caller's shell env.
-  # Shell env may hold a stale value that differs from what launchd actually injected.
-  if [ -f "$plist_path" ]; then
-    token="$(plutil -extract EnvironmentVariables.OPENCLAW_GATEWAY_TOKEN raw -o - "$plist_path" 2>/dev/null || true)"
-  fi
-
-  if is_placeholder_gateway_token "$token" && [ -f "$cfg_path" ] && command -v jq >/dev/null 2>&1; then
-    token="$(jq -r '.gateway.auth.token // empty' "$cfg_path" 2>/dev/null || true)"
-  fi
-
-  # Fall back to caller's shell env last (may be stale).
-  if is_placeholder_gateway_token "$token"; then
-    token="${OPENCLAW_GATEWAY_TOKEN:-}"
-  fi
-
-  if [[ "$token" =~ ^\$\{([A-Z0-9_]+)\}$ ]]; then
-    var_name="${BASH_REMATCH[1]}"
-    token="${!var_name:-}"
-  fi
-
-  if is_placeholder_gateway_token "$token"; then
-    return 1
-  fi
-
-  printf '%s' "$token"
-}
-
 restart_gateway() {
   if [ -n "$OPENCLAW_BIN" ] && command_ok "$OPENCLAW_BIN" gateway restart; then
     return 0
@@ -120,21 +75,39 @@ restart_gateway() {
 }
 
 install_gateway() {
-  local gateway_token=""
-  gateway_token="$(resolve_gateway_token || true)"
+  local plist="$HOME/Library/LaunchAgents/ai.smartclaw.gateway.plist"
 
-  if [ -n "$OPENCLAW_BIN" ]; then
-    if is_placeholder_gateway_token "$gateway_token"; then
-      log "Skipping gateway install --force because a stable OPENCLAW_GATEWAY_TOKEN could not be resolved."
-      return 1
+  # Prefer launchctl bootstrap with the KeepAlive plist — does not depend on openclaw CLI
+  # and always uses the correct ai.smartclaw.gateway label.
+  if [ -f "$plist" ]; then
+    if command_ok launchctl bootstrap "gui/$(id -u)" "$plist"; then
+      return 0
     fi
-    if command_ok "$OPENCLAW_BIN" gateway install --force --token "$gateway_token" --port "$GATEWAY_PORT"; then
+    log "launchctl bootstrap failed; trying bootout + re-bootstrap."
+    launchctl bootout "gui/$(id -u)/ai.smartclaw.gateway" >> "$LOG_FILE" 2>&1 || true
+    if command_ok launchctl bootstrap "gui/$(id -u)" "$plist"; then
       return 0
     fi
   fi
 
-  log "openclaw CLI unavailable or install failed; trying launchctl bootstrap fallback."
-  launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/ai.smartclaw.gateway.plist" >> "$LOG_FILE" 2>&1
+  # Plist missing or bootstrap still failing — regenerate from template via install-launchagents.sh
+  # rather than silently giving up on a fixable deployment issue.
+  log "plist missing or bootstrap failed; regenerating via install-launchagents.sh..."
+  local LAUNCHD_SCRIPT="$HOME/.smartclaw/scripts/install-launchagents.sh"
+  if [ -f "$LAUNCHD_SCRIPT" ] && [ -x "$LAUNCHD_SCRIPT" ]; then
+    if command_ok bash "$LAUNCHD_SCRIPT" 2>&1 | tee -a "$LOG_FILE"; then
+      # Re-check plist after regeneration
+      if [ -f "$plist" ] && command_ok launchctl bootstrap "gui/$(id -u)" "$plist"; then
+        log "plist regenerated and gateway service loaded successfully."
+        return 0
+      fi
+    fi
+  else
+    log "install-launchagents.sh not found or not executable; cannot regenerate plist."
+  fi
+
+  log "launchctl bootstrap failed; openclaw CLI unavailable or plist not found."
+  return 1
 }
 
 doctor_fix() {
@@ -313,9 +286,37 @@ trap 'rm -f "$LOCK_PID_FILE" 2>/dev/null || true; rmdir "$LOCK_DIR" 2>/dev/null 
 
 log "Health-check start (port=${GATEWAY_PORT}, url=${HEALTH_URL})."
 
+# ── Native module version check (prevents recurring better-sqlite3 / mem0 crashes) ──
+NATIVE_REBUILD_SCRIPT="$HOME/.smartclaw/scripts/rebuild-native-modules.sh"
+if [ -x "$NATIVE_REBUILD_SCRIPT" ]; then
+  if ! bash "$NATIVE_REBUILD_SCRIPT" >> "$LOG_FILE" 2>&1; then
+    log "WARNING: native module rebuild reported failures — mem0 may be degraded."
+  fi
+fi
+
 if gateway_health_ok; then
   pid="$(service_running_pid)"
   log "Gateway healthy (pid=${pid:-unknown})."
+
+  # orch-wso: Silent postMessage gap check — alert if gateway is alive but
+  # hasn't posted a Slack reply in >2h while active sessions exist.
+  REPLY_GAP_THRESHOLD="${OPENCLAW_REPLY_GAP_THRESHOLD_SECONDS:-7200}"
+  TODAY_LOG="/tmp/openclaw/openclaw-$(date +%F).log"
+  SESSIONS_DIR="$HOME/.smartclaw/agents/main/sessions"
+  if [ -f "$TODAY_LOG" ]; then
+    last_post_epoch=$(grep -o '"date":"[^"]*"' "$TODAY_LOG" 2>/dev/null \
+      | grep -i "postMessage\|chat.post" \
+      | sed 's/"date":"//;s/"//' \
+      | sort | tail -1 | xargs -I{} date -jf "%Y-%m-%dT%H:%M:%S" "{}" "+%s" 2>/dev/null || echo 0)
+    now_ep="$(date +%s)"
+    gap=$(( now_ep - ${last_post_epoch:-0} ))
+    recent_sessions=$(find "$SESSIONS_DIR" -name "*.jsonl" -mmin -30 2>/dev/null | wc -l | tr -d ' ')
+    if [ "${last_post_epoch:-0}" -gt 0 ] && [ "$gap" -gt "$REPLY_GAP_THRESHOLD" ] && [ "$recent_sessions" -gt 0 ]; then
+      log "WARN: No Slack postMessage in ${gap}s (>${REPLY_GAP_THRESHOLD}s) with ${recent_sessions} active sessions — possible silent reply failure (orch-wso)"
+      send_alert "OpenClaw silent reply gap" "No Slack reply posted in ${gap}s ($(( gap / 3600 ))h) despite ${recent_sessions} active sessions. Sessions are running but not posting. Check for context-ceiling spiral or token exhaustion."
+    fi
+  fi
+
   exit 0
 fi
 

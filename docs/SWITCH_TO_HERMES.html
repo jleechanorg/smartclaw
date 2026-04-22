@@ -128,12 +128,12 @@
         <tr>
           <td><strong>Config</strong></td>
           <td><code>~/.hermes/config.yaml</code></td>
-          <td><code>~/.openclaw/openclaw.json</code></td>
+          <td><code>~/.smartclaw/openclaw.json</code></td>
         </tr>
         <tr>
           <td><strong>Gateway</strong></td>
           <td><code>hermes gateway run</code> (manual)</td>
-          <td><code>ai.openclaw.gateway</code> (LaunchAgent, port 18789)</td>
+          <td><code>ai.smartclaw.gateway</code> (LaunchAgent, port 18789)</td>
         </tr>
         <tr>
           <td><strong>Slack tokens</strong></td>
@@ -146,7 +146,7 @@
     <p><strong>Token swap done (2026-04-11):</strong></p>
     <ul>
       <li><code>~/.hermes/.env</code> → <code>SLACK_BOT_TOKEN</code> + <code>SLACK_APP_TOKEN</code> set to <strong>prod</strong> Slack tokens</li>
-      <li><code>~/.openclaw/openclaw.json</code> → <code>channels.slack</code> set to <strong>staging</strong> Slack tokens</li>
+      <li><code>~/.smartclaw/openclaw.json</code> → <code>channels.slack</code> set to <strong>staging</strong> Slack tokens</li>
       <li>Both gateways run simultaneously on <strong>different Slack apps</strong> — no event conflicts</li>
     </ul>
 
@@ -209,26 +209,26 @@ ps aux | rg 'hermes gateway' | rg -v rg | awk '{print $2}' | xargs kill</code></
         <tr>
           <td><strong>Sessions</strong></td>
           <td><code>~/.hermes/sessions/</code></td>
-          <td><code>~/.openclaw_prod/agents/main/sessions/</code></td>
+          <td><code>~/.smartclaw_prod/agents/main/sessions/</code></td>
         </tr>
         <tr>
           <td><strong>Skills</strong></td>
           <td><code>~/.hermes/skills/</code></td>
-          <td><code>~/.openclaw/skills/</code></td>
+          <td><code>~/.smartclaw/skills/</code></td>
         </tr>
         <tr>
           <td><strong>Cron</strong></td>
           <td><code>~/.hermes/cron/</code></td>
-          <td><code>~/.openclaw/cron/</code></td>
+          <td><code>~/.smartclaw/cron/</code></td>
         </tr>
       </tbody>
     </table>
 
     <h2 id="preserving-openclaw">Preserving the OpenClaw Path</h2>
-    <p>The OpenClaw gateway (<code>ai.openclaw.gateway</code>) continues running for:</p>
+    <p>The OpenClaw gateway (<code>ai.smartclaw.gateway</code>) continues running for:</p>
     <ol>
       <li><strong>AO automation</strong>: skeptic-cron merge gates, PR reactions (posts to <strong>staging Slack app</strong>)</li>
-      <li><strong>OpenClaw cron jobs</strong>: <code>~/.openclaw/cron/jobs.json</code></li>
+      <li><strong>OpenClaw cron jobs</strong>: <code>~/.smartclaw/cron/jobs.json</code></li>
       <li><strong>Agent orchestrator</strong>: spawns, lifecycle workers</li>
       <li><strong>mem0 memory</strong>: OpenClaw's Qdrant-backed memory store</li>
     </ol>
@@ -240,7 +240,7 @@ ps aux | rg 'hermes gateway' | rg -v rg | awk '{print $2}' | xargs kill</code></
 openclaw gateway health --timeout 30000
 # Slack: ok — staging Slack app connected</code></pre>
     <p>If OpenClaw needs restarting:</p>
-    <pre><code>launchctl kickstart -kp gui/$(id -u)/ai.openclaw.gateway</code></pre>
+    <pre><code>launchctl kickstart -kp gui/$(id -u)/ai.smartclaw.gateway</code></pre>
 
     <h2 id="hermes-configuration">Hermes Configuration</h2>
 
@@ -251,7 +251,7 @@ SLACK_APP_TOKEN=&lt;SLACK_APP_TOKEN&gt;
 GATEWAY_ALLOW_ALL_USERS=true   # Required — allows DM access</code></pre>
 
     <h3>OpenClaw uses staging Slack tokens</h3>
-    <pre><code># In ~/.openclaw/openclaw.json — channels.slack:
+    <pre><code># In ~/.smartclaw/openclaw.json — channels.slack:
 {
   "botToken": "&lt;SLACK_BOT_TOKEN&gt;",
   "appToken": "&lt;SLACK_APP_TOKEN&gt;"
@@ -289,27 +289,27 @@ openclaw gateway health --timeout 30000</code></pre>
         <tr>
           <td><strong>Config</strong></td>
           <td><code>~/.hermes/config.yaml</code></td>
-          <td><code>~/.openclaw/openclaw.json</code></td>
+          <td><code>~/.smartclaw/openclaw.json</code></td>
         </tr>
         <tr>
           <td><strong>Env tokens</strong></td>
           <td><code>~/.hermes/.env</code></td>
-          <td><code>~/.openclaw/openclaw.json</code> (channels.slack)</td>
+          <td><code>~/.smartclaw/openclaw.json</code> (channels.slack)</td>
         </tr>
         <tr>
           <td><strong>State</strong></td>
           <td><code>~/.hermes/</code></td>
-          <td><code>~/.openclaw/</code></td>
+          <td><code>~/.smartclaw/</code></td>
         </tr>
         <tr>
           <td><strong>SOUL</strong></td>
           <td><code>~/.hermes/SOUL.md</code></td>
-          <td><code>~/.openclaw/SOUL.md</code></td>
+          <td><code>~/.smartclaw/SOUL.md</code></td>
         </tr>
         <tr>
           <td><strong>Skills</strong></td>
           <td><code>~/.hermes/skills/</code></td>
-          <td><code>~/.openclaw/skills/</code></td>
+          <td><code>~/.smartclaw/skills/</code></td>
         </tr>
         <tr>
           <td><strong>Memories</strong></td>

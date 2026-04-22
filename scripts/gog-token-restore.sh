@@ -5,6 +5,11 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/../lib/gog-env.sh"
+load_gog_env_from_openclaw "${HOME}/.smartclaw/openclaw.json"
+
 EMAIL="${1:-jleechan@gmail.com}"
 BACKUP_FILE="${HOME}/.smartclaw/credentials/gog-refresh-token.json"
 GOG_BIN="$(command -v gog || true)"
@@ -14,9 +19,10 @@ if [ -z "$GOG_BIN" ]; then
   exit 1
 fi
 
-# Check if token already stored
-if "$GOG_BIN" auth list 2>&1 | grep -q "$EMAIL"; then
-  echo "OK: gog token for $EMAIL already stored."
+# Check if a valid refresh token is already stored (not just a row for the email)
+_list_out="$("$GOG_BIN" auth list --check 2>&1)"
+if echo "$_list_out" | grep -q "$EMAIL" && ! echo "$_list_out" | grep -qiE 'invalid_grant|expired or revoked'; then
+  echo "OK: gog token for $EMAIL already valid."
   exit 0
 fi
 
@@ -29,7 +35,7 @@ else
   echo "No backup found at $BACKUP_FILE."
   echo ""
   echo "Run this to authenticate (opens browser URL):"
-  echo "  GOOGLE_CLOUD_PROJECT=infinite-zephyr-487405-d0 gog auth add $EMAIL --services=gmail,calendar --remote"
+  echo "  GOOGLE_CLOUD_PROJECT=infinite-zephyr-487405-d0 gog auth add $EMAIL --services=all --remote"
   echo ""
   echo "After authenticating, back up the token:"
   echo "  gog auth tokens export $EMAIL --out $BACKUP_FILE"

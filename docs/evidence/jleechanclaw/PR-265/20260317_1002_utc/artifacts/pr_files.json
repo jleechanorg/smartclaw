@@ -1,7 +1,6 @@
 {
   "total": 200,
   "code_files": [
-    "scripts/ao-pr-poller.sh",
     "scripts/mem0_extract_facts.py",
     "src/orchestration/code_path_classifier.py",
     "src/orchestration/escalation_router.py",
@@ -198,7 +197,6 @@
     "docs/evidence/smartclaw/PR-265/20260317_0916_utc/self_review.md",
     "docs/evidence/smartclaw/PR-265/20260317_0916_utc/verdict.json",
     "roadmap/EVIDENCE_REVIEW_SCHEMA.md",
-    "scripts/ao-pr-poller.sh",
     "scripts/mem0_extract_facts.py",
     "src/orchestration/code_path_classifier.py",
     "src/orchestration/escalation_router.py",

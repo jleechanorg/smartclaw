@@ -1,0 +1,71 @@
+# Full 6/6 staging canary on a machine that runs the staging OpenClaw gateway.
+#
+# GitHub-hosted runners cannot curl localhost:18810 or load ~/.smartclaw extensions,
+# so this workflow uses a self-hosted runner (typically your Mac with ai.smartclaw.staging).
+#
+# Setup: .github/SELFHOSTED_TEST.md
+#
+# Disable without removing the runner: repo variable ENABLE_STAGING_CANARY_SELFHOSTED=false
+name: Staging Canary Full (self-hosted)
+
+on:
+  pull_request:
+    types: [opened, synchronize, edited, reopened, ready_for_review]
+
+concurrency:
+  group: staging-canary-full-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  find-openclaw-json:
+    runs-on: ubuntu-latest
+    outputs:
+      found: ${{ steps.find.outputs.found }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Detect openclaw.json in PR diff
+        id: find
+        run: |
+          git fetch origin "${{ github.base_ref }}" --depth=1 2>/dev/null || true
+          CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}...${{ github.sha }}" 2>/dev/null || echo "")
+          found=false
+          for f in $CHANGED; do
+            case "$f" in
+              openclaw.json) found=true ;;
+              */openclaw.json) found=true ;;
+            esac
+          done
+          echo "found=$found" >> "$GITHUB_OUTPUT"
+          echo "changed_lines=$(echo "$CHANGED" | wc -l | tr -d ' ')"
+
+  staging-canary-full:
+    name: Full canary (6/6)
+    needs: find-openclaw-json
+    if: |
+      needs.find-openclaw-json.outputs.found == 'true' &&
+      github.repository == 'jleechanorg/smartclaw' &&
+      vars.ENABLE_STAGING_CANARY_SELFHOSTED != 'false'
+    runs-on: [self-hosted, openclaw-staging]
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run staging-canary.sh
+        env:
+          STAGING_CANARY_PORT: ${{ vars.STAGING_CANARY_PORT }}
+          OPENCLAW_STAGING_CONFIG: ${{ vars.OPENCLAW_STAGING_CONFIG }}
+        run: |
+          set -euo pipefail
+          PORT="${STAGING_CANARY_PORT:-18810}"
+          if [[ -n "${OPENCLAW_STAGING_CONFIG:-}" ]]; then
+            export OPENCLAW_STAGING_CONFIG
+            echo "OPENCLAW_STAGING_CONFIG=$OPENCLAW_STAGING_CONFIG"
+          fi
+          echo "Staging canary port=$PORT"
+          bash scripts/staging-canary.sh --port "$PORT"

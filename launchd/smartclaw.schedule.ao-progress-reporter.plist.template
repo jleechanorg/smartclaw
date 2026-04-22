@@ -19,6 +19,8 @@
         <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
         <key>SLACK_BOT_TOKEN</key>
         <string>@SLACK_BOT_TOKEN@</string>
+        <key>AOPR_SLACK_THREAD_TS</key>
+        <string>1775197044.035089</string>
     </dict>
 
     <key>StartInterval</key>

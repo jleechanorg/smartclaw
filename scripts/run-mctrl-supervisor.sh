@@ -1,27 +1,18 @@
 #!/usr/bin/env bash
-# Run the mctrl supervisor loop.
-# Called by the ai.mctrl.supervisor launchd agent.
+# RETIRED: orchestration.supervisor has been retired.
+#
+# This script previously launched the Python mctrl supervisor loop.
+# The equivalent functionality is now handled by agent-orchestrator (AO):
+#
+#   ao lifecycle-worker <project>
+#
+# The launchd plist (ai.mctrl.supervisor) should be updated to call
+# install-mctrl-supervisor.sh --uninstall, or replaced by the AO lifecycle
+# plist managed via install-ao-lifecycle-agent-orchestrator.sh.
 set -euo pipefail
 
-REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-
-# Load Slack bot token if not already in env
-if [[ -z "${SLACK_BOT_TOKEN:-}" && -z "${SLACK_BOT_TOKEN:-}" ]]; then
-  if [[ -f "$HOME/.smartclaw/set-slack-env.sh" ]]; then
-    # shellcheck disable=SC1091
-    source "$HOME/.smartclaw/set-slack-env.sh" 2>/dev/null || true
-  fi
-fi
-
-# Load SLACK_USER_TOKEN if needed
-if [[ -f "$HOME/.profile" ]]; then
-  # shellcheck disable=SC1091
-  source "$HOME/.profile" 2>/dev/null || true
-fi
-
-export PYTHONPATH="$REPO_DIR/src"
-export MCTRL_REGISTRY_PATH="$REPO_DIR/.tracking/bead_session_registry.jsonl"
-export MCTRL_OUTBOX_PATH="$REPO_DIR/.messages/outbox.jsonl"
-
-cd "$REPO_DIR"
-exec python3 -m orchestration.supervisor --interval "${MCTRL_SUPERVISOR_INTERVAL:-30}"
+echo "ERROR: run-mctrl-supervisor.sh is retired." >&2
+echo "  The Python orchestration.supervisor module has been removed." >&2
+echo "  Use agent-orchestrator instead: ao lifecycle-worker <project>" >&2
+echo "  See: agent-orchestrator.yaml for project configuration." >&2
+exit 1

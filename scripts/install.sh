@@ -4,16 +4,22 @@
 # Usage: ./scripts/install.sh [--uninstall]
 #
 # Installs:
-#   openclaw:  ai.smartclaw.gateway, ai.smartclaw.startup-check, scheduled jobs, MC (if present)
+#   openclaw:  com.smartclaw.gateway, ai.smartclaw.startup-check, scheduled jobs, MC (if present)
 #   mctrl:     ai.mctrl.supervisor
 #   ao-orchestrators: per-project GitHub pollers that fire reactions (ci-failed, bugbot-comments, etc.)
-#   ao-pr-poller: idle session handler
+#   ao-lifecycle: lifecycle-worker for agent-orchestrator (launchd KeepAlive job)
 #   github-intake: GitHub intake daemon
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 UNINSTALL_FLAG="${1:-}"
+
+# Render ~/.agent-orchestrator.yaml and refresh the compatibility symlink
+# ~/agent-orchestrator.yaml -> ~/.agent-orchestrator.yaml.
+if [[ "$UNINSTALL_FLAG" != "--uninstall" ]]; then
+  bash "$SCRIPT_DIR/bootstrap.sh" --symlink-only
+fi
 
 echo "=== Install All LaunchAgents ==="
 echo ""
@@ -33,7 +39,13 @@ run_installer() {
 run_installer "OpenClaw (gateway + startup + MC)"  "install-launchagents.sh"
 run_installer "mctrl supervisor"                   "install-mctrl-supervisor.sh"
 run_installer "ao orchestrators (reactions)"       "install-ao-orchestrators.sh"
-run_installer "ao-pr-poller (idle session handler)" "install-ao-pr-poller.sh"
+run_installer "ao lifecycle-worker (agent-orchestrator)" "install-ao-lifecycle-agent-orchestrator.sh"
+echo "--- ao doctor lifecycle-worker cap (local AO clone) ---"
+bash "$SCRIPT_DIR/patch-ao-doctor-lifecycle-max.sh" || echo "  NOTE: run scripts/patch-ao-doctor-lifecycle-max.sh if ao doctor warns about worker count >3"
+echo ""
+echo "--- ao doctor canonical lifecycle-worker binary detection (local AO clone) ---"
+bash "$SCRIPT_DIR/patch-ao-doctor-canonical-binary.sh" || echo "  NOTE: run scripts/patch-ao-doctor-canonical-binary.sh if ao doctor warns about non-canonical lifecycle-worker binaries"
+echo ""
 run_installer "GitHub intake daemon"               "install-github-intake.sh"
 
 # Legacy agento cleanup (only on uninstall)
@@ -42,7 +54,7 @@ if [[ "$UNINSTALL_FLAG" == "--uninstall" ]]; then
     for label in ai.agento.dashboard ai.agento.backfill; do
         if launchctl list | grep -q "$label"; then
             echo "  • bootout $label"
-            launchctl bootout "system/$label" 2>/dev/null || true
+            launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
         fi
         plist="$HOME/Library/LaunchAgents/$label.plist"
         if [[ -f "$plist" ]]; then

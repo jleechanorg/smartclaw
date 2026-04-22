@@ -26,7 +26,7 @@ fi
 
 log "start daily-research (thinking=$THINKING timeout=${TIMEOUT}s)"
 set +e
-openclaw agent --thinking "$THINKING" --timeout-seconds "$TIMEOUT" --message "$MESSAGE" --json
+openclaw agent --thinking "$THINKING" --timeout "$TIMEOUT" --message "$MESSAGE" --json
 rc=$?
 set -e
 log "finish rc=$rc"

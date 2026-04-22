@@ -33,9 +33,9 @@ PROJECTS="${AO_LIFECYCLE_PROJECTS:-smartclaw,worldarchitect}"
 
 for project in $(echo "$PROJECTS" | tr ',' ' '); do
     echo "[lifecycle-manager] Starting worker for: $project"
-    @NODE_PATH@ @HOME@/bin/ao lifecycle-worker "$project" 2>&1 | while read line; do
+    @HOME@/bin/ao lifecycle-worker "$project" 2&gt;&amp;1 | while read line; do
         echo "[lifecycle-$project] $line"
-    done &
+    done &amp;
 done
 
 # Wait for all workers
