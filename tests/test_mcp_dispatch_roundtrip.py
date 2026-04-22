@@ -43,8 +43,8 @@ from orchestration.session_registry import get_mapping
 
 MCTRL_ROOT = Path(__file__).resolve().parent.parent
 OPENCLAW_AGENT_ID = "main"
-_DM_CHANNEL = os.environ.get("MCTRL_TEST_DM_CHANNEL", "${SLACK_CHANNEL_ID}")
-_AI_GENERAL = os.environ.get("MCTRL_TEST_TRIGGER_CHANNEL", "${SLACK_CHANNEL_ID}")
+_DM_CHANNEL = os.environ.get("MCTRL_TEST_DM_CHANNEL", "")
+_AI_GENERAL = os.environ.get("MCTRL_TEST_TRIGGER_CHANNEL", "")
 
 
 # ---------------------------------------------------------------------------

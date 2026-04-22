@@ -39,8 +39,8 @@ from orchestration.reconciliation import reconcile_registry_once
 from orchestration.session_registry import BeadSessionMapping, get_mapping, upsert_mapping
 
 MCTRL_ROOT = Path(__file__).resolve().parent.parent.parent
-_DM_CHANNEL = os.environ.get("MCTRL_TEST_DM_CHANNEL", "${SLACK_CHANNEL_ID}")
-_AI_GENERAL = os.environ.get("MCTRL_TEST_TRIGGER_CHANNEL", "${SLACK_CHANNEL_ID}")
+_DM_CHANNEL = os.environ.get("MCTRL_TEST_DM_CHANNEL", "")
+_AI_GENERAL = os.environ.get("MCTRL_TEST_TRIGGER_CHANNEL", "")
 
 
 def _slack_post(token: str, channel: str, text: str) -> dict[str, Any]:

@@ -101,7 +101,7 @@ while IFS=$'\t' read -r REPO PROJECT_ID DEFAULT_BRANCH ALL_PRS; do
         [[ -z "$PR_NUM" ]] && continue
 
         PR_URL="$REPO/pull/$PR_NUM"
-        if echo "$AO_SESSIONS" | grep -q "$PR_URL"; then
+        if echo "$AO_SESSIONS" | grep -Fxq "$PR_URL"; then
             log "ao-backfill: PR #$PR_NUM ($PR_BRANCH) already has a session — skipping"
             continue
         fi
@@ -478,7 +478,7 @@ while IFS=$'\t' read -r REPO PROJECT_ID DEFAULT_BRANCH ALL_PRS; do
         # Run from current directory to support worktrees
         GATE_OUTPUT=$( \
           OWNER="${REPO%%/*}" REPONAME="${REPO##*/}" PRNUM="$PR_NUM" \
-          PYTHONPATH=src python3 -c "
+          PYTHONPATH="${REPO_ROOT}/src" python3 -c "
 import os, json
 from orchestration.merge_gate import check_merge_ready
 v = check_merge_ready(os.environ['OWNER'], os.environ['REPONAME'], int(os.environ['PRNUM']))

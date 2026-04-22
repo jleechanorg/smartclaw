@@ -657,7 +657,7 @@ if command -v openclaw >/dev/null 2>&1; then
   INFER_TIMEOUT=60
 
   # 1. Slack message send via openclaw CLI
-  SLACK_PROBE_TARGET="${OPENCLAW_DOCTOR_SLACK_PROBE_TARGET:-${SLACK_CHANNEL_ID}}"
+  SLACK_PROBE_TARGET="${OPENCLAW_DOCTOR_SLACK_PROBE_TARGET:-${SLACK_CHANNEL_ID:-}}"
   slack_out="$(openclaw message send --channel slack --target "$SLACK_PROBE_TARGET" \
     --message "[doctor.sh probe] $(date '+%Y-%m-%d %H:%M:%S %Z')" 2>&1)"
   if printf '%s\n' "$slack_out" | grep -q '"ok"\|messageId\|Message ID'; then

@@ -139,8 +139,15 @@ log_outcome() {
     local pr_url="$3"
     local details="${4:-}"
     
-    local timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    echo "{\"timestamp\":\"$timestamp\",\"slice\":\"$slice\",\"status\":\"$status\",\"pr_url\":\"$pr_url\",\"details\":\"$details\"}" >> "$OUTCOME_LOG"
+    local timestamp
+    timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    jq -n \
+        --arg ts "$timestamp" \
+        --arg sl "$slice" \
+        --arg st "$status" \
+        --arg url "$pr_url" \
+        --arg det "$details" \
+        '{timestamp: $ts, slice: $sl, status: $st, pr_url: $url, details: $det}' >> "$OUTCOME_LOG"
 }
 
 # Main execution

@@ -28,14 +28,15 @@ python3 scripts/build_memory.py \
   --dry-run
 
 echo
-echo "[3/3] OpenClaw retrieval smoke check"
-if ! command -v openclaw >/dev/null; then
-  echo "SKIP: openclaw CLI not installed in PATH."
+echo "[3/3] Retrieval smoke check"
+CLAW_BIN="smartclaw"
+command -v smartclaw >/dev/null 2>&1 || CLAW_BIN="openclaw"
+if ! command -v "$CLAW_BIN" >/dev/null; then
+  echo "SKIP: neither smartclaw nor openclaw CLI installed."
   exit 0
 fi
-
-if openclaw memory search "what did Jeffrey work on in week 38 of 2025?" >/tmp/openclaw-genesis-l0-check.log 2>/tmp/openclaw-genesis-l0-check.err; then
-  echo "OK: openclaw memory search executed."
+if "$CLAW_BIN" memory search "what did Jeffrey work on in week 38 of 2025?" >/tmp/claw-genesis-l0-check.log 2>/tmp/claw-genesis-l0-check.err; then
+  echo "OK: $CLAW_BIN memory search executed."  echo "OK: openclaw memory search executed."
   if [[ -s /tmp/openclaw-genesis-l0-check.log ]]; then
     echo "--- sample output ---"
     head -n 20 /tmp/openclaw-genesis-l0-check.log
