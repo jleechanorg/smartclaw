@@ -11,9 +11,9 @@
 #   INTAKE_ENABLED=0       — disable entirely (exit immediately)
 #   INTAKE_MAX_DISPATCH=3  — max auto-dispatches per run
 #   INTAKE_COOLDOWN=3600   — seconds before re-dispatching same PR
-#   INTAKE_STATE_FILE      — path to state JSON (default: ~/.openclaw/state/github-intake.json)
-#   INTAKE_SLACK_CHANNEL   — Slack channel for digest (default: C09GRLXF9GR = #all-jleechan-ai)
-#   INTAKE_ESCALATE_CHANNEL — Slack channel for escalations (default: user DM D0AFTLEJGJU)
+#   INTAKE_STATE_FILE      — path to state JSON (default: ~/.smartclaw/state/github-intake.json)
+#   INTAKE_SLACK_CHANNEL   — Slack channel for digest (default: ${SLACK_CHANNEL_ID} = #all-jleechan-ai)
+#   INTAKE_ESCALATE_CHANNEL — Slack channel for escalations (default: user DM ${SLACK_CHANNEL_ID})
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,9 +27,9 @@ INTAKE_ENABLED="${INTAKE_ENABLED:-1}"
 INTAKE_DRY_RUN="${INTAKE_DRY_RUN:-0}"
 INTAKE_MAX_DISPATCH="${INTAKE_MAX_DISPATCH:-3}"
 INTAKE_COOLDOWN="${INTAKE_COOLDOWN:-3600}"
-INTAKE_STATE_FILE="${INTAKE_STATE_FILE:-$HOME/.openclaw/state/github-intake.json}"
-INTAKE_SLACK_CHANNEL="${INTAKE_SLACK_CHANNEL:-C09GRLXF9GR}"
-INTAKE_ESCALATE_CHANNEL="${INTAKE_ESCALATE_CHANNEL:-D0AFTLEJGJU}"
+INTAKE_STATE_FILE="${INTAKE_STATE_FILE:-$HOME/.smartclaw/state/github-intake.json}"
+INTAKE_SLACK_CHANNEL="${INTAKE_SLACK_CHANNEL:-${SLACK_CHANNEL_ID}}"
+INTAKE_ESCALATE_CHANNEL="${INTAKE_ESCALATE_CHANNEL:-${SLACK_CHANNEL_ID}}"
 AO_DIR="${AO_DIR:-$HOME/projects_reference/agent-orchestrator}"
 AO_BIN="${AO_BIN:-$HOME/bin/ao}"
 LOG_PREFIX="[github-intake]"
@@ -269,7 +269,7 @@ if [[ "$INTAKE_DRY_RUN" != "1" ]] && (( dispatched + escalated > 0 )); then
   if [[ -f "$REPO_ROOT/set-slack-env.sh" ]]; then
     source "$REPO_ROOT/set-slack-env.sh"
     curl -s -X POST "https://slack.com/api/chat.postMessage" \
-      -H "Authorization: Bearer $OPENCLAW_SLACK_BOT_TOKEN" \
+      -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
       -H "Content-Type: application/json" \
       -d "$(jq -n --arg channel "$INTAKE_SLACK_CHANNEL" --arg text "$(echo -e "$msg")" '{channel: $channel, text: $text}')" \
       >/dev/null 2>&1 || log "WARNING: Slack digest post failed"
@@ -281,9 +281,9 @@ if [[ "$INTAKE_DRY_RUN" != "1" ]] && (( dispatched + escalated > 0 )); then
     for e in "${escalation_details[@]}"; do
       esc_msg="$esc_msg\n• $e"
     done
-    if [[ -n "${OPENCLAW_SLACK_BOT_TOKEN:-}" ]]; then
+    if [[ -n "${SLACK_BOT_TOKEN:-}" ]]; then
       curl -s -X POST "https://slack.com/api/chat.postMessage" \
-        -H "Authorization: Bearer $OPENCLAW_SLACK_BOT_TOKEN" \
+        -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
         -H "Content-Type: application/json" \
         -d "$(jq -n --arg channel "$INTAKE_ESCALATE_CHANNEL" --arg text "$(echo -e "$esc_msg")" '{channel: $channel, text: $text}')" \
         >/dev/null 2>&1 || log "WARNING: Slack escalation DM failed"

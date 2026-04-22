@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bootstrap: post-clone setup for ~/.openclaw/ (jleechanorg/jleechanclaw)
+# Bootstrap: post-clone setup for ~/.smartclaw/ (jleechanorg/smartclaw)
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -37,7 +37,7 @@ if [ -f "$REPO_YAML" ]; then
 fi
 
 # --- Webhook daemon setup ---
-WEBHOOK_CFG="$HOME/.openclaw/webhook.json"
+WEBHOOK_CFG="$HOME/.smartclaw/webhook.json"
 
 # Generate webhook secret if not already set (idempotent)
 _existing_secret=""
@@ -49,7 +49,7 @@ if [[ -z "$_existing_secret" ]]; then
     python3 - "$_new_secret" <<'PYEOF'
 import json, os, sys
 secret = sys.argv[1]
-p = os.path.expanduser("~/.openclaw/webhook.json")
+p = os.path.expanduser("~/.smartclaw/webhook.json")
 d = json.load(open(p)) if os.path.exists(p) else {}
 d.setdefault("webhookDaemonPort", 19888)
 d["webhookSecret"] = secret
@@ -98,10 +98,10 @@ fi
 
 # Optional: register GitHub webhook (requires GITHUB_REPO and Tailscale URL)
 _TAILSCALE_HOST="${TAILSCALE_HOST:-}"
-_GH_REPO="${GITHUB_REPO:-jleechanorg/jleechanclaw}"
+_GH_REPO="${GITHUB_REPO:-jleechanorg/smartclaw}"
 if [[ -n "$_TAILSCALE_HOST" ]]; then
     echo "Registering GitHub webhook on $_GH_REPO -> http://$_TAILSCALE_HOST:19888/webhook ..."
-    _secret="$(python3 -c "import json,os; p=os.path.expanduser('~/.openclaw/webhook.json'); d=json.load(open(p)); print(d.get('webhookSecret',''))")"
+    _secret="$(python3 -c "import json,os; p=os.path.expanduser('~/.smartclaw/webhook.json'); d=json.load(open(p)); print(d.get('webhookSecret',''))")"
     # Check if webhook already registered (idempotent)
     _existing_hook="$(gh api "repos/$_GH_REPO/hooks" 2>/dev/null | python3 -c "
 import json,sys

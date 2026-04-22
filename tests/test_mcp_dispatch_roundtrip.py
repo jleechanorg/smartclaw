@@ -37,14 +37,14 @@ from urllib.request import Request, urlopen
 import pytest
 
 from orchestration.dispatch_task import dispatch
-from orchestration.openclaw_notifier import drain_outbox
+from orchestration.smartclaw_notifier import drain_outbox
 from orchestration.reconciliation import reconcile_registry_once
 from orchestration.session_registry import get_mapping
 
 MCTRL_ROOT = Path(__file__).resolve().parent.parent
 OPENCLAW_AGENT_ID = "main"
-_DM_CHANNEL = os.environ.get("SMARTCLAW_DM_CHANNEL", "")
-_AI_GENERAL = os.environ.get("SMARTCLAW_TRIGGER_CHANNEL", "")
+_DM_CHANNEL = os.environ.get("MCTRL_TEST_DM_CHANNEL", "${SLACK_CHANNEL_ID}")
+_AI_GENERAL = os.environ.get("MCTRL_TEST_TRIGGER_CHANNEL", "${SLACK_CHANNEL_ID}")
 
 
 # ---------------------------------------------------------------------------
@@ -251,8 +251,8 @@ def test_slack_history_handles_null_messages(monkeypatch) -> None:
 
 
 @pytest.mark.skipif(
-    not os.environ.get("SLACK_USER_TOKEN") or not os.environ.get("OPENCLAW_SLACK_BOT_TOKEN"),
-    reason="Requires SLACK_USER_TOKEN and OPENCLAW_SLACK_BOT_TOKEN (source ~/.profile and ~/.openclaw/set-slack-env.sh)",
+    not os.environ.get("SLACK_USER_TOKEN") or not os.environ.get("SLACK_BOT_TOKEN"),
+    reason="Requires SLACK_USER_TOKEN and SLACK_BOT_TOKEN (source ~/.profile and ~/.smartclaw/set-slack-env.sh)",
 )
 def test_mcp_agent_send_receive() -> None:
     """Smoke: send a real message to OpenClaw via ACP gateway, get a reply.
@@ -277,8 +277,8 @@ def test_mcp_agent_send_receive() -> None:
 
 
 @pytest.mark.skipif(
-    not os.environ.get("SLACK_USER_TOKEN") or not os.environ.get("OPENCLAW_SLACK_BOT_TOKEN"),
-    reason="Requires SLACK_USER_TOKEN and OPENCLAW_SLACK_BOT_TOKEN (source ~/.profile and ~/.openclaw/set-slack-env.sh)",
+    not os.environ.get("SLACK_USER_TOKEN") or not os.environ.get("SLACK_BOT_TOKEN"),
+    reason="Requires SLACK_USER_TOKEN and SLACK_BOT_TOKEN (source ~/.profile and ~/.smartclaw/set-slack-env.sh)",
 )
 def test_mcp_dispatch_roundtrip(tmp_path: Path) -> None:
     asyncio.run(_test_mcp_dispatch_roundtrip(tmp_path))
@@ -300,19 +300,19 @@ async def _test_mcp_dispatch_roundtrip(tmp_path: Path) -> None:
       - A real Slack anchor message is posted before dispatch; completion must reply in-thread
       - Deterministic trigger: direct subprocess call, no Socket Mode dependency
 
-    Requires: SLACK_USER_TOKEN, OPENCLAW_SLACK_BOT_TOKEN, ai_orch in PATH, openclaw CLI in PATH
+    Requires: SLACK_USER_TOKEN, SLACK_BOT_TOKEN, ai_orch in PATH, openclaw CLI in PATH
     Duration: 3–10 minutes (real agent execution)
     """
     user_token = os.environ.get("SLACK_USER_TOKEN", "")
     bot_token = (
-        os.environ.get("OPENCLAW_SLACK_BOT_TOKEN")
+        os.environ.get("SLACK_BOT_TOKEN")
         or os.environ.get("SLACK_BOT_TOKEN")
         or ""
     )
     assert user_token, "SLACK_USER_TOKEN must be set (source ~/.profile)"
     assert bot_token, (
-        "OPENCLAW_SLACK_BOT_TOKEN must be set "
-        "(source ~/.openclaw/set-slack-env.sh)"
+        "SLACK_BOT_TOKEN must be set "
+        "(source ~/.smartclaw/set-slack-env.sh)"
     )
     assert (await _run_sync_cmd_async(["which", "ai_orch"], capture_output=True)).returncode == 0, (
         "ai_orch must be in PATH"

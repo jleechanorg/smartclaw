@@ -2,7 +2,7 @@
 
 > **NEW (2026-03-18):** This repo now includes an automated daily harness engineering analyzer that runs at 9am via launchd.
 
-Automated daily analysis tool for the jleechanclaw repository that checks for harness engineering violations and takes corrective action.
+Automated daily analysis tool for the smartclaw repository that checks for harness engineering violations and takes corrective action.
 
 ## Quick Reference: Daily Analyzer
 
@@ -15,7 +15,7 @@ Automated daily analysis tool for the jleechanclaw repository that checks for ha
 
 ### What the Analyzer Does
 
-1. **Clones** the jleechanclaw/jleechanclaw repository
+1. **Clones** the smartclaw/smartclaw repository
 2. **Analyzes** the codebase for harness engineering violations
 3. **Creates PRs** to fix any violations found  
 4. **Comments** on all open PRs with harness engineering suggestions
@@ -34,19 +34,19 @@ Automated daily analysis tool for the jleechanclaw repository that checks for ha
 
 ---
 
-# jleechanclaw
+# smartclaw
 
 Smoke test bead: rev-faf
 
-Tools, scripts, and configuration for **jleechanclaw** — an autonomous orchestrator agent that replaces Jeffrey as the day-to-day operator across all jleechanorg projects.
+Tools, scripts, and configuration for **smartclaw** — an autonomous orchestrator agent that replaces Jeffrey as the day-to-day operator across all jleechanorg projects.
 
 <!-- E2E probe 1773342687 -->
 
 ## Quick Start (Fresh Machine)
 
 ```bash
-git clone https://github.com/jleechanorg/jleechanclaw.git ~/.openclaw
-cd ~/.openclaw
+git clone https://github.com/jleechanorg/smartclaw.git ~/.smartclaw
+cd ~/.smartclaw
 cp openclaw.json.redacted openclaw.json   # REQUIRED: copy and edit to add real tokens
 # Set env vars in ~/.bashrc (see Environment Variables below)
 bash install.sh                           # installs Python package + launchd services
@@ -69,7 +69,7 @@ All Slack channel IDs and user IDs are env vars. On a fresh machine, add this bl
 
 ```bash
 # ── Slack identity ────────────────────────────────────────────────────────────
-export OPENCLAW_SLACK_BOT_TOKEN="xoxb-..."        # from Slack app OAuth & Permissions
+export SLACK_BOT_TOKEN="xoxb-..."        # from Slack app OAuth & Permissions
 export OPENCLAW_SLACK_APP_TOKEN="xapp-..."        # optional — Socket Mode only
 export SLACK_USER_TOKEN="xoxp-..."                # your personal user token (for agento triggers)
 
@@ -79,10 +79,10 @@ export OPENCLAW_BOT_USER_ID="U0AEZC7RX1Q"        # openclaw bot user ID
 
 # ── Slack channels (change if using a different Slack workspace) ──────────────
 export AGENTO_CHANNEL="C0AJQ5M0A0Y"              # #ai-general — agento dispatch
-export SLACK_TEST_CHANNEL="C0AKALZ4CKW"          # #ai-slack-test — E2E test channel
-export JLEECHAN_DM_CHANNEL="D0AFTLEJGJU"         # your DM channel (for notifications)
-export OPENCLAW_MONITOR_SLACK_TARGET="C0AKYEY48GM"     # #openclaw-health — alert channel
-export OPENCLAW_MONITOR_THREAD_REPLY_CHANNEL="C0AKYEY48GM"
+export SLACK_TEST_CHANNEL="${SLACK_CHANNEL_ID}"          # #ai-slack-test — E2E test channel
+export JLEECHAN_DM_CHANNEL="${SLACK_CHANNEL_ID}"         # your DM channel (for notifications)
+export OPENCLAW_MONITOR_SLACK_TARGET="${SLACK_CHANNEL_ID}"     # #openclaw-health — alert channel
+export OPENCLAW_MONITOR_THREAD_REPLY_CHANNEL="${SLACK_CHANNEL_ID}"
 
 # ── Gateway ───────────────────────────────────────────────────────────────────
 export OPENCLAW_URL="http://127.0.0.1:18789"
@@ -96,7 +96,7 @@ To find channel/user IDs in a new Slack workspace: open the channel in Slack →
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `OPENCLAW_SLACK_BOT_TOKEN` | Yes | Slack bot token (`xoxb-…`). Used by monitor and notifier to post alerts. |
+| `SLACK_BOT_TOKEN` | Yes | Slack bot token (`xoxb-…`). Used by monitor and notifier to post alerts. |
 | `OPENCLAW_SLACK_APP_TOKEN` | Optional | Slack app-level token (`xapp-…`). Used for Socket Mode if enabled. |
 | `SLACK_USER_TOKEN` | For agento | Personal user token (`xoxp-…`). Required to post as you (not the bot) when triggering agento. |
 
@@ -114,20 +114,20 @@ All channel IDs are env vars — change them in `~/.bashrc` when moving to a new
 | Variable | Channel | ID | Purpose |
 |----------|---------|-----|---------|
 | `AGENTO_CHANNEL` | `#ai-general` | `C0AJQ5M0A0Y` | Agento dispatch — post here as you to trigger agento |
-| `SLACK_TEST_CHANNEL` | `#ai-slack-test` | `C0AKALZ4CKW` | E2E test channel for mctrl/monitor tests |
-| `JLEECHAN_DM_CHANNEL` | jleechan DM | `D0AFTLEJGJU` | Your DM channel — notifications land here |
-| `OPENCLAW_MONITOR_SLACK_TARGET` | `#openclaw-health` | `C0AKYEY48GM` | Primary alert channel for monitor problem reports |
+| `SLACK_TEST_CHANNEL` | `#ai-slack-test` | `${SLACK_CHANNEL_ID}` | E2E test channel for mctrl/monitor tests |
+| `JLEECHAN_DM_CHANNEL` | jleechan DM | `${SLACK_CHANNEL_ID}` | Your DM channel — notifications land here |
+| `OPENCLAW_MONITOR_SLACK_TARGET` | `#openclaw-health` | `${SLACK_CHANNEL_ID}` | Primary alert channel for monitor problem reports |
 | `OPENCLAW_MONITOR_PROBE_SLACK_TARGET` | same | same | Probe channel for gateway Slack connectivity |
 | `OPENCLAW_MONITOR_GATEWAY_PROBE_TARGET` | same | same | Channel monitor sends probe messages to |
-| `OPENCLAW_MONITOR_STATUS_SLACK_TARGET` | `#openclaw-health` | `C0AKYEY48GM` | Status-broadcast — receives periodic health summary |
+| `OPENCLAW_MONITOR_STATUS_SLACK_TARGET` | `#openclaw-health` | `${SLACK_CHANNEL_ID}` | Status-broadcast — receives periodic health summary |
 | `OPENCLAW_MONITOR_THREAD_REPLY_CHANNEL` | same | same | Scanned for open threads lacking a bot reply |
 
 Other known channel IDs (not yet env vars):
 
 | Channel | ID |
 |---------|----|
-| `#all-jleechan-ai` | `C09GRLXF9GR` |
-| `#jleechanclaw` | `C0AJ3SD5C79` |
+| `#all-jleechan-ai` | `${SLACK_CHANNEL_ID}` |
+| `#smartclaw` | `C0AJ3SD5C79` |
 | `#ralph-status` | `C0AGX2Q0EA3` |
 | `#disk-usage-alerts` | `C0AKNDEARS5` |
 
@@ -178,7 +178,7 @@ export OPENCLAW_AO_HOOK_TOKEN="<token>"
 
 This repo is a **harness** — the environment, constraints, and feedback loops that enable AI agents to do reliable work across all jleechanorg projects. It follows the [harness engineering](https://openai.com/index/harness-engineering/) methodology where human engineers design environments and constraints while agents write the code.
 
-The harness configures an OpenClaw agent named **jleechanclaw** that manages fleets of coding agents (Claude Code, Codex, Gemini, Cursor), monitors their work, handles PR lifecycle via [agent-orchestrator](https://github.com/ComposioHQ/agent-orchestrator), and only escalates when human judgment is truly needed. See `docs/HARNESS_ENGINEERING.md` for the philosophy and `roadmap/ORCHESTRATION_DESIGN.md` for the orchestration design.
+The harness configures an OpenClaw agent named **smartclaw** that manages fleets of coding agents (Claude Code, Codex, Gemini, Cursor), monitors their work, handles PR lifecycle via [agent-orchestrator](https://github.com/ComposioHQ/agent-orchestrator), and only escalates when human judgment is truly needed. See `docs/HARNESS_ENGINEERING.md` for the philosophy and `roadmap/ORCHESTRATION_DESIGN.md` for the orchestration design.
 
 Inspired by the [Zoe pattern](https://x.com/eRvissun) — a one-person dev team where the orchestrator holds all business context and delegates specialized coding work to a fleet of agents.
 
@@ -186,13 +186,13 @@ Inspired by the [Zoe pattern](https://x.com/eRvissun) — a one-person dev team 
 
 Context windows are zero-sum. Fill it with code and there's no room for business context.
 
-**jleechanclaw** (orchestrator) holds business context: project goals, roadmaps, past decisions, what worked, what failed. Coding agents hold code context: files, tests, types. Each agent is loaded with exactly what it needs.
+**smartclaw** (orchestrator) holds business context: project goals, roadmaps, past decisions, what worked, what failed. Coding agents hold code context: files, tests, types. Each agent is loaded with exactly what it needs.
 
 ## Architecture
 
 ```
                     ┌─────────────────────┐
-                    │     jleechanclaw     │
+                    │     smartclaw     │
                     │   (orchestrator)     │
                     │  Business context    │
                     │  Task planning       │
@@ -210,7 +210,7 @@ Context windows are zero-sum. Fill it with code and there's no room for business
      └───────────────┘ └──────────────┘ └──────────────┘
 ```
 
-## How jleechanclaw Operates
+## How smartclaw Operates
 
 1. **Receives work** — from Jeffrey via Slack, from GitHub notifications, from scanning failing CI
 2. **Plans tasks** — breaks work into focused pieces, selects the right agent for each
@@ -235,7 +235,7 @@ Context windows are zero-sum. Fill it with code and there's no room for business
 | Plugin | What It Does | Install |
 |--------|--------------|---------|
 | [openclaw-mem0](https://github.com/jleechanorg/openclaw-mem0) | Long-term semantic memory via Qdrant + mem0 — auto-captures and recalls context across sessions | `openclaw plugins install openclaw-mem0` (already bundled in extensions/) |
-| [lossless-claw](https://github.com/martian-engineering/lossless-claw) | Replaces sliding-window context truncation with hierarchical DAG summarization — all messages persist in SQLite (`~/.openclaw/lcm.db`), compressed via LLM when context fills. Exposes `lcm_grep`, `lcm_describe`, `lcm_expand` tools so agents can search full history | `openclaw plugins install --link ~/projects_reference/lossless-claw` (linked local clone) |
+| [lossless-claw](https://github.com/martian-engineering/lossless-claw) | Replaces sliding-window context truncation with hierarchical DAG summarization — all messages persist in SQLite (`~/.smartclaw/lcm.db`), compressed via LLM when context fills. Exposes `lcm_grep`, `lcm_describe`, `lcm_expand` tools so agents can search full history | `openclaw plugins install --link ~/projects_reference/lossless-claw` (linked local clone) |
 
 ### Agent CLIs
 
@@ -254,7 +254,7 @@ Context windows are zero-sum. Fill it with code and there's no room for business
 | [MCP Agent Mail](https://github.com/jleechanorg/mcp_mail) | Cross-agent messaging — "Gmail for coding agents"; routes tasks between claude/codex/gemini | `~/.claude.json` mcpServers |
 | [Beads / beads_rust](https://github.com/jleechanorg/beads) | Lightweight issue tracker; `br` CLI (symlinked as `bd`); issues in `.beads/issues.jsonl` | `BEADS_PATH`, `BEADS_WORKING_DIR` |
 | [ai_orch](https://pypi.org/project/jleechanorg-orchestration/) | Spawns agents in tmux worktrees; dispatches tasks from `dispatch_task.py` | Installed via pip |
-| Qdrant | Vector DB for openclaw-mem0 semantic memory | LaunchAgent: `ai.openclaw.qdrant` |
+| Qdrant | Vector DB for openclaw-mem0 semantic memory | LaunchAgent: `ai.smartclaw.qdrant` |
 
 ### Infrastructure
 
@@ -271,7 +271,7 @@ Context windows are zero-sum. Fill it with code and there's no room for business
 
 | File/Dir | Purpose |
 |----------|---------|
-| `SOUL.md` | jleechanclaw personality, goals, and decision-making rules |
+| `SOUL.md` | smartclaw personality, goals, and decision-making rules |
 | `TOOLS.md` | Tool allow/deny list and usage policy |
 | `USER.md` | User context (Jeffrey's preferences, communication style) |
 | `IDENTITY.md` | Agent identity definition |
@@ -290,7 +290,7 @@ Context windows are zero-sum. Fill it with code and there's no room for business
 
 | File/Dir | Purpose |
 |----------|---------|
-| `SOUL.md` | jleechanclaw personality |
+| `SOUL.md` | smartclaw personality |
 | `TOOLS.md` | Tool policy |
 | `USER.md` | User context |
 | `IDENTITY.md` | Agent identity |
@@ -316,7 +316,7 @@ Context windows are zero-sum. Fill it with code and there's no room for business
 
 | Script | Purpose |
 |--------|---------|
-| `backup-openclaw-full.sh` | Full recursive backup of `~/.openclaw/` with secret redaction |
+| `backup-openclaw-full.sh` | Full recursive backup of `~/.smartclaw/` with secret redaction |
 | `run-openclaw-backup.sh` | Backup runner with locking and failure alerts |
 | `dropbox-openclaw-backup.sh` | Dropbox-targeted backup |
 | `install-openclaw-backup-jobs.sh` | Install launchd plist for scheduled backups |
@@ -367,7 +367,7 @@ Context windows are zero-sum. Fill it with code and there's no room for business
 
 | File | Purpose |
 |------|---------|
-| `GENESIS_DESIGN.md` | Renamed jleechanclaw design (canonical) |
+| `GENESIS_DESIGN.md` | Renamed smartclaw design (canonical) |
 | `ORCHESTRATION_DESIGN.md` | Orchestration system design (AO + OpenClaw) |
 | `ORCHESTRATION_IMPL_ROADMAP.md` | TDD implementation roadmap (7 phases, 24 commits) |
 | `NATURAL_LANGUAGE_DISPATCH.md` | Why config > code for scheduling |
@@ -389,23 +389,23 @@ Standalone OpenClaw agent config for a Discord engineering bot — separate `ope
 
 If PR automation is needed in the future, it would require:
 - Installing `jleechanorg-automation` package
-- Setting up `~/.openclaw/cron/jobs.json` (lives in live `~/.openclaw/`, not in this repo)
+- Setting up `~/.smartclaw/cron/jobs.json` (lives in live `~/.smartclaw/`, not in this repo)
 - Configuring the gateway's cron scheduler
 
 ## Launchd Scheduled Jobs (repo-managed)
 
-Repo-managed recurring jobs run via launchd labels `ai.openclaw.schedule.*`.
+Repo-managed recurring jobs run via launchd labels `ai.smartclaw.schedule.*`.
 Plist files are in the repo root (`ai.opencloak.schedule.*.plist`).
 
-> **Note**: Scheduled job payloads are managed in the live `~/.openclaw/` directory, not in this repository. See `AUTO_START_GUIDE.md` for setting up launchd services.
+> **Note**: Scheduled job payloads are managed in the live `~/.smartclaw/` directory, not in this repository. See `AUTO_START_GUIDE.md` for setting up launchd services.
 
 | Plist | Purpose |
 |-------|---------|
-| `ai.openclaw.schedule.backup-4h20.plist` | Backup every 4 hours |
-| `ai.openclaw.schedule.daily-checkin-9am.plist` | Morning check-in |
-| `ai.openclaw.schedule.daily-checkin-12pm.plist` | Midday check-in |
-| `ai.openclaw.schedule.daily-checkin-6pm.plist` | Evening check-in |
-| `ai.openclaw.schedule.genesis-memory-curation-weekly.plist` | Weekly memory curation |
+| `ai.smartclaw.schedule.backup-4h20.plist` | Backup every 4 hours |
+| `ai.smartclaw.schedule.daily-checkin-9am.plist` | Morning check-in |
+| `ai.smartclaw.schedule.daily-checkin-12pm.plist` | Midday check-in |
+| `ai.smartclaw.schedule.daily-checkin-6pm.plist` | Evening check-in |
+| `ai.smartclaw.schedule.genesis-memory-curation-weekly.plist` | Weekly memory curation |
 
 ### LaunchAgent Template Portability
 

@@ -54,7 +54,7 @@ Inject relevant learnings into the task prompt to prevent repeat failures.
 ### 4. Dispatch via mctrl
 
 ```bash
-cd ~/project_jleechanclaw/mctrl
+cd ~/project_smartclaw/mctrl
 
 PYTHONPATH=src python -m orchestration.dispatch_task \
   --bead-id ORCH-xxx \
@@ -118,4 +118,4 @@ The mctrl supervisor loop (`ai.mctrl.supervisor` launchd agent) runs every 30s a
 - Always use `--async --worktree` flags so each task gets an isolated git worktree
 - Finished means remote-reviewable on a configured remote, not merely committed locally inside the worktree
 - The registry is at `.tracking/bead_session_registry.jsonl` in the mctrl repo
-- If dispatch_task fails, check that `ai_orch` is on PATH and the mctrl repo is at `~/project_jleechanclaw/mctrl`
+- If dispatch_task fails, check that `ai_orch` is on PATH and the mctrl repo is at `~/project_smartclaw/mctrl`

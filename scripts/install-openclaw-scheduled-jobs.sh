@@ -11,7 +11,7 @@ esac
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG_DIR="$REPO_ROOT/openclaw-config"
 LAUNCHD_DIR="$HOME/Library/LaunchAgents"
-LIVE_DIR="$HOME/.openclaw"
+LIVE_DIR="$HOME/.smartclaw"
 LIVE_JOBS="$LIVE_DIR/cron/jobs.json"
 RUNNER_SRC="$CONFIG_DIR/run-scheduled-job.sh"
 RUNNER_DST="$LIVE_DIR/run-scheduled-job.sh"
@@ -165,7 +165,7 @@ install -m 755 "$RUNNER_SRC" "$RUNNER_DST"
 echo "  ✓ installed runner $RUNNER_DST"
 
 echo "Installing launchd scheduled job plists..."
-for plist in "$CONFIG_DIR"/ai.openclaw.schedule.*.plist; do
+for plist in "$CONFIG_DIR"/ai.smartclaw.schedule.*.plist; do
   [[ -f "$plist" ]] || continue
   render_and_load_plist "$plist"
 done
@@ -195,7 +195,7 @@ else
 fi
 
 printf '\nVerifying loaded labels...\n'
-for plist in "$CONFIG_DIR"/ai.openclaw.schedule.*.plist; do
+for plist in "$CONFIG_DIR"/ai.smartclaw.schedule.*.plist; do
   label="$(basename "$plist" .plist)"
   if launchctl print "gui/$(id -u)/$label" >/dev/null 2>&1; then
     echo "  ✓ $label registered"
@@ -207,7 +207,7 @@ done
 # Smoke-test: verify 'openclaw' is reachable using the PATH baked into the installed plists.
 # This catches nvm/pyenv/bun installs that are invisible to launchd's stripped environment.
 printf '\nSmoke-testing launchd PATH for openclaw...\n'
-_installed_plist="$LAUNCHD_DIR/ai.openclaw.schedule.backup-4h20.plist"
+_installed_plist="$LAUNCHD_DIR/ai.smartclaw.schedule.backup-4h20.plist"
 if [[ -f "$_installed_plist" ]]; then
   _launchd_path="$(plutil -extract EnvironmentVariables.PATH raw -o - "$_installed_plist" 2>/dev/null || true)"
   if [[ -n "$_launchd_path" ]]; then
@@ -221,4 +221,4 @@ if [[ -f "$_installed_plist" ]]; then
 fi
 
 echo
-echo "Done. Scheduled OpenClaw jobs now run via launchd labels ai.openclaw.schedule.*"
+echo "Done. Scheduled OpenClaw jobs now run via launchd labels ai.smartclaw.schedule.*"

@@ -29,7 +29,7 @@ ao spawn <project> --agent cursor --resume <session-id>
 
 ## Project Configuration
 
-Add a cursor-based project to `~/.openclaw/agent-orchestrator.yaml`:
+Add a cursor-based project to `~/.smartclaw/agent-orchestrator.yaml`:
 
 ```yaml
 projects:

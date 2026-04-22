@@ -7,7 +7,7 @@ from pathlib import Path
 from subprocess import CompletedProcess, TimeoutExpired
 from unittest.mock import MagicMock, patch
 
-from orchestration.openclaw_notifier import (
+from orchestration.smartclaw_notifier import (
     completion_notification_max_runtime_seconds,
     DEFAULT_DEAD_LETTER_PATH,
     SLACK_DM_CHANNEL,
@@ -192,7 +192,7 @@ def test_drain_outbox_dead_letter_alert_includes_total_count_and_oldest_age(tmp_
 
     captured: list[dict] = []
 
-    with patch("orchestration.openclaw_notifier.notify_slack_outbox_alert", side_effect=lambda p: captured.append(dict(p)) or True):
+    with patch("orchestration.smartclaw_notifier.notify_slack_outbox_alert", side_effect=lambda p: captured.append(dict(p)) or True):
         drain_outbox(
             send_fn=lambda _: False,
             outbox_path=str(outbox),
@@ -280,8 +280,8 @@ def _make_urlopen_mock(ok: bool = True):
     return MagicMock(return_value=mock_resp)
 
 
-@patch.dict("os.environ", {"OPENCLAW_SLACK_BOT_TOKEN": "xoxb-test"}, clear=False)
-@patch("orchestration.openclaw_notifier.urlopen")
+@patch.dict("os.environ", {"SLACK_BOT_TOKEN": "xoxb-test"}, clear=False)
+@patch("orchestration.smartclaw_notifier.urlopen")
 def test_notify_slack_started_posts_dm(mock_urlopen) -> None:
     mock_urlopen.side_effect = _make_urlopen_mock()
     payload = {
@@ -303,10 +303,10 @@ def test_notify_slack_started_posts_dm(mock_urlopen) -> None:
     assert ":rocket:" in body["text"]
 
 
-@patch.dict("os.environ", {"OPENCLAW_SLACK_BOT_TOKEN": "xoxb-test"}, clear=False)
-@patch("orchestration.openclaw_notifier.urlopen")
+@patch.dict("os.environ", {"SLACK_BOT_TOKEN": "xoxb-test"}, clear=False)
+@patch("orchestration.smartclaw_notifier.urlopen")
 def test_notify_slack_outbox_alert_uses_dead_letter_message_when_count_present(mock_urlopen) -> None:
-    from orchestration.openclaw_notifier import notify_slack_outbox_alert
+    from orchestration.smartclaw_notifier import notify_slack_outbox_alert
 
     mock_urlopen.side_effect = _make_urlopen_mock()
     result = notify_slack_outbox_alert(
@@ -324,8 +324,8 @@ def test_notify_slack_outbox_alert_uses_dead_letter_message_when_count_present(m
     assert "Dead-letter queue count: `3`" in body["text"]
 
 
-@patch.dict("os.environ", {"OPENCLAW_SLACK_BOT_TOKEN": "xoxb-test"}, clear=False)
-@patch("orchestration.openclaw_notifier.urlopen")
+@patch.dict("os.environ", {"SLACK_BOT_TOKEN": "xoxb-test"}, clear=False)
+@patch("orchestration.smartclaw_notifier.urlopen")
 def test_notify_slack_started_threads_under_trigger(mock_urlopen) -> None:
     mock_urlopen.side_effect = _make_urlopen_mock()
     payload = {
@@ -347,8 +347,8 @@ def test_notify_slack_started_threads_under_trigger(mock_urlopen) -> None:
     assert any(c["channel"] == "C999TRIGGER" for c in calls)
 
 
-@patch.dict("os.environ", {"OPENCLAW_SLACK_BOT_TOKEN": "xoxb-test"}, clear=False)
-@patch("orchestration.openclaw_notifier.urlopen")
+@patch.dict("os.environ", {"SLACK_BOT_TOKEN": "xoxb-test"}, clear=False)
+@patch("orchestration.smartclaw_notifier.urlopen")
 def test_notify_slack_started_skips_thread_reply_without_trigger_channel(mock_urlopen) -> None:
     mock_urlopen.side_effect = _make_urlopen_mock()
 
@@ -368,8 +368,8 @@ def test_notify_slack_started_skips_thread_reply_without_trigger_channel(mock_ur
     assert body["channel"] == SLACK_DM_CHANNEL
 
 
-@patch.dict("os.environ", {"OPENCLAW_SLACK_BOT_TOKEN": "xoxb-test"}, clear=False)
-@patch("orchestration.openclaw_notifier.urlopen")
+@patch.dict("os.environ", {"SLACK_BOT_TOKEN": "xoxb-test"}, clear=False)
+@patch("orchestration.smartclaw_notifier.urlopen")
 def test_notify_slack_started_ignores_none_trigger(mock_urlopen) -> None:
     mock_urlopen.side_effect = _make_urlopen_mock()
 
@@ -394,8 +394,8 @@ def test_notify_slack_started_no_token_returns_false() -> None:
     assert result is False
 
 
-@patch.dict("os.environ", {"OPENCLAW_SLACK_BOT_TOKEN": "xoxb-test"}, clear=False)
-@patch("orchestration.openclaw_notifier.urlopen")
+@patch.dict("os.environ", {"SLACK_BOT_TOKEN": "xoxb-test"}, clear=False)
+@patch("orchestration.smartclaw_notifier.urlopen")
 def test_notify_slack_started_includes_agent_cli_and_session(mock_urlopen) -> None:
     mock_urlopen.side_effect = _make_urlopen_mock()
     payload = {
@@ -414,8 +414,8 @@ def test_notify_slack_started_includes_agent_cli_and_session(mock_urlopen) -> No
     assert "minimax" in body["text"]
 
 
-@patch.dict("os.environ", {"OPENCLAW_SLACK_BOT_TOKEN": "xoxb-test"}, clear=False)
-@patch("orchestration.openclaw_notifier.urlopen")
+@patch.dict("os.environ", {"SLACK_BOT_TOKEN": "xoxb-test"}, clear=False)
+@patch("orchestration.smartclaw_notifier.urlopen")
 def test_notify_slack_done_ignores_none_trigger(mock_urlopen) -> None:
     mock_urlopen.side_effect = _make_urlopen_mock()
 
@@ -434,8 +434,8 @@ def test_notify_slack_done_ignores_none_trigger(mock_urlopen) -> None:
     assert body["channel"] == SLACK_DM_CHANNEL
 
 
-@patch.dict("os.environ", {"OPENCLAW_SLACK_BOT_TOKEN": "xoxb-test"}, clear=False)
-@patch("orchestration.openclaw_notifier.urlopen")
+@patch.dict("os.environ", {"SLACK_BOT_TOKEN": "xoxb-test"}, clear=False)
+@patch("orchestration.smartclaw_notifier.urlopen")
 def test_notify_slack_done_reports_local_only_commits(mock_urlopen) -> None:
     mock_urlopen.side_effect = _make_urlopen_mock()
 
@@ -458,8 +458,8 @@ def test_notify_slack_done_reports_local_only_commits(mock_urlopen) -> None:
     assert any(body.get("channel") == "C999TRIGGER" for body in bodies)
 
 
-@patch.dict("os.environ", {"OPENCLAW_SLACK_BOT_TOKEN": "xoxb-test"}, clear=False)
-@patch("orchestration.openclaw_notifier.urlopen")
+@patch.dict("os.environ", {"SLACK_BOT_TOKEN": "xoxb-test"}, clear=False)
+@patch("orchestration.smartclaw_notifier.urlopen")
 def test_notify_slack_done_skips_thread_reply_without_trigger_channel(mock_urlopen) -> None:
     mock_urlopen.side_effect = _make_urlopen_mock()
 
@@ -479,8 +479,8 @@ def test_notify_slack_done_skips_thread_reply_without_trigger_channel(mock_urlop
     assert body["channel"] == SLACK_DM_CHANNEL
 
 
-@patch.dict("os.environ", {"OPENCLAW_NOTIFY_AGENT": "jleechanclaw"}, clear=False)
-@patch("orchestration.openclaw_notifier.subprocess.run")
+@patch.dict("os.environ", {"OPENCLAW_NOTIFY_AGENT": "smartclaw"}, clear=False)
+@patch("orchestration.smartclaw_notifier.subprocess.run")
 def test_notify_openclaw_uses_openclaw_agent_when_configured(mock_run, tmp_path: Path) -> None:
     outbox = tmp_path / "outbox.jsonl"
     payload = {"event": "task_finished", "bead_id": "ORCH-9"}
@@ -493,13 +493,13 @@ def test_notify_openclaw_uses_openclaw_agent_when_configured(mock_run, tmp_path:
         "openclaw",
         "agent",
         "--agent",
-        "jleechanclaw",
+        "smartclaw",
     ]
     assert read_outbox(outbox_path=str(outbox)) == []
 
 
 @patch.dict("os.environ", {}, clear=True)
-@patch("orchestration.openclaw_notifier.subprocess.run")
+@patch("orchestration.smartclaw_notifier.subprocess.run")
 def test_notify_openclaw_defaults_agent_name_to_main(mock_run, tmp_path: Path) -> None:
     outbox = tmp_path / "outbox.jsonl"
     payload = {"event": "task_finished", "bead_id": "ORCH-default-agent"}
@@ -523,8 +523,8 @@ def test_notify_openclaw_defaults_agent_name_to_main(mock_run, tmp_path: Path) -
     },
     clear=False,
 )
-@patch("orchestration.openclaw_notifier._send_via_openclaw_agent", return_value=False)
-@patch("orchestration.openclaw_notifier.subprocess.run")
+@patch("orchestration.smartclaw_notifier._send_via_openclaw_agent", return_value=False)
+@patch("orchestration.smartclaw_notifier.subprocess.run")
 def test_notify_openclaw_mcp_fallback_handles_timeout(mock_run, _mock_agent, tmp_path: Path) -> None:
     outbox = tmp_path / "outbox.jsonl"
     payload = {"event": "task_finished", "bead_id": "ORCH-timeout"}
@@ -547,8 +547,8 @@ def test_notify_openclaw_mcp_fallback_handles_timeout(mock_run, _mock_agent, tmp
     },
     clear=False,
 )
-@patch("orchestration.openclaw_notifier._send_via_openclaw_agent")
-@patch("orchestration.openclaw_notifier.subprocess.run")
+@patch("orchestration.smartclaw_notifier._send_via_openclaw_agent")
+@patch("orchestration.smartclaw_notifier.subprocess.run")
 def test_notify_openclaw_mcp_fallback_runs_when_agent_call_raises(
     mock_run, mock_agent_call, tmp_path: Path
 ) -> None:
@@ -573,8 +573,8 @@ def test_notify_openclaw_mcp_fallback_runs_when_agent_call_raises(
     },
     clear=False,
 )
-@patch("orchestration.openclaw_notifier._send_via_openclaw_agent")
-@patch("orchestration.openclaw_notifier.subprocess.run")
+@patch("orchestration.smartclaw_notifier._send_via_openclaw_agent")
+@patch("orchestration.smartclaw_notifier.subprocess.run")
 def test_notify_openclaw_mcp_fallback_runs_when_agent_call_raises_runtime_error(
     mock_run, mock_agent_call, tmp_path: Path
 ) -> None:

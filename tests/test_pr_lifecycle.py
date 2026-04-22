@@ -142,7 +142,7 @@ def test_check_suite_completed_without_pr_is_skipped() -> None:
         {
             "trigger_source": "event",
             "trigger_type": "check_suite.completed.success",
-            "repository": "jleechanorg/jleechanclaw",
+            "repository": "jleechanorg/smartclaw",
             "pr_number": None,
             "head_sha": "abc123def456",
         },
@@ -160,7 +160,7 @@ def test_check_run_completed_without_pr_is_skipped() -> None:
         {
             "trigger_source": "event",
             "trigger_type": "check_run.completed.failure",
-            "repository": "jleechanorg/jleechanclaw",
+            "repository": "jleechanorg/smartclaw",
             "pr_number": None,
             "head_sha": "deadbeef1234",
         },

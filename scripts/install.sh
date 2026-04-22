@@ -4,7 +4,7 @@
 # Usage: ./scripts/install.sh [--uninstall]
 #
 # Installs:
-#   openclaw:  ai.openclaw.gateway, ai.openclaw.startup-check, scheduled jobs, MC (if present)
+#   openclaw:  ai.smartclaw.gateway, ai.smartclaw.startup-check, scheduled jobs, MC (if present)
 #   mctrl:     ai.mctrl.supervisor
 #   ao-orchestrators: per-project GitHub pollers that fire reactions (ci-failed, bugbot-comments, etc.)
 #   ao-pr-poller: idle session handler

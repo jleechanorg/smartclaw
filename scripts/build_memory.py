@@ -4,7 +4,7 @@
 Three stages run in sequence:
   1. collect  — gather raw commits, PRs, beads from configured repos
   2. synthesize — call ai_orch (claude haiku) to produce structured summaries per week
-  3. write    — write weekly .md files to ~/.openclaw/memory/ and update SOUL.md/MEMORY.md
+  3. write    — write weekly .md files to ~/.smartclaw/memory/ and update SOUL.md/MEMORY.md
 
 Run all stages (default):
   python scripts/build_memory.py --days 14
@@ -30,12 +30,12 @@ from pathlib import Path
 
 DEFAULT_REPOS: dict[str, str] = {
     "worldarchitect.ai": "~/projects/worldarchitect.ai",
-    "jleechanclaw": "~/project_jleechanclaw/jleechanclaw",
+    "smartclaw": "~/project_smartclaw/smartclaw",
     "worldai_claw": "~/project_worldaiclaw/worldai_claw",
 }
-MEMORY_DIR = Path("~/.openclaw/memory").expanduser()
-SOUL_PATH = Path("~/.openclaw/workspace/SOUL.md").expanduser()
-MEMORY_MD_PATH = Path("~/.openclaw/workspace/MEMORY.md").expanduser()
+MEMORY_DIR = Path("~/.smartclaw/memory").expanduser()
+SOUL_PATH = Path("~/.smartclaw/workspace/SOUL.md").expanduser()
+MEMORY_MD_PATH = Path("~/.smartclaw/workspace/MEMORY.md").expanduser()
 
 COLLECT_OUTPUT = Path("/tmp/build_memory_collect.json")
 SYNTHESIZE_OUTPUT = Path("/tmp/build_memory_synthesize.json")

@@ -3,16 +3,16 @@
 # Usage: ./scripts/install-launchagents.sh [--mc-token <token>]
 #
 # Installs:
-#   - ai.openclaw.qdrant              (qdrant Docker container, port 6333, for mem0)
-#   - ai.openclaw.gateway             (openclaw gateway, port 18789, via openclaw CLI)
-#   - ai.openclaw.webhook             (webhook daemon, port 19888, GitHub webhook ingress)
-#   - ai.openclaw.startup-check       (startup verification on login)
-#   - ai.openclaw.monitor-agent       (periodic health monitoring, hourly)
-#   - ai.openclaw.mission-control     (MC backend, port 9010)
-#   - ai.openclaw.mission-control-frontend (MC frontend, port 3000)
+#   - ai.smartclaw.qdrant              (qdrant Docker container, port 6333, for mem0)
+#   - ai.smartclaw.gateway             (openclaw gateway, port 18789, via openclaw CLI)
+#   - ai.smartclaw.webhook             (webhook daemon, port 19888, GitHub webhook ingress)
+#   - ai.smartclaw.startup-check       (startup verification on login)
+#   - ai.smartclaw.monitor-agent       (periodic health monitoring, hourly)
+#   - ai.smartclaw.mission-control     (MC backend, port 9010)
+#   - ai.smartclaw.mission-control-frontend (MC frontend, port 3000)
 #
-# The MC token is read from ~/.openclaw/openclaw.json if not passed explicitly.
-# Gateway token is hardcoded in ~/.openclaw/openclaw.json — the gateway reads it
+# The MC token is read from ~/.smartclaw/openclaw.json if not passed explicitly.
+# Gateway token is hardcoded in ~/.smartclaw/openclaw.json — the gateway reads it
 # directly. Do NOT inject tokens into plists (single source of truth: openclaw.json).
 
 set -euo pipefail
@@ -29,7 +29,7 @@ REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CONFIG_DIR="$REPO_DIR/openclaw-config"
 LAUNCHD_DIR="$HOME/Library/LaunchAgents"
 SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
-OPENCLAW_HOME="$HOME/.openclaw"
+OPENCLAW_HOME="$HOME/.smartclaw"
 ENV_FILE="$REPO_DIR/.env"
 # Linux PATH used in generated systemd units
 LINUX_PATH="$HOME/.npm-global/bin:$HOME/.local/bin:$HOME/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
@@ -92,9 +92,9 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "$OS" == "macos" ]] && ! is_valid_mc_token "$MC_TOKEN" && [[ -f "$LAUNCHD_DIR/ai.openclaw.mission-control.plist" ]]; then
+if [[ "$OS" == "macos" ]] && ! is_valid_mc_token "$MC_TOKEN" && [[ -f "$LAUNCHD_DIR/ai.smartclaw.mission-control.plist" ]]; then
   MC_TOKEN=$(plutil -extract EnvironmentVariables.LOCAL_AUTH_TOKEN raw \
-    -o - "$LAUNCHD_DIR/ai.openclaw.mission-control.plist" 2>/dev/null || true)
+    -o - "$LAUNCHD_DIR/ai.smartclaw.mission-control.plist" 2>/dev/null || true)
 fi
 
 if ! is_valid_mc_token "$MC_TOKEN"; then
@@ -108,7 +108,7 @@ fi
 if ! is_valid_mc_token "$MC_TOKEN"; then
   MC_TOKEN=$(python3 - <<'PY'
 import json, pathlib
-p = pathlib.Path.home()/'.openclaw'/'openclaw.json'
+p = pathlib.Path.home()/'.smartclaw'/'openclaw.json'
 try:
     data = json.loads(p.read_text())
 except Exception:
@@ -350,7 +350,7 @@ install_plist() {
 echo "Installing services ($OS)..."
 
 # --- qdrant (mem0 vector store) ---
-QDRANT_PLIST_TEMPLATE="$REPO_DIR/launchd/ai.openclaw.qdrant.plist.template"
+QDRANT_PLIST_TEMPLATE="$REPO_DIR/launchd/ai.smartclaw.qdrant.plist.template"
 # Install the qdrant start script regardless of OS (both paths use it)
 if [[ -f "$QDRANT_PLIST_TEMPLATE" ]]; then
   if docker info >/dev/null 2>&1; then
@@ -367,34 +367,34 @@ if [[ -f "$QDRANT_PLIST_TEMPLATE" ]]; then
     chmod 755 "$_dst"
   fi
   if [[ "$OS" == "macos" ]]; then
-    dst="$LAUNCHD_DIR/ai.openclaw.qdrant.plist"
+    dst="$LAUNCHD_DIR/ai.smartclaw.qdrant.plist"
     sed -e "s|@HOME@|$(_esc_sed "$HOME")|g" "$QDRANT_PLIST_TEMPLATE" > "$dst"
     launchctl bootout "gui/$(id -u)" "$dst" 2>/dev/null || true
     launchctl bootstrap "gui/$(id -u)" "$dst"
-    echo "  ✓ ai.openclaw.qdrant installed (qdrant on port 6333)"
+    echo "  ✓ ai.smartclaw.qdrant installed (qdrant on port 6333)"
   else
     install_systemd_service "openclaw-qdrant" \
       "/bin/bash $OPENCLAW_HOME/scripts/start-qdrant-container.sh" \
       "oneshot" "" "qdrant"
   fi
 else
-  echo "  • skipping ai.openclaw.qdrant (template not found: $QDRANT_PLIST_TEMPLATE)"
+  echo "  • skipping ai.smartclaw.qdrant (template not found: $QDRANT_PLIST_TEMPLATE)"
 fi
 
 # --- webhook daemon (GitHub webhook ingress + remediation worker) ---
-WEBHOOK_PLIST_TEMPLATE="$REPO_DIR/launchd/ai.openclaw.webhook.plist.template"
+WEBHOOK_PLIST_TEMPLATE="$REPO_DIR/launchd/ai.smartclaw.webhook.plist.template"
 WEBHOOK_INSTALLED=0
 if [[ "$OS" == "macos" ]]; then
     if [[ -f "$WEBHOOK_PLIST_TEMPLATE" ]]; then
-        dst="$LAUNCHD_DIR/ai.openclaw.webhook.plist"
+        dst="$LAUNCHD_DIR/ai.smartclaw.webhook.plist"
         # Read webhookSecret from webhook.json (gitignored — not in openclaw.json which has strict schema)
-        WEBHOOK_SECRET="$(python3 -c "import json,os; p=os.path.expanduser('~/.openclaw/webhook.json'); d=json.load(open(p)) if os.path.exists(p) else {}; print(d.get('webhookSecret',''))" 2>/dev/null || true)"
+        WEBHOOK_SECRET="$(python3 -c "import json,os; p=os.path.expanduser('~/.smartclaw/webhook.json'); d=json.load(open(p)) if os.path.exists(p) else {}; print(d.get('webhookSecret',''))" 2>/dev/null || true)"
         if [[ -z "$WEBHOOK_SECRET" ]]; then
           WEBHOOK_SECRET="$(openssl rand -hex 32)"
           python3 -c "
 import json, os
 secret = '$WEBHOOK_SECRET'
-p = os.path.expanduser('~/.openclaw/webhook.json')
+p = os.path.expanduser('~/.smartclaw/webhook.json')
 d = json.load(open(p)) if os.path.exists(p) else {}
 d['webhookSecret'] = secret
 open(p, 'w').write(json.dumps(d, indent=2))
@@ -409,10 +409,10 @@ open(p, 'w').write(json.dumps(d, indent=2))
           "$WEBHOOK_PLIST_TEMPLATE" > "$dst"
         launchctl bootout "gui/$(id -u)" "$dst" 2>/dev/null || true
         launchctl bootstrap "gui/$(id -u)" "$dst"
-        echo "  ✓ ai.openclaw.webhook installed (webhook daemon on port 19888)"
+        echo "  ✓ ai.smartclaw.webhook installed (webhook daemon on port 19888)"
         WEBHOOK_INSTALLED=1
     else
-        echo "  • skipping ai.openclaw.webhook (template not found: $WEBHOOK_PLIST_TEMPLATE)"
+        echo "  • skipping ai.smartclaw.webhook (template not found: $WEBHOOK_PLIST_TEMPLATE)"
     fi
 else
     # webhook_daemon.py is retired — use agent-orchestrator's GitHub poller plugin instead.
@@ -422,16 +422,16 @@ else
 fi
 
 # --- gateway ---
-# Token is hardcoded in ~/.openclaw/openclaw.json — the gateway reads it directly.
+# Token is hardcoded in ~/.smartclaw/openclaw.json — the gateway reads it directly.
 # Do NOT inject tokens into plists; openclaw.json is the single source of truth.
 if [[ "$OS" == "macos" ]]; then
   openclaw gateway install --force --port 18789 >/dev/null
-  PLIST="$LAUNCHD_DIR/ai.openclaw.gateway.plist"
+  PLIST="$LAUNCHD_DIR/ai.smartclaw.gateway.plist"
   if [[ -f "$PLIST" ]]; then
     launchctl bootout "gui/$(id -u)" "$PLIST" 2>/dev/null || true
     launchctl bootstrap "gui/$(id -u)" "$PLIST"
   fi
-  echo "  ✓ ai.openclaw.gateway installed via openclaw gateway install"
+  echo "  ✓ ai.smartclaw.gateway installed via openclaw gateway install"
 else
   # Linux: write systemd service for gateway
   GATEWAY_ENV="Environment=OPENCLAW_GATEWAY_PORT=18789
@@ -451,7 +451,7 @@ fi
 # --- startup check ---
 install_startup_check_script
 if [[ "$OS" == "macos" ]]; then
-  install_plist "$CONFIG_DIR/ai.openclaw.startup-check.plist"
+  install_plist "$CONFIG_DIR/ai.smartclaw.startup-check.plist"
 else
   install_systemd_service "openclaw-startup-check" \
     "/bin/bash $OPENCLAW_HOME/startup-check.sh" \
@@ -461,12 +461,12 @@ fi
 # --- monitor-agent (periodic health monitoring) ---
 MONITOR_AGENT_INSTALLED=0
 if [[ "$OS" == "macos" ]]; then
-  MONITOR_AGENT_PLIST="$REPO_DIR/launchd/ai.openclaw.monitor-agent.plist"
+  MONITOR_AGENT_PLIST="$REPO_DIR/launchd/ai.smartclaw.monitor-agent.plist"
   if [[ -f "$MONITOR_AGENT_PLIST" ]]; then
     install_plist "$MONITOR_AGENT_PLIST"
     MONITOR_AGENT_INSTALLED=1
   else
-    echo "  • skipping ai.openclaw.monitor-agent (plist not found: $MONITOR_AGENT_PLIST)"
+    echo "  • skipping ai.smartclaw.monitor-agent (plist not found: $MONITOR_AGENT_PLIST)"
   fi
 else
   # Linux: install systemd timer for hourly health monitoring
@@ -525,18 +525,18 @@ else
 fi
 
 # --- Mission Control (macOS only for now) ---
-MC_BACKEND_PLIST="$CONFIG_DIR/ai.openclaw.mission-control.plist"
-MC_FRONTEND_PLIST="$CONFIG_DIR/ai.openclaw.mission-control-frontend.plist"
+MC_BACKEND_PLIST="$CONFIG_DIR/ai.smartclaw.mission-control.plist"
+MC_FRONTEND_PLIST="$CONFIG_DIR/ai.smartclaw.mission-control-frontend.plist"
 if [[ "$OS" == "macos" ]]; then
   if [[ -f "$MC_BACKEND_PLIST" ]]; then
     install_plist "$MC_BACKEND_PLIST"
   else
-    echo "  • skipping ai.openclaw.mission-control (plist not found in openclaw-config/)"
+    echo "  • skipping ai.smartclaw.mission-control (plist not found in openclaw-config/)"
   fi
   if [[ -f "$MC_FRONTEND_PLIST" ]]; then
     install_plist "$MC_FRONTEND_PLIST"
   else
-    echo "  • skipping ai.openclaw.mission-control-frontend (plist not found in openclaw-config/)"
+    echo "  • skipping ai.smartclaw.mission-control-frontend (plist not found in openclaw-config/)"
   fi
 else
   echo "  • skipping Mission Control services (Linux: not yet implemented)"
@@ -561,15 +561,15 @@ done
 echo ""
 if [[ "$OS" == "macos" ]]; then
   echo "Verifying launchd labels..."
-  EXPECTED_LABELS=("ai.openclaw.qdrant" "ai.openclaw.gateway" "ai.openclaw.startup-check")
-  [[ "$WEBHOOK_INSTALLED" -eq 1 ]] && EXPECTED_LABELS+=("ai.openclaw.webhook")
-  [[ "$MONITOR_AGENT_INSTALLED" -eq 1 ]] && EXPECTED_LABELS+=("ai.openclaw.monitor-agent")
-  for plist in "$LAUNCHD_DIR"/ai.openclaw.schedule.*.plist; do
+  EXPECTED_LABELS=("ai.smartclaw.qdrant" "ai.smartclaw.gateway" "ai.smartclaw.startup-check")
+  [[ "$WEBHOOK_INSTALLED" -eq 1 ]] && EXPECTED_LABELS+=("ai.smartclaw.webhook")
+  [[ "$MONITOR_AGENT_INSTALLED" -eq 1 ]] && EXPECTED_LABELS+=("ai.smartclaw.monitor-agent")
+  for plist in "$LAUNCHD_DIR"/ai.smartclaw.schedule.*.plist; do
     [[ -f "$plist" ]] || continue
     EXPECTED_LABELS+=("$(basename "$plist" .plist)")
   done
-  [[ -f "$MC_BACKEND_PLIST" ]] && EXPECTED_LABELS+=("ai.openclaw.mission-control")
-  [[ -f "$MC_FRONTEND_PLIST" ]] && EXPECTED_LABELS+=("ai.openclaw.mission-control-frontend")
+  [[ -f "$MC_BACKEND_PLIST" ]] && EXPECTED_LABELS+=("ai.smartclaw.mission-control")
+  [[ -f "$MC_FRONTEND_PLIST" ]] && EXPECTED_LABELS+=("ai.smartclaw.mission-control-frontend")
 
   missing=0
   for label in "${EXPECTED_LABELS[@]}"; do
@@ -618,9 +618,9 @@ fi
 
 echo ""
 echo "Log locations:"
-echo "  qdrant:        ~/.openclaw/logs/qdrant.log"
-echo "  gateway:       ~/.openclaw/logs/gateway.log"
-echo "  startup check: ~/.openclaw/logs/startup-check.log"
+echo "  qdrant:        ~/.smartclaw/logs/qdrant.log"
+echo "  gateway:       ~/.smartclaw/logs/gateway.log"
+echo "  startup check: ~/.smartclaw/logs/startup-check.log"
 if [[ "$OS" == "macos" ]]; then
   echo "  MC backend:    /tmp/mc-backend.log"
   echo "  MC frontend:   /tmp/mc-frontend.log"

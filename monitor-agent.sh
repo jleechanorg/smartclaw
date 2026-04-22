@@ -3,16 +3,16 @@
 
 set -u
 
-LOG_FILE="$HOME/.openclaw/logs/monitor-agent.log"
+LOG_FILE="$HOME/.smartclaw/logs/monitor-agent.log"
 LOG_DIR="$(dirname "$LOG_FILE")"
-LOCK_DIR="$HOME/.openclaw/locks/monitor-agent.lock"
+LOCK_DIR="$HOME/.smartclaw/locks/monitor-agent.lock"
 LOCK_PID_FILE="$LOCK_DIR/pid"
 LOCK_STALE_SECONDS="${OPENCLAW_MONITOR_LOCK_STALE_SECONDS:-7200}"
 
 export PATH="$HOME/.nvm/versions/node/current/bin:$HOME/Library/pnpm:$HOME/.bun/bin:$HOME/.local/bin:$HOME/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 OPENCLAW_BIN="$(command -v openclaw || true)"
-ALERT_SLACK_TARGET="${OPENCLAW_MONITOR_SLACK_TARGET:-C0AKYEY48GM}"
+ALERT_SLACK_TARGET="${OPENCLAW_MONITOR_SLACK_TARGET:-${SLACK_CHANNEL_ID}}"
 PROBE_SLACK_TARGET="${OPENCLAW_MONITOR_PROBE_SLACK_TARGET:-$ALERT_SLACK_TARGET}"
 GATEWAY_PROBE_TARGET="${OPENCLAW_MONITOR_GATEWAY_PROBE_TARGET:-$PROBE_SLACK_TARGET}"
 HTTP_GATEWAY_URL="${OPENCLAW_MONITOR_HTTP_GATEWAY_URL:-http://127.0.0.1:18789/health}"
@@ -26,7 +26,7 @@ PHASE2_ALLOW_CONFIG_MUTATIONS="${OPENCLAW_MONITOR_PHASE2_ALLOW_CONFIG_MUTATIONS:
 PHASE2_TIMEOUT_SECONDS="${OPENCLAW_MONITOR_PHASE2_TIMEOUT_SECONDS:-120}"
 RUN_CANARY="${OPENCLAW_MONITOR_RUN_CANARY:-1}"
 STATUS_BROADCAST_ENABLED="${OPENCLAW_MONITOR_STATUS_BROADCAST_ENABLE:-1}"
-STATUS_BROADCAST_SLACK_TARGET="${OPENCLAW_MONITOR_STATUS_SLACK_TARGET:-C0AKYEY48GM}"
+STATUS_BROADCAST_SLACK_TARGET="${OPENCLAW_MONITOR_STATUS_SLACK_TARGET:-${SLACK_CHANNEL_ID}}"
 THREAD_REPLY_CHECK_ENABLED="${OPENCLAW_MONITOR_THREAD_REPLY_CHECK:-1}"
 THREAD_REPLY_CHANNEL="${OPENCLAW_MONITOR_THREAD_REPLY_CHANNEL:-$ALERT_SLACK_TARGET}"
 THREAD_REPLY_LOOKBACK_SECONDS="${OPENCLAW_MONITOR_THREAD_REPLY_LOOKBACK_SECONDS:-21600}"
@@ -103,8 +103,8 @@ resolve_doctor_sh_path() {
   fi
   for candidate in \
     "$PWD/doctor.sh" \
-    "$HOME/.openclaw/jleechanclaw/doctor.sh" \
-    "$HOME/.openclaw/doctor.sh"; do
+    "$HOME/.smartclaw/smartclaw/doctor.sh" \
+    "$HOME/.smartclaw/doctor.sh"; do
     if [ -f "$candidate" ]; then
       printf '%s' "$candidate"
       return 0
@@ -178,7 +178,7 @@ if [ -f "$HOME/.profile" ]; then
   source "$HOME/.profile"
 fi
 
-# Tokens are hardcoded in ~/.openclaw/openclaw.json — the gateway reads them directly.
+# Tokens are hardcoded in ~/.smartclaw/openclaw.json — the gateway reads them directly.
 # Only hydrate behavioral tunables (channel targets, feature flags) that may be
 # overridden via .bashrc exports. Token env vars (bot/app/gateway tokens) are NOT
 # read here; they live in openclaw.json and are not expected in plist or .bashrc.
@@ -284,7 +284,7 @@ TOKEN_PROBE_RC=0
 TOKEN_PROBE_SUMMARY="token probes not run"
 
 run_token_probes() {
-  local cfg="$HOME/.openclaw/openclaw.json"
+  local cfg="$HOME/.smartclaw/openclaw.json"
   local timeout=10
 
   if ! command -v jq >/dev/null 2>&1; then
@@ -601,10 +601,10 @@ run_thread_reply_probe() {
 
   local resolved_bot_user bot_auth_output
   resolved_bot_user="$THREAD_REPLY_BOT_USER_ID"
-  if [ -z "$resolved_bot_user" ] && [ -n "${OPENCLAW_SLACK_BOT_TOKEN:-}" ]; then
+  if [ -z "$resolved_bot_user" ] && [ -n "${SLACK_BOT_TOKEN:-}" ]; then
     bot_auth_output="$(
       curl -sS -X POST "$SLACK_API_BASE/auth.test" \
-        -H "Authorization: Bearer $OPENCLAW_SLACK_BOT_TOKEN" \
+        -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
         -H "Content-Type: application/x-www-form-urlencoded" 2>&1
     )"
     resolved_bot_user="$(printf '%s\n' "$bot_auth_output" | jq -r '.user_id // empty' 2>/dev/null || true)"
@@ -716,9 +716,9 @@ PHASE1_REMEDIATION_ACTIONS=()
 if [ "$PHASE1_REMEDIATION_ENABLED" = "1" ]; then
   if [ "$HTTP_GATEWAY_RC" -ne 0 ]; then
     # SAFE: use launchctl directly — never 'gateway restart/install' which may regenerate plist and wipe real secrets
-    launchctl unload "$HOME/Library/LaunchAgents/ai.openclaw.gateway.plist" >> "$LOG_FILE" 2>&1 || true
+    launchctl unload "$HOME/Library/LaunchAgents/ai.smartclaw.gateway.plist" >> "$LOG_FILE" 2>&1 || true
     sleep 1
-    if launchctl load "$HOME/Library/LaunchAgents/ai.openclaw.gateway.plist" >> "$LOG_FILE" 2>&1; then
+    if launchctl load "$HOME/Library/LaunchAgents/ai.smartclaw.gateway.plist" >> "$LOG_FILE" 2>&1; then
       PHASE1_REMEDIATION_ACTIONS+=("gateway_restart_ok")
     else
       PHASE1_REMEDIATION_ACTIONS+=("gateway_restart_failed")
@@ -727,7 +727,7 @@ if [ "$PHASE1_REMEDIATION_ENABLED" = "1" ]; then
   fi
 
   if [ "$PROBE_REQUEST_RC" -ne 0 ] || [ "$GATEWAY_PROBE_RC" -ne 0 ]; then
-    if launchctl kickstart -k "gui/$(id -u)/ai.openclaw.gateway" >> "$LOG_FILE" 2>&1; then
+    if launchctl kickstart -k "gui/$(id -u)/ai.smartclaw.gateway" >> "$LOG_FILE" 2>&1; then
       PHASE1_REMEDIATION_ACTIONS+=("launchctl_kickstart_gateway_ok")
     else
       PHASE1_REMEDIATION_ACTIONS+=("launchctl_kickstart_gateway_failed")
@@ -866,7 +866,7 @@ if [ "$FORCE_PROBLEM" -eq 1 ] && [ "$PHASE2_ENABLED" = "1" ]; then
     PHASE2_MODE="diagnose_and_fix"
   fi
 
-  PHASE2_CONFIG_RULE="Do NOT run config-mutating commands (openclaw doctor, openclaw config set, cp/mv/jq edits on ~/.openclaw/openclaw.json)."
+  PHASE2_CONFIG_RULE="Do NOT run config-mutating commands (openclaw doctor, openclaw config set, cp/mv/jq edits on ~/.smartclaw/openclaw.json)."
   if [ "$PHASE2_ALLOW_CONFIG_MUTATIONS" = "1" ]; then
     PHASE2_CONFIG_RULE="Config mutation is allowed, but only if directly required for the unresolved failures."
   fi

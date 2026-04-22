@@ -3,14 +3,14 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>ai.openclaw.mem0-extract</string>
+  <string>ai.smartclaw.mem0-extract</string>
   <key>ProgramArguments</key>
   <array>
     <!-- ORCH-k78 fix: Use homebrew python which has mem0/qdrant-client installed.
          NOT /usr/bin/python3 — macOS system Python 3.9 has no packages. -->
     <string>@PYTHON_PATH@</string>
     <!-- ORCH-lqg fix: @HOME@ replaced by install-launchagents.sh at install time -->
-    <string>@HOME@/.openclaw/scripts/mem0_extract_facts.py</string>
+    <string>@HOME@/.smartclaw/scripts/mem0_extract_facts.py</string>
     <string>--since</string>
     <!-- 65 = 60m interval + 5m overlap buffer to catch sessions that started
          just before the previous run fired. Do NOT "correct" to 60. -->
@@ -20,9 +20,9 @@
   <integer>3600</integer>
   <key>StandardOutPath</key>
   <!-- ORCH-lqg fix: @HOME@ replaced at install time -->
-  <string>@HOME@/.openclaw/logs/mem0-extract.log</string>
+  <string>@HOME@/.smartclaw/logs/mem0-extract.log</string>
   <key>StandardErrorPath</key>
-  <string>@HOME@/.openclaw/logs/mem0-extract.err.log</string>
+  <string>@HOME@/.smartclaw/logs/mem0-extract.err.log</string>
   <key>RunAtLoad</key>
   <false/>
   <key>EnvironmentVariables</key>

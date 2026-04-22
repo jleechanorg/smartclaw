@@ -18,7 +18,7 @@ set -euo pipefail
 LAUNCHD_DIR="$HOME/Library/LaunchAgents"
 AO_BIN="$HOME/bin/ao"
 AO_CONFIG="${AO_CONFIG_PATH:-$HOME/agent-orchestrator.yaml}"
-AO_WORKDIR="$HOME/.openclaw"
+AO_WORKDIR="$HOME/.smartclaw"
 LABEL="ai.agento.orchestrators"
 
 UNINSTALL=false
@@ -44,7 +44,7 @@ if [[ ! -x "$AO_BIN" ]]; then
 fi
 if [[ ! -f "$AO_CONFIG" ]]; then
   echo "ERROR: agent-orchestrator.yaml not found at $AO_CONFIG" >&2
-  echo "  Set AO_CONFIG_PATH or run bootstrap.sh from the jleechanclaw repo root to create ~/agent-orchestrator.yaml symlink." >&2
+  echo "  Set AO_CONFIG_PATH or run bootstrap.sh from the smartclaw repo root to create ~/agent-orchestrator.yaml symlink." >&2
   exit 1
 fi
 

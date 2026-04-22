@@ -74,7 +74,7 @@ async function main() {
     process.env.MEM0_PKG_ROOT ||
     path.join(
       os.homedir(),
-      ".openclaw",
+      ".smartclaw",
       "extensions",
       "openclaw-mem0",
       "node_modules",
@@ -94,7 +94,7 @@ async function main() {
   } catch { }
   fs.symlinkSync(runDir, latest);
 
-  const slackDir = path.join(os.homedir(), ".openclaw", "memory", "slack-history");
+  const slackDir = path.join(os.homedir(), ".smartclaw", "memory", "slack-history");
   const files = listMarkdownFiles(slackDir);
   const allText = files.map((f) => fs.readFileSync(f, "utf8")).join("\n");
   const pairs = buildPairMap(allText);

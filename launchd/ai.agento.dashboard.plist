@@ -6,17 +6,17 @@
     <string>ai.agento.dashboard</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/jleechan/bin/ao</string>
+        <string>${HOME}/bin/ao</string>
         <string>dashboard</string>
     </array>
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Users/jleechan/bin:/opt/homebrew/bin</string>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${HOME}/bin:/opt/homebrew/bin</string>
         <key>HOME</key>
         <string>/Users/jleechan</string>
         <key>AO_CONFIG_PATH</key>
-        <string>/Users/jleechan/agent-orchestrator.yaml</string>
+        <string>${HOME}/agent-orchestrator.yaml</string>
     </dict>
     <key>WorkingDirectory</key>
     <string>/Users/jleechan</string>

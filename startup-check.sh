@@ -2,7 +2,7 @@
 # OpenClaw Startup Verification
 # Purpose: Runs after login to verify OpenClaw is running and send confirmation
 
-LOG_FILE="$HOME/.openclaw/logs/startup-check.log"
+LOG_FILE="$HOME/.smartclaw/logs/startup-check.log"
 LOG_DIR="$(dirname "$LOG_FILE")"
 export PATH="$HOME/.nvm/versions/node/current/bin:$HOME/.nvm/versions/node/v22.22.0/bin:$HOME/Library/pnpm:$HOME/.bun/bin:$HOME/.local/bin:$HOME/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 TARGET="${OPENCLAW_WHATSAPP_TARGET:-}"
@@ -56,8 +56,8 @@ done
 
 # Wait for OpenClaw to start (max 30 seconds)
 for i in {1..30}; do
-    if launchctl list | grep -q "ai.openclaw.gateway"; then
-        PID=$(launchctl list | grep "ai.openclaw.gateway" | awk '{print $1}')
+    if launchctl list | grep -q "ai.smartclaw.gateway"; then
+        PID=$(launchctl list | grep "ai.smartclaw.gateway" | awk '{print $1}')
         if [ "$PID" != "-" ] && [ -n "$PID" ]; then
             echo "[$TIMESTAMP] ✅ OpenClaw started successfully (PID: $PID)" >> "$LOG_FILE"
 

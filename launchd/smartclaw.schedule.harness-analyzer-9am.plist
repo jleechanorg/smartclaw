@@ -3,11 +3,11 @@
 <plist version="1.0">
   <dict>
     <key>Label</key>
-    <string>ai.openclaw.schedule.harness-analyzer-9am</string>
+    <string>ai.smartclaw.schedule.harness-analyzer-9am</string>
     <key>ProgramArguments</key>
     <array>
       <string>/bin/bash</string>
-      <string>@HOME@/.openclaw/scripts/harness-analyzer.sh</string>
+      <string>@HOME@/.smartclaw/scripts/harness-analyzer.sh</string>
     </array>
     <key>StartCalendarInterval</key>
     <array>
@@ -55,9 +55,9 @@
     <key>RunAtLoad</key>
     <false/>
     <key>StandardOutPath</key>
-    <string>@HOME@/.openclaw/logs/scheduled-jobs/harness-analyzer-9am.out.log</string>
+    <string>@HOME@/.smartclaw/logs/scheduled-jobs/harness-analyzer-9am.out.log</string>
     <key>StandardErrorPath</key>
-    <string>@HOME@/.openclaw/logs/scheduled-jobs/harness-analyzer-9am.err.log</string>
+    <string>@HOME@/.smartclaw/logs/scheduled-jobs/harness-analyzer-9am.err.log</string>
     <key>EnvironmentVariables</key>
     <dict>
       <key>TZ</key>
