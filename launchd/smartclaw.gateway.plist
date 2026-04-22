@@ -9,7 +9,7 @@
 		<key>GOOGLE_CLOUD_PROJECT</key>
 		<string>infinite-zephyr-487405-d0</string>
 		<key>HOME</key>
-		<string>/Users/jleechan</string>
+		<string>${HOME}</string>
 		<key>MISSION_CONTROL_BASE_URL</key>
 		<string>http://localhost:9010</string>
 		<key>MISSION_CONTROL_BOARD_ID</key>

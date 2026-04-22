@@ -18,7 +18,7 @@ Replaces 6 separate schedule plists:
 		<key>OPENCLAW_JOBS_PATH</key>
 		<string>@HOME@/.smartclaw/cron/jobs.json</string>
 		<key>PATH</key>
-		<string>@HOME@/.nvm/versions/node/v22.22.0/bin:@HOME@/.local/bin:@HOME@/bin:@HOME@/.volta/bin:@HOME@/.asdf/shims:@HOME@/.bun/bin:@HOME@/Library/Application Support/fnm/aliases/default/bin:@HOME@/.fnm/aliases/default/bin:@HOME@/Library/pnpm:@HOME@/.local/share/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+		<string>@HOME@/.nvm/versions/node/${NODE_VERSION:-v22.22.0}/bin:@HOME@/.local/bin:@HOME@/bin:@HOME@/.volta/bin:@HOME@/.asdf/shims:@HOME@/.bun/bin:@HOME@/Library/Application Support/fnm/aliases/default/bin:@HOME@/.fnm/aliases/default/bin:@HOME@/Library/pnpm:@HOME@/.local/share/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
 		<key>PYTHONUNBUFFERED</key>
 		<string>1</string>
 		<key>TZ</key>
@@ -30,8 +30,8 @@ Replaces 6 separate schedule plists:
 	<string>ai.smartclaw.scheduler</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>@HOME@/.nvm/versions/node/v22.22.0/bin/node</string>
-		<string>@HOME@/.nvm/versions/node/v22.22.0/lib/node_modules/openclaw/dist/index.js</string>
+		<string>@HOME@/.nvm/versions/node/${NODE_VERSION:-v22.22.0}/bin/node</string>
+		<string>@HOME@/.nvm/versions/node/${NODE_VERSION:-v22.22.0}/lib/node_modules/openclaw/dist/index.js</string>
 		<string>gateway</string>
 		<string>run-scheduler</string>
 		<string>--jobs</string>

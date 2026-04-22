@@ -14,10 +14,10 @@
         <key>PATH</key>
         <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${HOME}/bin:${HOME}/.cargo/bin</string>
         <key>HOME</key>
-        <string>/Users/jleechan</string>
+        <string>${HOME}</string>
     </dict>
     <key>WorkingDirectory</key>
-    <string>/Users/jleechan</string>
+    <string>${HOME}</string>
     <key>RunAtLoad</key>
     <false/>
     <key>StartInterval</key>
