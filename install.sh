@@ -6,7 +6,7 @@
 #
 # What it does:
 #   1. Installs Hermes Agent (hermes-agent) if not present
-#   2. Creates ~/.smartclaw/hermes/ and ~/.smartclaw/hermes_prod/ runtime dirs
+#   2. Creates ~/.hermes/ and ~/.hermes_prod/ runtime dirs
 #   3. Installs systemd services (Linux) or LaunchAgents (macOS)
 #   4. Sets up symlinks and config
 #
@@ -59,16 +59,14 @@ echo "--- Setting up ~/.smartclaw directories ---"
 
 mkdir -p "$HOME/.hermes_prod"/{skills,memories,sessions,logs,cron}
 
-  # Staging: use default Hermes runtime (~/.hermes/)
+# Staging: use default Hermes runtime (~/.hermes/)
 HERMES_STAGING_HOME="${HERMES_STAGING_HOME:-$HOME/.hermes}"
+HERMES_PROD_HOME="${HERMES_PROD_HOME:-$HOME/.hermes_prod}"
 
-# Prod: ensure ~/.hermes_prod exists (standard Hermes prod dir)
-if [[ ! -d "$HOME/.hermes_prod" ]]; then
-  mkdir -p "$HOME/.hermes_prod"/{skills,memories,sessions,logs,cron}
-  echo "✓ Created ~/.hermes_prod/ runtime directories"
-fi
-
-echo "✓ ~/.smartclaw/hermes/       → staging runtime (symlink to ~/.hermes/)"
+# Ensure both runtime trees exist
+mkdir -p "$HERMES_STAGING_HOME"/{skills,memories,sessions,logs,cron}
+mkdir -p "$HERMES_PROD_HOME"/{skills,memories,sessions,logs,cron}
+echo "✓ ~/.hermes/            → staging runtime"
 echo "✓ ~/.hermes_prod/       → prod runtime (default Hermes prod dir)"
 
 # ============================================================================
@@ -90,12 +88,12 @@ After=network.target
 Type=simple
 User=$(whoami)
 Group=$(id -gn)
-Environment=HERMES_HOME=$HOME/.hermes
+Environment=HERMES_HOME=$HERMES_STAGING_HOME
 ExecStart=$HOME/.local/bin/hermes gateway run
 Restart=on-failure
 RestartSec=5
-StandardOut=append:$HOME/.hermes/logs/gateway.log
-StandardError=append:$HOME/.hermes/logs/gateway.err.log
+StandardOut=append:$HERMES_STAGING_HOME/logs/gateway.log
+StandardError=append:$HERMES_STAGING_HOME/logs/gateway.err.log
 WorkingDirectory=$HOME
 
 [Install]
@@ -116,12 +114,12 @@ After=network.target
 Type=simple
 User=$(whoami)
 Group=$(id -gn)
-Environment=HERMES_HOME=$HOME/.hermes_prod
+Environment=HERMES_HOME=$HERMES_PROD_HOME
 ExecStart=$HOME/.local/bin/hermes gateway run
 Restart=on-failure
 RestartSec=5
-StandardOut=append:$HOME/.hermes_prod/logs/gateway.log
-StandardError=append:$HOME/.hermes_prod/logs/gateway.err.log
+StandardOut=append:$HERMES_PROD_HOME/logs/gateway.log
+StandardError=append:$HERMES_PROD_HOME/logs/gateway.err.log
 WorkingDirectory=$HOME
 
 [Install]
@@ -141,11 +139,11 @@ EOF
 else
   echo "Installing LaunchAgents (macOS)..."
 
-  HERMES_STAGING_PLIST="$REPO_DIR/launchd/smartclaw.hermes-staging.plist.template"
-  HERMES_PROD_PLIST="$REPO_DIR/launchd/smartclaw.hermes-prod.plist.template"
+  HERMES_STAGING_PLIST="$REPO_ROOT/launchd/smartclaw.hermes-staging.plist.template"
+  HERMES_PROD_PLIST="$REPO_ROOT/launchd/smartclaw.hermes-prod.plist.template"
 
   if [[ -f "$HERMES_STAGING_PLIST" ]]; then
-    sed -e "s|@HERMES_STAGING_HOME@|$HOME/.hermes|g" \
+    sed -e "s|@HERMES_STAGING_HOME@|$HERMES_STAGING_HOME|g" \
         -e "s|@HOME@|$HOME|g" \
         -e "s|@HERMES_BIN@|$HOME/.local/bin/hermes|g" \
         "$HERMES_STAGING_PLIST" > "$HOME/Library/LaunchAgents/ai.smartclaw.hermes-staging.plist"
@@ -155,7 +153,7 @@ else
   fi
 
   if [[ -f "$HERMES_PROD_PLIST" ]]; then
-    sed -e "s|@HERMES_PROD_HOME@|$HOME/.hermes_prod|g" \
+    sed -e "s|@HERMES_PROD_HOME@|$HERMES_PROD_HOME|g" \
         -e "s|@HOME@|$HOME|g" \
         -e "s|@HERMES_BIN@|$HOME/.local/bin/hermes|g" \
         "$HERMES_PROD_PLIST" > "$HOME/Library/LaunchAgents/ai.smartclaw.hermes.prod.plist"
@@ -187,9 +185,9 @@ fi
 # ============================================================================
 echo ""
 echo "--- Verifying Hermes installation ---"
-if HERMES_HOME="$HOME/.hermes" hermes status >/dev/null 2>&1; then
+if HERMES_HOME="$HERMES_STAGING_HOME" hermes status >/dev/null 2>&1; then
   echo "✓ Hermes is functional"
-  HERMES_HOME="$HOME/.hermes" hermes status 2>&1 | head -20
+  HERMES_HOME="$HERMES_STAGING_HOME" hermes status 2>&1 | head -20
 else
   echo "⚠ Hermes may need tokens configured — run hermes status to check"
 fi
