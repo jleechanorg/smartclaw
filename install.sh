@@ -59,13 +59,8 @@ echo "--- Setting up ~/.smartclaw directories ---"
 
 mkdir -p "$HOME/.hermes_prod"/{skills,memories,sessions,logs,cron}
 
-  # Staging: symlink to the hermes-agent install (actual runtime)
-if [[ ! -e "$HOME/.smartclaw/hermes" ]]; then
-  ln -sf "$HOME/.hermes" "$HOME/.smartclaw/hermes"
-  echo "✓ Symlinked ~/.smartclaw/hermes -> ~/.hermes/"
-else
-  echo "✓ ~/.smartclaw/hermes already exists"
-fi
+  # Staging: use default Hermes runtime (~/.hermes/)
+HERMES_STAGING_HOME="${HERMES_STAGING_HOME:-$HOME/.hermes}"
 
 # Prod: ensure ~/.hermes_prod exists (standard Hermes prod dir)
 if [[ ! -d "$HOME/.hermes_prod" ]]; then
@@ -95,12 +90,12 @@ After=network.target
 Type=simple
 User=$(whoami)
 Group=$(id -gn)
-Environment=HERMES_HOME=$HOME/.smartclaw/hermes
+Environment=HERMES_HOME=$HOME/.hermes
 ExecStart=$HOME/.local/bin/hermes gateway run
 Restart=on-failure
 RestartSec=5
-StandardOut=append:$HOME/.smartclaw/hermes/logs/gateway.log
-StandardError=append:$HOME/.smartclaw/hermes/logs/gateway.err.log
+StandardOut=append:$HOME/.hermes/logs/gateway.log
+StandardError=append:$HOME/.hermes/logs/gateway.err.log
 WorkingDirectory=$HOME
 
 [Install]
@@ -150,7 +145,7 @@ else
   HERMES_PROD_PLIST="$REPO_DIR/launchd/smartclaw.hermes-prod.plist.template"
 
   if [[ -f "$HERMES_STAGING_PLIST" ]]; then
-    sed -e "s|@HERMES_STAGING_HOME@|$HOME/.smartclaw/hermes|g" \
+    sed -e "s|@HERMES_STAGING_HOME@|$HOME/.hermes|g" \
         -e "s|@HOME@|$HOME|g" \
         -e "s|@HERMES_BIN@|$HOME/.local/bin/hermes|g" \
         "$HERMES_STAGING_PLIST" > "$HOME/Library/LaunchAgents/ai.smartclaw.hermes-staging.plist"
@@ -160,7 +155,7 @@ else
   fi
 
   if [[ -f "$HERMES_PROD_PLIST" ]]; then
-    sed -e "s|@HERMES_PROD_HOME@|$HOME/.smartclaw/hermes_prod|g" \
+    sed -e "s|@HERMES_PROD_HOME@|$HOME/.hermes_prod|g" \
         -e "s|@HOME@|$HOME|g" \
         -e "s|@HERMES_BIN@|$HOME/.local/bin/hermes|g" \
         "$HERMES_PROD_PLIST" > "$HOME/Library/LaunchAgents/ai.smartclaw.hermes.prod.plist"
@@ -192,9 +187,9 @@ fi
 # ============================================================================
 echo ""
 echo "--- Verifying Hermes installation ---"
-if HERMES_HOME="$HOME/.smartclaw/hermes" hermes status >/dev/null 2>&1; then
+if HERMES_HOME="$HOME/.hermes" hermes status >/dev/null 2>&1; then
   echo "✓ Hermes is functional"
-  HERMES_HOME="$HOME/.smartclaw/hermes" hermes status 2>&1 | head -20
+  HERMES_HOME="$HOME/.hermes" hermes status 2>&1 | head -20
 else
   echo "⚠ Hermes may need tokens configured — run hermes status to check"
 fi
@@ -205,4 +200,4 @@ echo ""
 echo "Next steps:"
 echo "  1. Configure Slack tokens in ~/.hermes/.env (staging)"
 echo "  2. Configure Slack tokens in ~/.hermes_prod/.env (prod)"
-echo "  3. HERMES_HOME=\$HOME/.smartclaw/hermes hermes chat  # test staging"
+echo "  3. HERMES_HOME=\$HOME/.hermes hermes chat  # test staging"
