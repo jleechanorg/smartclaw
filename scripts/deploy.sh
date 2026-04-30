@@ -28,7 +28,7 @@ REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # ── Shared variables ──────────────────────────────────────────────────────────
 DEPLOY_RUN_ID="$(date +%Y%m%d%H%M%S)-$$"
-MONITOR_FAILURE_SLACK_TARGET="${OPENCLAW_DEPLOY_MONITOR_FAILURE_SLACK_TARGET:-${OPENCLAW_MONITOR_FAILURE_SLACK_TARGET:-$SLACK_CHANNEL_ID}}"
+MONITOR_FAILURE_SLACK_TARGET="${OPENCLAW_DEPLOY_MONITOR_FAILURE_SLACK_TARGET:-${OPENCLAW_MONITOR_FAILURE_SLACK_TARGET:-${SLACK_CHANNEL_ID:-}}}"
 # Guard: if entire chain resolves to empty, use C00000000 (null channel = no-op, no crash)
 if [ -z "${MONITOR_FAILURE_SLACK_TARGET}" ]; then
   MONITOR_FAILURE_SLACK_TARGET="C00000000"

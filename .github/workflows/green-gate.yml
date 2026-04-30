@@ -98,7 +98,7 @@ jobs:
               | jq -r '[.[].check_runs[]]
                 | group_by(.name)
                 | map(sort_by(.started_at) | reverse | .[0])
-                | [.[] | select((.name == "Staging Canary Gate" or .name == "find-openclaw-json" or .name == "Full canary (6/6)") and .conclusion != null and .conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral" and .conclusion != "cancelled")]
+                | [.[] | select((.name == "Staging Canary Gate" or .name == "find-openclaw-json" or .name == "Full canary (6/6)") and (.conclusion == "failure" or .conclusion == "cancelled" or .conclusion == "timed_out"))]
                 | length' 2>/dev/null || echo "__API_ERROR__")
             CHECK_RUNS_PENDING=$(gh api repos/${{ github.repository }}/commits/"$HEAD_SHA"/check-runs \
               --paginate \
@@ -136,7 +136,7 @@ jobs:
             | jq -r '[.[].check_runs[]]
               | group_by(.name)
               | map(sort_by(.started_at) | reverse | .[0])
-              | [.[] | select((.name == "Staging Canary Gate" or .name == "find-openclaw-json" or .name == "Full canary (6/6)") and .conclusion != null and .conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral" and .conclusion != "cancelled")]
+              | [.[] | select((.name == "Staging Canary Gate" or .name == "find-openclaw-json" or .name == "Full canary (6/6)") and (.conclusion == "failure" or .conclusion == "cancelled" or .conclusion == "timed_out"))]
               | length' 2>/dev/null || echo "__API_ERROR__")
           CHECK_RUNS_PENDING=$(gh api repos/${{ github.repository }}/commits/"$HEAD_SHA"/check-runs \
             --paginate \

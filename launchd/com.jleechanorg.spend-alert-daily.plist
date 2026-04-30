@@ -17,8 +17,6 @@
 
     <key>EnvironmentVariables</key>
     <dict>
-        <key>HOME</key>
-        <string>/Users/jleechan</string>
         <key>PATH</key>
         <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     </dict>
@@ -35,13 +33,13 @@
     <false/>
 
     <key>StandardOutPath</key>
-    <string>${HOME}/.smartclaw/logs/spend-alert-daily.log</string>
+    <string>.smartclaw/logs/spend-alert-daily.log</string>
 
     <key>StandardErrorPath</key>
-    <string>${HOME}/.smartclaw/logs/spend-alert-daily.error.log</string>
+    <string>.smartclaw/logs/spend-alert-daily.error.log</string>
 
     <key>WorkingDirectory</key>
-    <string>${HOME}/.smartclaw</string>
+    <string>.smartclaw</string>
 
     <key>ProcessType</key>
     <string>Background</string>
