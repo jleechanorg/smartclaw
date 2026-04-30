@@ -7,7 +7,8 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>${HOME}/.smartclaw/scripts/antig-cmux-loop.sh</string>
+        <string>-c</string>
+        <string>exec &quot;$HOME/.smartclaw/scripts/antig-cmux-loop.sh&quot;</string>
     </array>
     <key>StartInterval</key>
     <integer>600</integer>
