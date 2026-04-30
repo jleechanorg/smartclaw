@@ -129,11 +129,11 @@ def _extract_facts_ollama(conversation: str, base_url: str, model: str) -> list[
 
 def _extract_facts_groq(conversation: str, groq_api_key: str, groq_model: str) -> list[str]:
     """Legacy path when `oss.llm.provider` is `groq` (requires `groq` package + `GROQ_API_KEY`)."""
-    from groq import Groq
-
     prompt = _extraction_prompt(conversation)
 
     try:
+        from groq import Groq
+
         client = Groq(api_key=groq_api_key)
         response = client.chat.completions.create(
             model=groq_model,
@@ -143,6 +143,9 @@ def _extract_facts_groq(conversation: str, groq_api_key: str, groq_model: str) -
         )
         text = response.choices[0].message.content.strip()
         return _lines_to_facts(text)
+    except ImportError:
+        print("[auto_fact_capture] groq package not installed, skipping", file=sys.stderr)
+        return []
     except Exception as e:
         print(f"[auto_fact_capture] Groq call failed: {e}", file=sys.stderr)
         return []
