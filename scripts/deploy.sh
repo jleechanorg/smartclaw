@@ -704,6 +704,7 @@ deploy_openclaw() {
       OPENCLAW_MONITOR_DOCTOR_SH_ENABLE=0 \
       OPENCLAW_MONITOR_INFERENCE_PROBE_ENABLE=0 \
       OPENCLAW_MONITOR_PHASE2_ENABLE=0 \
+      OPENCLAW_MONITOR_PHASE1_REMEDIATION_ENABLE=0 \
       OPENCLAW_MONITOR_RUN_CANARY=0 \
       bash "$HOME/.smartclaw/monitor-agent.sh" > "$STAGING_MONITOR_STDOUT" 2>&1 \
       || die "Monitor-agent FAILED on staging — see $STAGING_MONITOR_LOG and $STAGING_MONITOR_STDOUT" "Stage 1: Monitor" "OpenClaw"

@@ -29,10 +29,12 @@
 	</array>
 	<key>RunAtLoad</key>
 	<true/>
+	<key>WorkingDirectory</key>
+	<string>@HOME@</string>
 	<key>StandardErrorPath</key>
-	<string>@HERMES_PROD_HOME@/logs/gateway.err.log</string>
+	<string>@HOME@/logs/gateway.err.log</string>
 	<key>StandardOutPath</key>
-	<string>@HERMES_PROD_HOME@/logs/gateway.log</string>
+	<string>@HOME@/logs/gateway.log</string>
 	<key>ThrottleInterval</key>
 	<integer>30</integer>
 	<key>Umask</key>
