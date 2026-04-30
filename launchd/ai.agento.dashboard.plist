@@ -6,11 +6,9 @@
     <string>ai.agento.dashboard</string>
     <key>ProgramArguments</key>
     <array>
-        <string>${HOME}/.nvm/versions/node/v22.22.0/bin/npx</string>
-        <string>next</string>
-        <string>start</string>
-        <string>-p</string>
-        <string>3020</string>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <string>exec &quot;$HOME/.nvm/versions/node/v22.22.0/bin/npx&quot; next start -p 3020</string>
     </array>
     <key>EnvironmentVariables</key>
     <dict>

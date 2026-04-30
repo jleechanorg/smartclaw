@@ -53,12 +53,9 @@
 	<string>ai.smartclaw.gateway</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>${HOME}/.nvm/versions/node/v22.22.0/bin/node</string>
-		<string>${HOME}/.nvm/versions/node/v22.22.0/lib/node_modules/openclaw/dist/index.js</string>
-		<string>gateway</string>
-		<string>--port</string>
-		<string>18789</string>
-		<string>--allow-unconfigured</string>
+		<string>/bin/bash</string>
+		<string>-c</string>
+		<string>exec &quot;$HOME/.nvm/versions/node/v22.22.0/bin/node&quot; &quot;$HOME/.nvm/versions/node/v22.22.0/lib/node_modules/openclaw/dist/index.js&quot; gateway --port 18789 --allow-unconfigured</string>
 	</array>
 	<key>RunAtLoad</key>
 	<true/>
