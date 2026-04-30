@@ -9,7 +9,7 @@
 		<key>GOOGLE_CLOUD_PROJECT</key>
 		<string>infinite-zephyr-487405-d0</string>
 		<key>HOME</key>
-		<string>/Users/jleechan</string>
+		<string>@HOME@</string>
 		<key>OPENCLAW_STATE_DIR</key>
 		<string>${HOME}/.smartclaw_prod</string>
 		<key>OPENCLAW_CONFIG_PATH</key>
