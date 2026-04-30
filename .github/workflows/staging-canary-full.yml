@@ -46,8 +46,16 @@ jobs:
   staging-canary-full:
     name: Full canary (6/6)
     needs: find-openclaw-json
+    # Skip fork PRs: untrusted code should not run on self-hosted runners (security risk).
+    # Uses head.repo.id == base.repo.id (not head.repo.fork) to also skip cross-repo PRs.
+    # workflow_dispatch: same-repo manual runs only (no pull_request payload).
     if: |
       needs.find-openclaw-json.outputs.found == 'true' &&
+      (
+        github.event_name != 'pull_request' ||
+        (github.event.pull_request.head.repo != null &&
+         github.event.pull_request.head.repo.id == github.event.pull_request.base.repo.id)
+      ) &&
       github.repository == 'jleechanorg/smartclaw' &&
       vars.ENABLE_STAGING_CANARY_SELFHOSTED != 'false'
     runs-on: [self-hosted, openclaw-staging]

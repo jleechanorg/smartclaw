@@ -104,8 +104,8 @@ export OPENCLAW_BOT_USER_ID="U0AEZC7RX1Q"        # openclaw bot user ID
 export AGENTO_CHANNEL="C0AJQ5M0A0Y"              # #ai-general — agento dispatch
 export SLACK_TEST_CHANNEL="${SLACK_CHANNEL_ID}"          # #ai-slack-test — E2E test channel
 export JLEECHAN_DM_CHANNEL="${SLACK_CHANNEL_ID}"         # your DM channel (for notifications)
-export OPENCLAW_MONITOR_SLACK_TARGET="C0AP8LRKM9N"     # canary/monitor alert channel
-export OPENCLAW_MONITOR_THREAD_REPLY_CHANNEL="C0AP8LRKM9N"
+export OPENCLAW_MONITOR_SLACK_TARGET="<monitor-channel-id>"     # canary/monitor alert channel
+export OPENCLAW_MONITOR_THREAD_REPLY_CHANNEL="<thread-reply-channel-id>"
 
 # ── Gateway ───────────────────────────────────────────────────────────────────
 export OPENCLAW_URL="http://127.0.0.1:18789"
