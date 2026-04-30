@@ -5,7 +5,7 @@ name: Green Gate
 # Exit PASS when all gates pass, FAIL when any gate fails (Gate 6 is advisory).
 on:
   pull_request:
-    types: [opened, synchronize, edited, reopened]
+    types: [opened, synchronize, edited, reopened, ready_for_review]
   workflow_dispatch:
     inputs:
       pr_number:
