@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.smartclaw.schedule.ao7green-smartclaw</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>@HOME@/.smartclaw/scripts/ao7green-pr-monitor.launchd.sh</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>@HOME@</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>AO_MONITOR_REPO</key>
+        <string>jleechanorg/smartclaw</string>
+        <key>AO_MONITOR_PROJECT</key>
+        <string>smartclaw</string>
+        <key>AO_MONITOR_CHANNEL</key>
+        <string>${SLACK_CHANNEL_ID}</string>
+        <key>AO_MONITOR_LOG</key>
+        <string>@HOME@/.smartclaw/logs/scheduled-jobs/ao7green-smartclaw.log</string>
+    </dict>
+
+    <key>StartInterval</key>
+    <integer>1800</integer>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- stdout is already tee'd to AO_MONITOR_LOG in ao7green-pr-monitor.sh; discard launchd capture to avoid duplicate lines -->
+    <key>StandardOutPath</key>
+    <string>/dev/null</string>
+
+    <key>StandardErrorPath</key>
+    <string>@HOME@/.smartclaw/logs/scheduled-jobs/ao7green-smartclaw.err</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

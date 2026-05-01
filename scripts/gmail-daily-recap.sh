@@ -17,6 +17,11 @@
 #
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/../lib/gog-env.sh"
+load_gog_env_from_openclaw "${HOME}/.smartclaw/openclaw.json"
+
 TZ="${TZ:-America/Los_Angeles}"; export TZ
 
 # Use gdate (GNU) if available, else BSD date — gdate preferred for cross-platform -v support

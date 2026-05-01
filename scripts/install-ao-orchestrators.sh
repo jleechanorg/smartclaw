@@ -15,9 +15,10 @@
 #
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAUNCHD_DIR="$HOME/Library/LaunchAgents"
 AO_BIN="$HOME/bin/ao"
-AO_CONFIG="${AO_CONFIG_PATH:-$HOME/agent-orchestrator.yaml}"
+AO_CONFIG="${AO_CONFIG_PATH:-$HOME/.agent-orchestrator.yaml}"
 AO_WORKDIR="$HOME/.smartclaw"
 LABEL="ai.agento.orchestrators"
 
@@ -43,8 +44,13 @@ if [[ ! -x "$AO_BIN" ]]; then
   exit 1
 fi
 if [[ ! -f "$AO_CONFIG" ]]; then
+  if [[ -f "$SCRIPT_DIR/bootstrap.sh" ]]; then
+    bash "$SCRIPT_DIR/bootstrap.sh" --symlink-only || true
+  fi
+fi
+if [[ ! -f "$AO_CONFIG" ]]; then
   echo "ERROR: agent-orchestrator.yaml not found at $AO_CONFIG" >&2
-  echo "  Set AO_CONFIG_PATH or run bootstrap.sh from the smartclaw repo root to create ~/agent-orchestrator.yaml symlink." >&2
+  echo "  Set AO_CONFIG_PATH or run $SCRIPT_DIR/bootstrap.sh --symlink-only to render ~/.agent-orchestrator.yaml." >&2
   exit 1
 fi
 

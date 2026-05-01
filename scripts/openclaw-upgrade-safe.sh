@@ -15,9 +15,9 @@ set -uo pipefail
 
 GATEWAY_NODE="${HOME}/.nvm/versions/node/v22.22.0/bin/node"
 GATEWAY_NPM="${HOME}/.nvm/versions/node/v22.22.0/bin/npm"
-PREFLIGHT="$HOME/.openclaw/scripts/gateway-preflight.sh"
-BETTER_SQLITE3_DIR="$HOME/.openclaw/extensions/openclaw-mem0"
-BASELINE_FILE="$HOME/.openclaw/.gateway-node-version"
+PREFLIGHT="$HOME/.smartclaw/scripts/gateway-preflight.sh"
+BETTER_SQLITE3_DIR="$HOME/.smartclaw/extensions/openclaw-mem0"
+BASELINE_FILE="$HOME/.smartclaw/.gateway-node-version"
 
 NEW_VERSION="${1:-}"
 YES_FLAG=""
@@ -62,8 +62,8 @@ if [ -f "$PREFLIGHT" ]; then
   # Extract and eval only the function definition (safe subset)
   # We re-implement inline to avoid sourcing the full preflight
   _cur_sdk="unknown"
-  [ -f "$HOME/.openclaw/.current-sdk-version" ] \
-    && _cur_sdk=$(cat "$HOME/.openclaw/.current-sdk-version" | tr -d '[:space:]')
+  [ -f "$HOME/.smartclaw/.current-sdk-version" ] \
+    && _cur_sdk=$(cat "$HOME/.smartclaw/.current-sdk-version" | tr -d '[:space:]')
 
   _new_sdk=$("$GATEWAY_NPM" view "openclaw@${NEW_VERSION}" dependencies 2>/dev/null \
     | grep -i agentclientprotocol | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
@@ -106,8 +106,8 @@ echo ""
 
 # --- Step 2.5: Staging canary (fail-closed gate) ---
 STAGING_PORT="${OPENCLAW_STAGING_PORT:-18810}"
-STAGING_PLIST="$HOME/Library/LaunchAgents/ai.openclaw.staging.plist"
-STAGING_CANARY="$HOME/.openclaw/scripts/staging-canary.sh"
+STAGING_PLIST_LABEL="ai.smartclaw.staging"
+STAGING_CANARY="$HOME/.smartclaw/scripts/staging-canary.sh"
 SKIP_STAGING="${SKIP_STAGING:-}"
 if [ "$SKIP_STAGING" = "1" ]; then
   echo "--- Step 2.5/5: Staging canary (SKIPPED — SKIP_STAGING=1) ---"
@@ -121,19 +121,19 @@ elif [ ! -x "$STAGING_CANARY" ]; then
   exit 1
 else
   echo "--- Step 2.5/5: Staging canary test ---"
-  _staging_health="$(curl -sf --max-time 8 "http://127.0.0.1:${STAGING_PORT}/health" 2>/dev/null || true)"
+  _staging_health="$(curl -sf --max-time 5 "http://127.0.0.1:${STAGING_PORT}/health" 2>/dev/null || true)"
   if [ -z "$_staging_health" ]; then
-    echo "  Staging gateway not responding on port ${STAGING_PORT} — restarting launch agent..."
-    launchctl enable "gui/$(id -u)/ai.openclaw.staging" 2>/dev/null || true
-    launchctl kickstart -k "gui/$(id -u)/ai.openclaw.staging" 2>/dev/null || \
-      launchctl bootstrap "gui/$(id -u)" "$STAGING_PLIST" 2>/dev/null || true
-    echo "  Waiting for staging gateway to initialize..."
-    sleep 35
+    echo "  Staging gateway not responding on port ${STAGING_PORT} — (re)starting via launchd..."
+    launchctl kickstart -k "gui/$(id -u)/$STAGING_PLIST_LABEL" 2>/dev/null || true
+    sleep 5
     _staging_health="$(curl -sf --max-time 8 "http://127.0.0.1:${STAGING_PORT}/health" 2>/dev/null || true)"
+  else
+    echo "  Staging gateway already running on port ${STAGING_PORT}"
   fi
   if [ -z "$_staging_health" ]; then
-    echo "  FATAL: Staging gateway failed to start on port ${STAGING_PORT}"
-    echo "  Cannot validate upgrade without staging. Set SKIP_STAGING=1 to bypass (not recommended)."
+    echo "  FATAL: Staging gateway not reachable after kickstart"
+    echo "  Check logs: tail -f ~/.smartclaw/logs/staging-gateway.log"
+    echo "  Set SKIP_STAGING=1 to bypass (not recommended)."
     exit 1
   fi
   echo "  Staging gateway healthy: $_staging_health"
@@ -176,9 +176,9 @@ echo ""
 
 # --- Step 5a: Backup openclaw.json ---
 echo "--- Step 5/5: Backup + upgrade ---"
-_backup="$HOME/.openclaw/openclaw.json.pre-upgrade-$(date +%s)"
-if [ -f "$HOME/.openclaw/openclaw.json" ]; then
-  cp "$HOME/.openclaw/openclaw.json" "$_backup"
+_backup="$HOME/.smartclaw/openclaw.json.pre-upgrade-$(date +%s)"
+if [ -f "$HOME/.smartclaw/openclaw.json" ]; then
+  cp "$HOME/.smartclaw/openclaw.json" "$_backup"
   echo "  Backed up openclaw.json → $(basename "$_backup")"
 fi
 
@@ -229,11 +229,11 @@ fi
 
 # Record new SDK version
 if [ -n "${_new_sdk:-}" ] && [ "$_new_sdk" != "unknown" ]; then
-  echo "$_new_sdk" > "$HOME/.openclaw/.current-sdk-version"
+  echo "$_new_sdk" > "$HOME/.smartclaw/.current-sdk-version"
   echo "  SDK baseline updated: @agentclientprotocol/sdk=$_new_sdk"
 fi
 echo ""
 
 echo "=== Upgrade complete: openclaw@${NEW_VERSION} ==="
 echo "Run 'openclaw gateway status' to verify the gateway is healthy."
-echo "Check logs: tail -f ~/.openclaw/logs/gateway.log"
+echo "Check logs: tail -f ~/.smartclaw/logs/gateway.log"

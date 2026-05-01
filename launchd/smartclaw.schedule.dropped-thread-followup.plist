@@ -8,8 +8,8 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>-lc</string>
-        <string>@HOME@/.smartclaw/scripts/dropped-thread-followup.sh</string>
+        <string>-c</string>
+        <string>exec &quot;$HOME/.smartclaw/scripts/dropped-thread-followup.sh&quot;</string>
     </array>
 
     <key>EnvironmentVariables</key>

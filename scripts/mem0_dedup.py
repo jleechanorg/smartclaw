@@ -25,6 +25,7 @@ STOPWORDS = {
     "against","between","into","through","during","from","up","down","out","off",
     "over","under","again","then","once","and","but","or","not","no","so","if","as",
     "it","its","this","that","these","those","he","she","they","we",
+    "user","jeffrey","lee","chan","jleechan",
 }
 
 THRESHOLD = 0.88
@@ -118,7 +119,7 @@ def run(user_id: str, dry_run: bool) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Deduplicate mem0 memories")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be deleted without deleting")
-    parser.add_argument("--user-id", default=os.getenv("USER", ""), help="mem0 user ID (default: $USER)")
+    parser.add_argument("--user-id", default="jleechan", help="mem0 user ID (default: jleechan)")
     args = parser.parse_args()
     run(user_id=args.user_id, dry_run=args.dry_run)
 

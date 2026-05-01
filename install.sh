@@ -2,200 +2,106 @@
 # install.sh — One-shot setup for ~/.smartclaw/ (jleechanorg/smartclaw)
 #
 # Usage (post-clone):
-#   bash install.sh
+#   bash ~/.smartclaw/install.sh
 #
 # What it does:
-#   1. Installs Hermes Agent (hermes-agent) if not present
-#   2. Creates ~/.hermes/ and ~/.hermes_prod/ runtime dirs
-#   3. Installs systemd services (Linux) or LaunchAgents (macOS)
-#   4. Sets up symlinks and config
+#   1. Recreates symlinks and copies config files needed at runtime
+#   2. Installs all LaunchAgents / systemd units (gateway, monitor, startup-check, etc.)
 #
 # Prerequisites:
-#   - hermes CLI via pip or hermes-agent install.sh
+#   - openclaw.json must exist at ~/.smartclaw/openclaw.json with real tokens hardcoded
+#     (create/update this local runtime file directly; it is gitignored)
+#   - openclaw CLI must be in PATH
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS="$REPO_ROOT/scripts"
 
-# --- OS detection ---
-case "$(uname -s)" in
-  Darwin) OS="macos" ;;
-  Linux)  OS="linux" ;;
-  *) echo "Unsupported OS: $(uname -s)" >&2; exit 1 ;;
-esac
-echo "=== Smartclaw Install ==="
+echo "=== OpenClaw Install ==="
 echo "Repo root: $REPO_ROOT"
-echo "OS: $OS"
 echo ""
 
-# ============================================================================
-# 1. Hermes Agent Installation
-# ============================================================================
-echo "--- Checking Hermes Agent ---"
+# --- 1. Symlinks and config copies ---
 
-HERMES_BIN="${HERMES_BIN:-hermes}"
-HERMES_VENV_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes"
-
-if [[ -x "$HERMES_VENV_BIN" ]]; then
-  echo "✓ Hermes already installed at $HERMES_VENV_BIN"
-elif command -v hermes >/dev/null 2>&1; then
-  echo "✓ Hermes found in PATH"
-else
-  echo "  Installing Hermes Agent..."
-  curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
-  # Symlink hermes to ~/.local/bin/
-  if [[ ! -L "$HOME/.local/bin/hermes" ]] && [[ -x "$HERMES_VENV_BIN" ]]; then
-    ln -sf "$HERMES_VENV_BIN" "$HOME/.local/bin/hermes"
-    echo "✓ Symlinked hermes to ~/.local/bin/"
-  fi
+# workspace-monitor skills symlink (gitignored in workspace-monitor/)
+if [[ -d "$REPO_ROOT/workspace-monitor" ]]; then
+  ln -sf "$REPO_ROOT/skills" "$REPO_ROOT/workspace-monitor/skills"
+  echo "✓ Symlink: workspace-monitor/skills -> skills/"
 fi
 
-# ============================================================================
-# 2. Smartclaw Directory Structure
-# ============================================================================
-echo ""
-echo "--- Setting up ~/.smartclaw directories ---"
-
-mkdir -p "$HOME/.hermes_prod"/{skills,memories,sessions,logs,cron}
-
-# Staging: use default Hermes runtime (~/.hermes/)
-HERMES_STAGING_HOME="${HERMES_STAGING_HOME:-$HOME/.hermes}"
-HERMES_PROD_HOME="${HERMES_PROD_HOME:-$HOME/.hermes_prod}"
-
-# Ensure both runtime trees exist
-mkdir -p "$HERMES_STAGING_HOME"/{skills,memories,sessions,logs,cron}
-mkdir -p "$HERMES_PROD_HOME"/{skills,memories,sessions,logs,cron}
-echo "✓ ~/.hermes/            → staging runtime"
-echo "✓ ~/.hermes_prod/       → prod runtime (default Hermes prod dir)"
-
-# ============================================================================
-# 3. Hermes Gateway Services (systemd on Linux, launchd on macOS)
-# ============================================================================
-echo ""
-echo "--- Installing Hermes gateway services ---"
-
-if [[ "$OS" == "linux" ]]; then
-  echo "Installing systemd services (Linux)..."
-
-  # Staging service
-  sudo tee /etc/systemd/system/smartclaw-hermes-staging.service > /dev/null <<EOF
-[Unit]
-Description=Hermes Agent Gateway (Staging)
-After=network.target
-
-[Service]
-Type=simple
-User=$(whoami)
-Group=$(id -gn)
-Environment=HERMES_HOME=$HERMES_STAGING_HOME
-ExecStart=$HOME/.local/bin/hermes gateway run
-Restart=on-failure
-RestartSec=5
-StandardOut=append:$HERMES_STAGING_HOME/logs/gateway.log
-StandardError=append:$HERMES_STAGING_HOME/logs/gateway.err.log
-WorkingDirectory=$HOME
-
-[Install]
-WantedBy=multi-user.target
-EOF
-  sudo systemctl daemon-reload
-  sudo systemctl enable --now smartclaw-hermes-staging.service 2>/dev/null || \
-    sudo systemctl enable smartclaw-hermes-staging.service
-  echo "✓ smartclaw-hermes-staging.service installed"
-
-  # Prod service
-  sudo tee /etc/systemd/system/smartclaw-hermes-prod.service > /dev/null <<EOF
-[Unit]
-Description=Hermes Agent Gateway (Prod)
-After=network.target
-
-[Service]
-Type=simple
-User=$(whoami)
-Group=$(id -gn)
-Environment=HERMES_HOME=$HERMES_PROD_HOME
-ExecStart=$HOME/.local/bin/hermes gateway run
-Restart=on-failure
-RestartSec=5
-StandardOut=append:$HERMES_PROD_HOME/logs/gateway.log
-StandardError=append:$HERMES_PROD_HOME/logs/gateway.err.log
-WorkingDirectory=$HOME
-
-[Install]
-WantedBy=multi-user.target
-EOF
-  sudo systemctl daemon-reload
-  sudo systemctl enable --now smartclaw-hermes-prod.service 2>/dev/null || \
-    sudo systemctl enable smartclaw-hermes-prod.service
-  echo "✓ smartclaw-hermes-prod.service installed"
-
-  echo ""
-  echo "Manage with:"
-  echo "  sudo systemctl start  smartclaw-hermes-staging.service"
-  echo "  sudo systemctl stop   smartclaw-hermes-staging.service"
-  echo "  sudo systemctl status smartclaw-hermes-staging.service"
-
-else
-  echo "Installing LaunchAgents (macOS)..."
-
-  HERMES_STAGING_PLIST="$REPO_ROOT/launchd/smartclaw.hermes-staging.plist.template"
-  HERMES_PROD_PLIST="$REPO_ROOT/launchd/smartclaw.hermes-prod.plist.template"
-
-  if [[ -f "$HERMES_STAGING_PLIST" ]]; then
-    sed -e "s|@HERMES_STAGING_HOME@|$HERMES_STAGING_HOME|g" \
-        -e "s|@HOME@|$HOME|g" \
-        -e "s|@HERMES_BIN@|$HOME/.local/bin/hermes|g" \
-        "$HERMES_STAGING_PLIST" > "$HOME/Library/LaunchAgents/ai.smartclaw.hermes-staging.plist"
-    launchctl bootout "gui/$(id -u)/ai.smartclaw.hermes-staging" 2>/dev/null || true
-    launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/ai.smartclaw.hermes-staging.plist"
-    echo "✓ ai.smartclaw.hermes-staging installed"
-  fi
-
-  if [[ -f "$HERMES_PROD_PLIST" ]]; then
-    sed -e "s|@HERMES_PROD_HOME@|$HERMES_PROD_HOME|g" \
-        -e "s|@HOME@|$HOME|g" \
-        -e "s|@HERMES_BIN@|$HOME/.local/bin/hermes|g" \
-        "$HERMES_PROD_PLIST" > "$HOME/Library/LaunchAgents/ai.smartclaw.hermes.prod.plist"
-    launchctl bootout "gui/$(id -u)/ai.smartclaw.hermes.prod" 2>/dev/null || true
-    launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/ai.smartclaw.hermes.prod.plist"
-    echo "✓ ai.smartclaw.hermes.prod installed"
-  fi
-
-  echo ""
-  echo "Manage with:"
-  echo "  launchctl start gui/\$(id -u)/ai.smartclaw.hermes-staging"
-  echo "  launchctl stop  gui/\$(id -u)/ai.smartclaw.hermes-staging"
-fi
-
-# ============================================================================
-# 4. Agent Orchestrator Config
-# ============================================================================
-echo ""
-echo "--- Copying agent-orchestrator.yaml ---"
+# Agent Orchestrator runtime config
 REPO_YAML="$REPO_ROOT/agent-orchestrator.yaml"
 AO_DOTFILE="$HOME/.agent-orchestrator.yaml"
+RENDER_AO_CONFIG="$REPO_ROOT/scripts/render-agent-orchestrator-config.sh"
 if [[ -f "$REPO_YAML" ]]; then
-  cp "$REPO_YAML" "$AO_DOTFILE"
-  echo "✓ Copied: agent-orchestrator.yaml -> ~/.agent-orchestrator.yaml"
+  if [[ -f "$RENDER_AO_CONFIG" ]]; then
+    bash "$RENDER_AO_CONFIG" "$REPO_YAML" "$AO_DOTFILE"
+    echo "✓ Rendered: agent-orchestrator.yaml -> ~/.agent-orchestrator.yaml"
+  else
+    echo "ERROR: AO render script not found at $RENDER_AO_CONFIG" >&2
+    exit 1
+  fi
+  bash "$SCRIPTS/bootstrap.sh" --symlink-only
 fi
 
-# ============================================================================
-# 5. Verify Hermes
-# ============================================================================
-echo ""
-echo "--- Verifying Hermes installation ---"
-if HERMES_HOME="$HERMES_STAGING_HOME" hermes status >/dev/null 2>&1; then
-  echo "✓ Hermes is functional"
-  HERMES_HOME="$HERMES_STAGING_HOME" hermes status 2>&1 | head -20
-else
-  echo "⚠ Hermes may need tokens configured — run hermes status to check"
+# --- 2. Verify openclaw.json has real tokens ---
+if [[ ! -f "$REPO_ROOT/openclaw.json" ]]; then
+  echo ""
+  echo "ERROR: ~/.smartclaw/openclaw.json not found."
+  echo "  Create openclaw.json with real tokens before running install."
+  exit 1
 fi
+
+if python3 - "$REPO_ROOT/openclaw.json" <<'PY'
+import json, sys
+data = json.loads(open(sys.argv[1]).read())
+def has_placeholder(obj):
+    if isinstance(obj, str):
+        return obj.startswith("${") and obj.endswith("}")
+    if isinstance(obj, dict):
+        return any(has_placeholder(v) for v in obj.values())
+    if isinstance(obj, list):
+        return any(has_placeholder(v) for v in obj)
+    return False
+if has_placeholder(data):
+    print("ERROR: openclaw.json still contains \${PLACEHOLDER} values — fill in real tokens first.", file=__import__("sys").stderr)
+    sys.exit(1)
+PY
+then
+  echo "✓ openclaw.json: tokens appear to be real (no placeholders)"
+else
+  exit 1
+fi
+
+echo ""
+
+# --- 3. Install Python orchestration package (local editable) ---
+echo "--- Installing Python orchestration package ---"
+if command -v python3 >/dev/null 2>&1; then
+  if [[ -f "$REPO_ROOT/pyproject.toml" ]] || [[ -f "$REPO_ROOT/setup.py" ]]; then
+    if python3 -m pip install -e "$REPO_ROOT" --quiet; then
+      echo "✓ Python orchestration package installed (editable)"
+    else
+      echo "ERROR: pip install -e failed. Ensure python3 + pip are available." >&2
+      exit 1
+    fi
+  else
+    echo "  skipping: no pyproject.toml or setup.py found"
+  fi
+else
+  echo "WARNING: python3 not found — orchestration modules won't be available"
+fi
+
+echo ""
+
+# --- 4. Install LaunchAgents / systemd units ---
+echo "--- Installing services ---"
+"$SCRIPTS/install-all.sh"
 
 echo ""
 echo "=== Install complete ==="
 echo ""
-echo "Next steps:"
-echo "  1. Configure Slack tokens in ~/.hermes/.env (staging)"
-echo "  2. Configure Slack tokens in ~/.hermes_prod/.env (prod)"
-echo "  3. HERMES_HOME=\$HOME/.hermes hermes chat  # test staging"
+echo "Gateway token and all secrets are read directly from ~/.smartclaw/openclaw.json."
+echo "Do NOT add tokens to plists or environment variables — openclaw.json is the"
+echo "single source of truth."

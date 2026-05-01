@@ -9,23 +9,26 @@ type: reference
 **Live config**: `~/.smartclaw/openclaw.json` → `agents.defaults.model`
 **Auth profiles**: `~/.smartclaw/agents/main/agent/auth-profiles.json`
 
-## Current config (as of 2026-03-30)
+## Current config (as of 2026-04)
 
 ```json
 "model": {
-  "primary": "minimax/MiniMax-M2.7",
+  "primary": "minimax-portal/MiniMax-M2.7",
   "fallbacks": []
 }
 ```
 
-**timeoutSeconds**: 900 (M2.7 regular can be slow; 600 was too low)
+**Provider id** in `models.providers` must be **`minimax-portal`** (Anthropic-compatible baseUrl). Plugin: **`minimax-portal-auth`** in `plugins.allow` / `plugins.entries`.
+
+**timeoutSeconds**: **≤600** (harness/doctor cap for WebSocket/event-loop safety). Live staging/prod often use **300**. If users see “request timed out”, check gateway logs for **embedded run timeout** and **SlackWebSocket pong** spam before raising timeout.
 
 ## Provider status table
 
-| Model | Status | Auth type | Notes |
+| Model id (config) | Status | Auth type | Notes |
 |---|---|---|---|
-| `minimax/MiniMax-M2.7` | ✅ **WORKING — current primary** | `api_key` → `minimax:default` | Can be slow; timeout set to 900s |
-| `minimax/MiniMax-M2.7-highspeed` | ❌ **PLAN NOT SUPPORTED** | `api_key` → `minimax:default` | HTTP 500 error 2061 — current API key plan does not include this model |
+| `minimax-portal/MiniMax-M2.7` | ✅ **WORKING — current primary** | OAuth via **minimax-portal-auth** | Use this id with `minimax-portal` provider block |
+| `minimax/MiniMax-M2.7` | ⚠️ **Do not use** unless `models.providers.minimax` exists | Legacy | Misconfiguration causes `Unknown model` / confusion; logs may still print `minimax/` during runs |
+| `minimax/MiniMax-M2.7-highspeed` | ❌ **PLAN NOT SUPPORTED** | n/a | HTTP 500 error 2061 — current API key plan does not include this model |
 | `openai-codex/gpt-5.3-codex` | ❌ **QUOTA-LIMITED** | OAuth → `openai-codex:default` | Weekly usage cap exhausts; DO NOT use as primary/fallback |
 | `openai-codex/gpt-5.3-codex-spark` | ⚠️ Same quota | OAuth → `openai-codex:default` | Same weekly pool as gpt-5.3-codex; used by consensus agent |
 | `xai/grok-4-fast` | ❓ UNVERIFIED | `api_key` → `XAI_API_KEY` env | Key was flagged 403/revoked 2026-03-28; verify before using |
@@ -34,6 +37,10 @@ type: reference
 | `anthropic-vertex/claude-sonnet-4-6` | ❓ NOT CONFIGURED | GCP credentials | Needs `gcp-vertex-credentials` profile; not set up |
 
 ## Auth profile format (api_key providers)
+
+**Current primary path**: **minimax-portal-auth** (OAuth) — profiles are managed by the plugin; do not assume `minimax:default` exists.
+
+Legacy direct-key shape (for probes or old setups):
 
 ```json
 "minimax:default": {
@@ -76,7 +83,7 @@ curl -s -o /dev/null -w "%{http_code}" \
 import json
 path = "${HOME}/.smartclaw/openclaw.json"
 with open(path) as f: d = json.load(f)
-d['agents']['defaults']['model']['primary'] = "minimax/MiniMax-M2.7"
+d['agents']['defaults']['model']['primary'] = "minimax-portal/MiniMax-M2.7"
 d['agents']['defaults']['model']['fallbacks'] = []
 with open(path, 'w') as f: json.dump(d, f, indent=2)
 ```
@@ -95,14 +102,13 @@ grep "agent model" /tmp/openclaw/openclaw-$(date +%F).log | tail -2
 
 ## Timeout tuning
 
-`agents.defaults.timeoutSeconds: 900` — MiniMax M2.7 (regular) can be slow; 600s was insufficient.
-Do not lower below 900s while on M2.7 regular.
+Keep **`agents.defaults.timeoutSeconds` ≤ 600** (required for doctor and WS pong budget). If timeouts persist at 600 with **low** `SlackWebSocket:N`, the model may be slow or overloaded; if **high** `SlackWebSocket:N`, reduce **`maxConcurrent`** / subagent concurrency first (see root `CLAUDE.md` “WS Churn Root Cause”).
 
 ## Known failure modes
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| :eyes: reaction but no reply | MiniMax M2.7 timeout exceeded | Increase `timeoutSeconds` (currently 900); check logs for `FailoverError` |
+| :eyes: reaction but no reply | MiniMax M2.7 timeout exceeded | Check `embedded run timeout` in `gateway.err.log`; keep `timeoutSeconds` ≤600; if WS churn is high, lower concurrency before raising timeout |
 | `HTTP 500 error 2061` in logs | Model not on current API key plan | Mark ❌ in status table; do NOT add to config; probe before switching |
 | `LiveSessionModelSwitchError` | Model changed while session was live | Expected after restart; clears on next run |
 | `FailoverError: LLM request timed out` | Primary timed out, no working fallback | Highspeed ❌ on this plan; investigate xAI grok or OpenRouter |

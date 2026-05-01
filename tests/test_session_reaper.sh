@@ -7,6 +7,10 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REAPER_SCRIPT="$SCRIPT_DIR/../scripts/ao-session-reaper.sh"
 
+# Source production script to exercise real functions
+# shellcheck source=/dev/null
+source "$REAPER_SCRIPT"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -50,6 +54,18 @@ EOF
             # Orphaned but recent
             cat <<'EOF'
 jc-998	detached	(1) (04/02 15:30:00) (0)	 Detached
+EOF
+            ;;
+        ao_orphaned_old)
+            # ao-* session with no worktree - orphaned for > 2 hours
+            cat <<'EOF'
+ao-748	detached	(1) (01/01 00:00:00) (0)	 Detached
+EOF
+            ;;
+        ao_orphaned_new)
+            # ao-* session orphaned but recent
+            cat <<'EOF'
+ao-749	detached	(1) (04/02 15:30:00) (0)	 Detached
 EOF
             ;;
         mixed_stale)
@@ -229,17 +245,74 @@ test_kill_cap() {
     fi
 }
 
-# Test 8: Log entry written for every kill
+# Test 8: log() function from production script produces correctly formatted output
 test_log_entry_written() {
-    log_info "Test: Log entry should be written for every kill"
-    
-    # The reaper should log each kill
-    local log_entry="[2026-04-02 15:30:00] KILLED jc-123 (merged PR) /tmp/worktrees/smartclaw/pr-123"
-    
-    if [[ -n "$log_entry" ]]; then
-        log_pass "Log entry written for every kill"
+    log_info "Test: log() from production script outputs timestamp + message"
+
+    # Capture output from the production log() function
+    local log_output
+    log_output=$(log "KILLING jc-123: merged PR" 2>&1)
+
+    # Verify format: [YYYY-MM-DD HH:MM:SS] MESSAGE
+    if [[ "$log_output" =~ ^\[202[0-9]-[0-9]{2}-[0-9]{2}\ [0-9]{2}:[0-9]{2}:[0-9]{2}\]\ KILLING\ jc-123:\ merged\ PR ]]; then
+        log_pass "log() outputs correctly formatted timestamped message"
     else
-        log_fail "Log entry should be written for every kill"
+        log_fail "log() outputs correctly formatted timestamped message (got: $log_output)"
+    fi
+}
+
+# Test 9: ao-* orphaned session older than 2h → is_safe_to_kill returns success
+test_ao_orphaned_old_killed() {
+    log_info "Test: ao-* orphaned session older than 2h should be killed"
+
+    # Mock tmux so get_session_age returns a timestamp 7201s in the past
+    tmux() {
+        if [[ "$*" == *"display-message"* && "$*" == *"ao-748"* ]]; then
+            echo $(( $(date +%s) - 7201 ))
+        else
+            command tmux "$@"
+        fi
+    }
+
+    if is_safe_to_kill "ao-748" "" ""; then
+        log_pass "ao-* orphaned session older than 2h should be killed"
+    else
+        log_fail "ao-* orphaned session older than 2h should be killed"
+    fi
+}
+
+# Test 10: ao-* orphaned session newer than 2h → is_safe_to_kill returns failure
+test_ao_orphaned_new_not_killed() {
+    log_info "Test: ao-* orphaned session newer than 2h should NOT be killed"
+
+    # Mock tmux so get_session_age returns a timestamp 3600s (1h) in the past
+    tmux() {
+        if [[ "$*" == *"display-message"* && "$*" == *"ao-749"* ]]; then
+            echo $(( $(date +%s) - 3600 ))
+        else
+            command tmux "$@"
+        fi
+    }
+
+    if ! is_safe_to_kill "ao-749" "" ""; then
+        log_pass "ao-* orphaned session newer than 2h should NOT be killed"
+    else
+        log_fail "ao-* orphaned session newer than 2h should NOT be killed"
+    fi
+}
+
+# Test 11: parse_session_info accepts ao-* session names via production function
+test_parse_ao_session() {
+    log_info "Test: parse_session_info should accept ao-* session names"
+
+    local line=$'ao-748\tdetached\t(1) (01/01 00:00:00) (0)\t Detached'
+    local parsed
+    parsed=$(parse_session_info "$line")
+
+    if [[ "$parsed" == "ao-748||" ]]; then
+        log_pass "parse_session_info accepts ao-* session names"
+    else
+        log_fail "parse_session_info accepts ao-* session names (got: $parsed)"
     fi
 }
 
@@ -256,6 +329,9 @@ main() {
     test_open_pr_active_worktree_not_killed
     test_orphaned_old_killed
     test_orphaned_new_not_killed
+    test_ao_orphaned_old_killed
+    test_ao_orphaned_new_not_killed
+    test_parse_ao_session
     test_kill_cap
     test_log_entry_written
     

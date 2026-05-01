@@ -65,15 +65,12 @@ def test_no_runtime_db_or_progress_artifacts_tracked() -> None:
 
 
 def test_no_literal_tokens_in_backup_configs() -> None:
-    # Scan committed config artefacts only: the redacted snapshot and the
-    # launchd templates checked in under launchd/.  The live openclaw.json and
+    # Scan committed config artefacts only: launchd templates checked in under
+    # launchd/. The live openclaw.json and
     # ~/Library/LaunchAgents/*.plist are gitignored runtime files that must
     # contain real tokens to work — scanning them here would always fail.
     LAUNCHD_TEMPLATES_DIR = REPO_ROOT / "launchd"
     files: list[Path] = []
-    redacted = REPO_ROOT / "openclaw.json.redacted"
-    if redacted.exists():
-        files.append(redacted)
     if LAUNCHD_TEMPLATES_DIR.is_dir():
         files.extend(sorted(LAUNCHD_TEMPLATES_DIR.glob("*.plist")))
 
@@ -104,3 +101,38 @@ def test_beads_backup_is_redacted() -> None:
                 bad_hits.append(f"{path.relative_to(REPO_ROOT)} matches {pat.pattern}")
 
     assert not bad_hits, "Found sensitive data in beads backups: " + "; ".join(bad_hits)
+
+
+def test_launchd_templates_do_not_use_literal_home_variable() -> None:
+    launchd_dir = REPO_ROOT / "launchd"
+    templates = sorted(launchd_dir.glob("*.plist.template"))
+    assert templates, "Expected launchd plist templates in launchd/"
+
+    bad: list[str] = []
+    for template in templates:
+        text = template.read_text(encoding="utf-8", errors="ignore")
+        if "${HOME}" in text or "$HOME" in text:
+            bad.append(str(template.relative_to(REPO_ROOT)))
+
+    assert not bad, (
+        "Launchd templates must use @HOME@ replacement, not literal ${HOME} or $HOME: "
+        + ", ".join(bad)
+    )
+
+
+def test_install_launchagents_never_prefers_system_python_for_mem0() -> None:
+    script_path = REPO_ROOT / "scripts" / "install-launchagents.sh"
+    if not script_path.exists():
+        import pytest
+        pytest.skip("install-launchagents.sh not present")
+
+    script = script_path.read_text(encoding="utf-8")
+    # Regex: /usr/bin/python3 invoked directly with mem0/qdrant_client imports on the same line.
+    # Matches regardless of quoting style or whitespace around arguments.
+    bad_pattern = re.compile(
+        r"/usr/bin/python3\s+[^\n]*import\s+mem0[^\n]*import\s+qdrant_client",
+        re.IGNORECASE,
+    )
+    assert not bad_pattern.search(script), (
+        "Script must not contain branches that use /usr/bin/python3 for mem0 detection"
+    )
