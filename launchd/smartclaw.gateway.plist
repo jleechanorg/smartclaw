@@ -11,9 +11,9 @@
 		<key>HOME</key>
 		<string>@HOME@</string>
 		<key>OPENCLAW_STATE_DIR</key>
-		<string>${HOME}/.smartclaw_prod</string>
+		<string>@HOME@/.smartclaw_prod</string>
 		<key>OPENCLAW_CONFIG_PATH</key>
-		<string>${HOME}/.smartclaw_prod/openclaw.json</string>
+		<string>@HOME@/.smartclaw_prod/openclaw.json</string>
 		<key>MISSION_CONTROL_BASE_URL</key>
 		<string>http://localhost:9010</string>
 		<key>MISSION_CONTROL_BOARD_ID</key>
@@ -41,7 +41,7 @@
 		<key>OPENCLAW_WINDOWS_TASK_NAME</key>
 		<string>OpenClaw Gateway</string>
 		<key>PATH</key>
-		<string>${HOME}/.local/bin:${HOME}/.npm-global/bin:${HOME}/bin:${HOME}/.volta/bin:${HOME}/.asdf/shims:${HOME}/.bun/bin:${HOME}/Library/Application Support/fnm/aliases/default/bin:${HOME}/.fnm/aliases/default/bin:${HOME}/Library/pnpm:${HOME}/.local/share/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+		<string>@HOME@/.local/bin:@HOME@/.npm-global/bin:@HOME@/bin:@HOME@/.volta/bin:@HOME@/.asdf/shims:@HOME@/.bun/bin:@HOME@/Library/Application Support/fnm/aliases/default/bin:@HOME@/.fnm/aliases/default/bin:@HOME@/Library/pnpm:@HOME@/.local/share/pnpm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
 		<key>SHELL</key>
 		<string>/opt/homebrew/bin/bash</string>
 		<key>TMPDIR</key>
@@ -60,12 +60,12 @@
 	<key>RunAtLoad</key>
 	<true/>
 	<key>StandardErrorPath</key>
-	<string>${HOME}/.smartclaw_prod/logs/gateway.err.log</string>
+	<string>@HOME@/.smartclaw_prod/logs/gateway.err.log</string>
 	<key>StandardOutPath</key>
-	<string>${HOME}/.smartclaw_prod/logs/gateway.log</string>
+	<string>@HOME@/.smartclaw_prod/logs/gateway.log</string>
 	<key>ThrottleInterval</key>
 	<integer>30</integer>
 	<key>Umask</key>
-	<integer>63</integer>
+
 </dict>
 </plist>
