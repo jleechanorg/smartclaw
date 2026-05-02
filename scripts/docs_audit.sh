@@ -3,10 +3,12 @@
 # Output is ANSI-stripped and home-path-normalized for GitHub readability.
 set -euo pipefail
 
-ROOT="${OPENCLAW_ROOT:-$HOME/.smartclaw}"
+ROOT="${HERMES_ROOT:-$HOME/.hermes}"
 CTX="$ROOT/docs/context"
 SNAP="$CTX/SYSTEM_SNAPSHOT.md"
 GAPS="$CTX/DOC_GAPS.md"
+OPENCLAW_ROOT="${OPENCLAW_ROOT:-$HOME/.smartclaw}"
+TIRITH="$OPENCLAW_ROOT/bin/tirith"
 
 # Strip ANSI color codes and normalize ~/.smartclaw paths to ~/.
 sanitize() { sed -E $'s/\x1b\\[[0-9;]*m//g' | sed -E "s|$HOME/.smartclaw/?|~/.smartclaw/|g"; }
@@ -19,16 +21,19 @@ mkdir -p "$CTX"
   echo "Generated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
   echo
   echo "## OpenClaw version"
-  NO_COLOR=1 openclaw --version 2>&1 | sanitize || true
+  node -e "try{const p=require('$ROOT/package.json');console.log('openclaw',p.version)}catch(e){console.log('(unknown)')}" 2>&1 | sanitize || echo "(unknown)"
+  echo
+  echo "## Tirith version"
+  "$TIRITH" --version 2>&1 | sanitize || echo "(tirith not found)"
   echo
   echo "## Gateway status"
-  NO_COLOR=1 openclaw status 2>&1 | sanitize || true
+  curl -s --max-time 5 http://localhost:18789/health 2>&1 | sanitize || echo "(gateway not reachable)"
   echo
   echo "## Cron jobs"
-  NO_COLOR=1 openclaw cron list --json 2>&1 | sanitize || true
+  echo "(see CRON_JOBS_BACKUP.md for current job list)"
   echo
   echo "## Diagnostics flags"
-  NO_COLOR=1 openclaw config get diagnostics.flags 2>&1 | sanitize || true
+  echo "(see openclaw logs for runtime diagnostics)"
 } > "$SNAP"
 
 missing=0

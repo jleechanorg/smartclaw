@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # ao-manager.sh — Unified AO lifecycle manager.
 #
-# Reads all projects from ~/.smartclaw/agent-orchestrator.yaml and manages:
+# Reads all projects from the rendered local AO config (~/.agent-orchestrator.yaml
+# by default, or AO_CONFIG_PATH when overridden) and manages:
 #   1. lifecycle-workers (one per project, via ao lifecycle-worker)
 #   2. orchestrator tmux sessions (one per project, via ao start --no-dashboard)
 #   3. dashboard (first project only, via ao start)
@@ -19,7 +20,7 @@
 set -uo pipefail
 
 LOG="/tmp/ao-manager.log"
-CONFIG_PATH="${AO_CONFIG_PATH:-$HOME/.smartclaw/agent-orchestrator.yaml}"
+CONFIG_PATH="${AO_CONFIG_PATH:-$HOME/.agent-orchestrator.yaml}"
 LOG_DIR="${AO_LOG_DIR:-$HOME/.smartclaw/logs}"
 AO_BIN="${AO_BIN:-$HOME/bin/ao}"
 MONITOR_INTERVAL="${AO_MONITOR_INTERVAL:-60}"   # seconds between health checks
@@ -56,13 +57,17 @@ load_projects() {
   # detection works reliably (process substitution errors aren't caught
   # by || the same way command substitution errors are).
   local raw_ids
-  raw_ids=$(python3 -c "
+  raw_ids=$(python3 - "$CONFIG_PATH" <<'PY'
+import sys
 import yaml
-with open('$CONFIG_PATH') as f:
+
+with open(sys.argv[1], encoding="utf-8") as f:
     cfg = yaml.safe_load(f)
-for pid in cfg.get('projects', {}):
+
+for pid in cfg.get("projects", {}):
     print(pid)
-" 2>&1) || {
+PY
+ 2>&1) || {
     err "Failed to parse $CONFIG_PATH: $raw_ids"
     exit 1
   }
@@ -75,13 +80,17 @@ for pid in cfg.get('projects', {}):
 
   # Load session prefixes — capture and check for errors
   local raw_prefixes
-  raw_prefixes=$(python3 -c "
+  raw_prefixes=$(python3 - "$CONFIG_PATH" <<'PY'
+import sys
 import yaml
-with open('$CONFIG_PATH') as f:
+
+with open(sys.argv[1], encoding="utf-8") as f:
     cfg = yaml.safe_load(f)
-for pid, proj in cfg.get('projects', {}).items():
-    print(f'{pid}\t{proj.get("sessionPrefix", "")}')
-" 2>&1) || {
+
+for pid, proj in cfg.get("projects", {}).items():
+    print(f"{pid}\t{proj.get('sessionPrefix', '')}")
+PY
+ 2>&1) || {
     err "Failed to read session prefixes from $CONFIG_PATH"
     exit 1
   }

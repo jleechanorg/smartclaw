@@ -2,8 +2,8 @@
 # install-ao-manager.sh — Install the unified AO manager launchd plist.
 #
 # Creates ~/Library/LaunchAgents/ai.agento.manager.plist from the template,
-# then bootstrap it. ao-manager.sh reads projects from agent-orchestrator.yaml
-# so no hardcoded project list in the plist.
+# then bootstrap it. ao-manager.sh reads projects from the rendered local AO
+# config, so there is no hardcoded project list in the plist.
 #
 # Usage:
 #   ./scripts/install-ao-manager.sh     # install + start

@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Harness layers — user vs repository</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --bg2: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --code-bg: #1f2937;
+      --table-header: #1c2128;
+      --link: #58a6ff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.65;
+    }
+    .layout { display: flex; min-height: 100vh; }
+    .sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 24px 0;
+    }
+    .sidebar-title {
+      padding: 0 20px 16px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 8px;
+    }
+    .sidebar nav a {
+      display: block;
+      padding: 6px 20px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13px;
+      border-left: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .sidebar nav a:hover,
+    .sidebar nav a.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: rgba(88, 166, 255, 0.07);
+    }
+    .main {
+      flex: 1;
+      max-width: 900px;
+      padding: 48px 56px;
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    h2 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-top: 40px;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    p { margin-bottom: 14px; color: var(--text); }
+    ul { margin: 10px 0 14px 24px; color: var(--text); }
+    li { margin-bottom: 6px; }
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0 24px;
+      font-size: 13.5px;
+    }
+    th {
+      background: var(--table-header);
+      color: var(--text-muted);
+      font-weight: 600;
+      text-align: left;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    td {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      vertical-align: top;
+    }
+    tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 18px;
+      overflow-x: auto;
+      font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+      font-size: 12.5px;
+      line-height: 1.55;
+      margin: 14px 0 20px;
+      color: #cdd9e5;
+    }
+    code {
+      background: var(--code-bg);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+      font-size: 12.5px;
+      color: #cdd9e5;
+    }
+    pre code { background: none; padding: 0; border-radius: 0; font-size: inherit; }
+    section { scroll-margin-top: 24px; }
+    .muted { color: var(--text-muted); font-size: 13px; margin-top: 2rem; }
+    @media (max-width: 900px) {
+      .sidebar { display: none; }
+      .main { padding: 28px 20px; max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-title">Harness docs</div>
+    <nav>
+      <a href="#top">Overview</a>
+      <a href="#repo-local">Repository-local</a>
+      <a href="#collision">Collision rule</a>
+      <a href="#sync">Sync</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <section id="top">
+      <h1>Harness layers (user vs repository)</h1>
+      <p>This directory holds <strong>tracked copies</strong> of <strong>user-scope</strong> harness text so PRs can review drift between <code>~/.claude/</code> and the smartclaw repo.</p>
+
+      <table>
+        <thead>
+          <tr><th>File</th><th>Install target</th><th>Purpose</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><a href="user-command-harness.md">user-command-harness.md</a></td>
+            <td><code>~/.claude/commands/harness.md</code></td>
+            <td>General <code>/harness</code> command — any repo</td>
+          </tr>
+          <tr>
+            <td><a href="harness-engineering-scope-snippet.md">harness-engineering-scope-snippet.md</a></td>
+            <td>Merge into <code>~/.claude/skills/harness-engineering/SKILL.md</code></td>
+            <td><strong>Scope: user vs repository</strong> section</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="repo-local">
+      <h2>Repository-local (OpenClaw-specific)</h2>
+      <p>Not copied to global <code>~/.claude/</code>:</p>
+      <ul>
+        <li><a href="../../.claude/skills/openclaw-harness/SKILL.md"><code>.claude/skills/openclaw-harness/SKILL.md</code></a></li>
+        <li><a href="../../.claude/commands/harness.md"><code>.claude/commands/harness.md</code></a></li>
+      </ul>
+    </section>
+
+    <section id="collision">
+      <h2>Collision rule</h2>
+      <p>Workspace <code>.claude/commands/harness.md</code> overrides the global command for that project. Agents should read <strong>user-scope first</strong>, then <strong>repo overlay</strong>.</p>
+    </section>
+
+    <section id="sync">
+      <h2>Sync</h2>
+      <p>From repo root:</p>
+      <pre><code>bash scripts/sync-harness-user-scope.sh</code></pre>
+      <p>Use <code>--dry-run</code> to print actions without writing.</p>
+    </section>
+
+    <p class="muted">See also: <a href="../ORCHESTRATION_SYSTEM_DESIGN.html">ORCHESTRATION_SYSTEM_DESIGN.html</a> · <a href="../../CLAUDE.md">CLAUDE.md</a> (Gateway, doctor/monitor parity).</p>
+  </main>
+</div>
+
+<script>
+  const sections = document.querySelectorAll('section[id], h2[id], h3[id]');
+  const links = document.querySelectorAll('.sidebar nav a');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector('.sidebar nav a[href="#' + entry.target.id + '"]');
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  sections.forEach(s => observer.observe(s));
+</script>
+<script>
+  if (typeof mermaid !== 'undefined') {
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      securityLevel: 'strict'
+    });
+  }
+</script>
+</body>
+</html>

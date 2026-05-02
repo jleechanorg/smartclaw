@@ -17,7 +17,7 @@ concurrency:
 jobs:
   ping-coderabbit:
     if: github.event.repository.fork == false
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJson(vars.SELF_HOSTED_RUNNER_LABELS || '["ubuntu-latest"]') }}
     steps:
       - name: Comment on matching open PR
         uses: actions/github-script@v7
@@ -46,7 +46,7 @@ jobs:
               return;
             }
 
-            const body = '@coderabbitai all good?';
+            const body = '@coderabbitai review';
 
             for (const pr of prs) {
               await github.rest.issues.createComment({

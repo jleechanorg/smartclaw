@@ -69,10 +69,10 @@ The agent uses the project's `agentRules` which prioritize:
 Run AO commands from:
 
 ```bash
-cd ~/projects_reference/agent-orchestrator
+cd ~/.smartclaw
 ```
 
-`ao` reads `agent-orchestrator.yaml` from the current repo. Running from unrelated directories (for example `~/project_smartclaw/mctrl`) can fail with:
+`ao` reads `agent-orchestrator.yaml` from the current directory. In this setup, the canonical config is `~/.smartclaw/agent-orchestrator.yaml` (includes project `smartclaw`). Running from unrelated directories can fail with:
 `No agent-orchestrator.yaml found. Run ao init to create one.`
 
 ## Available projects (from agent-orchestrator.yaml)
@@ -87,7 +87,7 @@ cd ~/projects_reference/agent-orchestrator
 - `worldai-claw-agento` — worldai_claw agento clone
 - `smartclaw-main` — jleechanorg/smartclaw main (also used for PR work)
 
-**If PR has no matching project:** Run `cat ~/projects_reference/agent-orchestrator/agent-orchestrator.yaml` to see current list, add a new entry following the existing pattern, then spawn. Base repo path for new worldarchitect.ai PRs: clone fresh to `~/.worktrees/worldai-pr<N>-repo`.
+**If PR has no matching project:** Run `cat ~/.smartclaw/agent-orchestrator.yaml` to see current list, add a new entry following the existing pattern, then spawn. Base repo path for new worldarchitect.ai PRs: clone fresh to `~/.worktrees/worldai-pr<N>-repo`.
 
 ## Commands
 
@@ -96,12 +96,12 @@ cd ~/projects_reference/agent-orchestrator
 Each spawn creates a **fresh git worktree** automatically (default behavior from agent-orchestrator.yaml). The worktree is created in `~/.worktrees/<project>-<session>/`.
 
 ```bash
-cd ~/projects_reference/agent-orchestrator && ~/bin/ao spawn worldai-pr5879 <issue-id>
+cd ~/.smartclaw && ~/bin/ao spawn worldai-pr5879 <issue-id>
 ```
 
 For a freeform task (no issue number), omit the issue argument:
 ```bash
-cd ~/projects_reference/agent-orchestrator && ~/bin/ao spawn worldai-pr5879
+cd ~/.smartclaw && ~/bin/ao spawn worldai-pr5879
 ```
 
 ### Spawn for existing PR work (REQUIRED for PR comment/CI remediation)
@@ -110,31 +110,31 @@ When the intent is "fix PR comments/CI on PR #N", never pass `N` as the position
 Always claim the PR explicitly:
 
 ```bash
-cd ~/projects_reference/agent-orchestrator && ~/bin/ao spawn worldai-pr5879 --claim-pr <pr-number>
+cd ~/.smartclaw && ~/bin/ao spawn worldai-pr5879 --claim-pr <pr-number>
 ```
 
 Optional (assign to current GitHub user during claim):
 
 ```bash
-cd ~/projects_reference/agent-orchestrator && ~/bin/ao spawn worldai-pr5879 --claim-pr <pr-number> --assign-on-github
+cd ~/.smartclaw && ~/bin/ao spawn worldai-pr5879 --claim-pr <pr-number> --assign-on-github
 ```
 
 ### Check status of all sessions
 
 ```bash
-cd ~/projects_reference/agent-orchestrator && ~/bin/ao status
+cd ~/.smartclaw && ~/bin/ao status
 ```
 
 ### Send a message to a running session
 
 ```bash
-cd ~/projects_reference/agent-orchestrator && ~/bin/ao send <session-id> "<message>"
+cd ~/.smartclaw && ~/bin/ao send <session-id> "<message>"
 ```
 
 ### List sessions
 
 ```bash
-cd ~/projects_reference/agent-orchestrator && ~/bin/ao session ls
+cd ~/.smartclaw && ~/bin/ao session ls
 ```
 
 ## ⚠️ EXECUTION RULE — TOOL FIRST, TEXT NEVER
@@ -143,7 +143,7 @@ cd ~/projects_reference/agent-orchestrator && ~/bin/ao session ls
 
 - Wrong: "I'll route this to Agento now..." (text response — BANNED)
 - Wrong: "Acknowledged — routing through AO..." (text response — BANNED)
-- Right: immediately call exec(`cd ~/projects_reference/agent-orchestrator && ao spawn <project> --claim-pr <pr>`) with NO preceding text
+- Right: immediately call exec(`cd ~/.smartclaw && ao spawn <project> --claim-pr <pr>`) with NO preceding text
 
 If you catch yourself about to say "I'll..." or "Routing..." — STOP. Call the exec tool instead.
 
@@ -179,7 +179,7 @@ Both steps are mandatory. Do not create an agento PR without spawning a session.
 2. Determine the `ao` command (see Commands section above).
 3. **IMMEDIATELY call exec tool** — no text before the call:
    ```
-   exec: cd ~/projects_reference/agent-orchestrator && ao spawn <project-id> --claim-pr <pr>
+   exec: cd ~/.smartclaw && ao spawn <project-id> --claim-pr <pr>
    ```
 4. After the exec call returns, reply with a one-line confirmation: "Spawned `<session-id>` for PR #N."
 5. Do NOT wait for the spawn to complete — it runs async in tmux.
@@ -190,7 +190,7 @@ When the request is PR remediation (`fix comments`, `fix CI`, `make PR good`), r
 
 1. Start or reuse the AO session for the target PR.
    - If no PR-bound session exists, create one with `ao spawn <project> --claim-pr <pr-number>`.
-2. Run `ao review-check <project>` from `~/projects_reference/agent-orchestrator` to let AO detect review blockers and trigger follow-up messages.
+2. Run `ao review-check <project>` from `~/.smartclaw` to let AO detect review blockers and trigger follow-up messages.
 3. Send the full remediation objective with `ao send <session> "<message>"`:
    - Resolve all unresolved review comments/threads.
    - Fix failing required CI checks.
@@ -201,12 +201,72 @@ When the request is PR remediation (`fix comments`, `fix CI`, `make PR good`), r
 
 Default rule: if PR was created via OpenClaw -> agento handoff, stay in AO lane unless Jeffrey explicitly says `mctrl`.
 
+## Diagnostic Reference
+
+### Spawn fails with "Failed to create or initialize session" or "fatal: ambiguous object name: origin/main"
+The agent-orchestrator repo has a local branch `refs/heads/origin/main` shadowing `refs/remotes/origin/main`. Fix:
+```bash
+cd ~/project_agento/agent-orchestrator && git branch -D origin/main
+```
+Verify fix: `git show-ref | grep origin/main` should show only `refs/remotes/origin/main`.
+
+### Spawned session shows "There's an issue with the selected model (MiniMax-M2.7)" model picker
+The minimax plugin isn't passing `--model MiniMax-M2.7` to Claude Code. Root causes (in order of frequency):
+1. **Plugin not rebuilt**: Run `cd ~/project_agento/agent-orchestrator/packages/plugins/agent-minimax && pnpm build`
+2. **Workers running old plugin code**: Kill workers (`kill $(pgrep -f "lifecycle-worker agent-orchestrator")`) — lifecycle manager auto-restarts them
+3. **launchConfig.model not set**: Check `agent-selection.ts` — `modelByCli.minimax.model` must flow into `agentLaunchConfig.model`; verify with `grep -n "modelByCli\|agentLaunchConfig" packages/core/src/session-manager.ts`
+4. **Plugin strips --model flag**: The minimax plugin's `getLaunchCommand()` must pass `--model` to the base plugin; verify fix in `packages/plugins/agent-minimax/src/index.ts`:
+   ```ts
+   getLaunchCommand(launchConfig) {
+     return createAgentPlugin(minimaxConfig).getLaunchCommand(launchConfig); // pass full launchConfig
+   }
+   getEnvironment(launchConfig) {
+     const model = launchConfig.model?.trim() || process.env.MINIMAX_MODEL?.trim();
+     if (model) env["ANTHROPIC_MODEL"] = model;
+   }
+   ```
+
+### ao send fails with "Session does not exist"
+`ao send` only works for DB-registered sessions. Worktree sessions may not be registered. Fallback — use tmux directly:
+```bash
+# Find the tmux session name (format: <uuid>-ao-<session-id>)
+tmux list-sessions | grep <session-id>
+# Send text to pane
+tmux send-key -t <tmux-session> "text here" Enter
+# Capture output
+tmux capture-pane -t <tmux-session> -p | tail -20
+```
+
+### Lifecycle workers are dead — how to restart
+1. Check: `pgrep -f "lifecycle-worker" | xargs ps -p`
+2. Workers auto-restart if the lifecycle manager is running (PID in `running.json`)
+3. Manual restart (if lifecycle manager itself is dead):
+   ```bash
+   cd ~/project_agento/agent-orchestrator
+   nohup node ./packages/cli/dist/index.js lifecycle-worker agent-orchestrator > /tmp/ao-lifecycle.log 2>&1 &
+   ```
+4. Verify: `pgrep -f "lifecycle-worker agent-orchestrator"`
+
+### Worker entry point
+```
+~/project_agento/agent-orchestrator/packages/cli/dist/index.js
+```
+NOT `dist/index.js` at repo root (doesn't exist). Workers are spawned as:
+```
+node ./packages/cli/dist/index.js lifecycle-worker <project-id>
+```
+
+### Sessions DB
+- Path: `~/.agent-orchestrator/sessions.db` (sqlite, but often empty/unused)
+- Sessions indexed under `~/.agent-orchestrator/<session-hash>-<project>/sessions/`
+- Worktrees: `~/.worktrees/<project>/<session>/`
+
 ## Notes
 
 - AO dashboard: `http://localhost:3011` - managed by launchd (ai.agento.dashboard)
-- Config: `~/projects_reference/agent-orchestrator/agent-orchestrator.yaml`
+- Config: `~/.smartclaw/agent-orchestrator.yaml`
 - Sessions live in `~/.agent-orchestrator/` and `~/.worktrees/`
 - Notifications: AO posts to #ai-slack-test via the agento-notifier webhook handler
 - AO-native remediation is already in AO itself (`review-check` + lifecycle `reactions` for `ci-failed`, `changes-requested`, `bugbot-comments`). Do not build a parallel custom remediation engine in this repo.
 
-**Rate-Limit Handling:** When GitHub is rate-limited, the spawn scripts (`ao-pr-poller.sh`, `github-intake.sh`) will NOT fall back to unclaimed spawns. Instead, they skip the PR and log: `RATE LIMIT: --claim-pr failed for PR #N, NOT spawning (will retry next cycle)`. This prevents duplicate worktree issues and ensures proper PR claiming on retry.
+**Rate-Limit Handling:** When GitHub is rate-limited, `github-intake.sh` will NOT fall back to unclaimed spawns. Instead, it skips the PR and logs: `RATE LIMIT: --claim-pr failed for PR #N, NOT spawning (will retry next cycle)`. AO lifecycle workers handle spawn/cleanup natively.
