@@ -100,7 +100,11 @@ sanitize_file() {
     -e "s|${HOME}/|\${HOME}/|g" \
     -e "s|/Users/jleechan\$|\${HOME}|g" \
     -e "s|\.smartclaw|\.smartclaw|g" \
-    "$file" > "$tmp"
+    "$file" > "$tmp" 2>/dev/null || {
+      # Binary or unreadable — skip sanitization, just copy as-is
+      rm -f "$tmp"
+      return 0
+    }
   mv "$tmp" "$file"
 }
 

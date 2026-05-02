@@ -12,6 +12,178 @@ set -uo pipefail
 
 FIX_MODE="${1:-}"
 ERRORS=0
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+ACTIVE_PLIST="$HOME/Library/LaunchAgents/ai.smartclaw.gateway.plist"
+REPO_GATEWAY_PLIST="$REPO_DIR/launchd/ai.smartclaw.gateway.plist"
+STAGING_CONFIG="$HOME/.smartclaw/openclaw.json"
+PROD_CONFIG="$HOME/.smartclaw_prod/openclaw.json"
+
+read_plist_key() {
+  python3 - "$1" "$2" <<'PY'
+import plistlib
+import sys
+
+path, dotted_key = sys.argv[1], sys.argv[2]
+with open(path, "rb") as fh:
+    data = plistlib.load(fh)
+
+value = data
+for part in dotted_key.split("."):
+    if isinstance(value, list):
+        try:
+            value = value[int(part)]
+        except Exception:
+            sys.exit(1)
+        continue
+    if not isinstance(value, dict) or part not in value:
+        sys.exit(1)
+    value = value[part]
+
+if isinstance(value, bool):
+    print("true" if value else "false")
+elif isinstance(value, (int, float)):
+    print(value)
+elif isinstance(value, str):
+    print(value)
+else:
+    sys.exit(1)
+PY
+}
+
+reload_gateway_plist_from_repo() {
+  local domain="gui/$(id -u)"
+  if [ ! -f "$REPO_GATEWAY_PLIST" ]; then
+    echo "  WARN: canonical repo gateway plist missing: $REPO_GATEWAY_PLIST"
+    return 1
+  fi
+  cp "$REPO_GATEWAY_PLIST" "$ACTIVE_PLIST" || return 1
+  launchctl bootout "${domain}/ai.smartclaw.gateway" 2>/dev/null || true
+  sleep 0.35
+  launchctl bootstrap "$domain" "$ACTIVE_PLIST" >/dev/null 2>&1 || return 1
+  echo "  FIX: reloaded ai.smartclaw.gateway from repo plist"
+}
+
+is_stub_main_config() {
+  python3 - "$1" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1]) as fh:
+    cfg = json.load(fh)
+
+slack = cfg.get("channels", {}).get("slack", {}) or {}
+required = [
+    cfg.get("gateway", {}).get("auth", {}).get("token"),
+    cfg.get("meta", {}).get("lastTouchedVersion"),
+    cfg.get("agents", {}).get("defaults", {}).get("workspace"),
+    cfg.get("plugins", {}).get("entries"),
+]
+
+missing = any(not item for item in required)
+if slack.get("enabled") is True and not (slack.get("botToken") and slack.get("appToken")):
+    missing = True
+
+sys.exit(0 if missing else 1)
+PY
+}
+
+resolve_live_config_for_preflight() {
+  if [ -f "$STAGING_CONFIG" ] && is_stub_main_config "$STAGING_CONFIG"; then
+    if [ -f "$PROD_CONFIG" ]; then
+      echo "$PROD_CONFIG"
+      return 0
+    fi
+  fi
+  echo "$STAGING_CONFIG"
+}
+
+extract_openclaw_binary_version() {
+  python3 - <<'PY'
+import re
+import subprocess
+import sys
+
+try:
+    result = subprocess.run(
+        ["openclaw", "--version"],
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+except Exception:
+    sys.exit(1)
+
+text = (result.stdout or "") + (result.stderr or "")
+m = re.search(r"(\d{4}\.\d+\.\d+|\d+\.\d+\.\d+)", text)
+if not m:
+    sys.exit(1)
+print(m.group(1))
+PY
+}
+
+check_config_version_vs_binary() {
+  local label="$1"
+  local config_path="$2"
+  local allow_drift="${OPENCLAW_ALLOW_VERSION_DRIFT:-0}"
+
+  if [ ! -f "$config_path" ]; then
+    echo "  SKIP: $label missing ($config_path)"
+    return 0
+  fi
+
+  local bin_ver cfg_ver
+  bin_ver="$(extract_openclaw_binary_version 2>/dev/null || true)"
+  cfg_ver="$(python3 - "$config_path" <<'PY'
+import json, sys
+with open(sys.argv[1]) as f:
+    d = json.load(f)
+print(d.get("meta", {}).get("lastTouchedVersion", ""))
+PY
+)" || cfg_ver=""
+
+  if [ -z "$bin_ver" ]; then
+    echo "  SKIP: cannot determine openclaw binary version"
+    return 0
+  fi
+  if [ -z "$cfg_ver" ]; then
+    echo "  SKIP: $label has no meta.lastTouchedVersion"
+    return 0
+  fi
+  local cmp
+  cmp="$(python3 - "$cfg_ver" "$bin_ver" <<'PY'
+import re
+import sys
+
+def parse(v: str) -> tuple[int, int, int]:
+    m = re.search(r'(\d+)\.(\d+)\.(\d+)', v)
+    if not m:
+        raise SystemExit(2)
+    return tuple(int(part) for part in m.groups())
+
+cfg = parse(sys.argv[1])
+binv = parse(sys.argv[2])
+print(1 if cfg > binv else -1 if cfg < binv else 0)
+PY
+)" || cmp="2"
+
+  if [ "$cmp" = "0" ]; then
+    echo "  OK: $label matches binary version ($cfg_ver)"
+    return 0
+  fi
+  if [ "$allow_drift" = "1" ]; then
+    echo "  WARN: $label version drift (config=$cfg_ver, binary=$bin_ver) — OPENCLAW_ALLOW_VERSION_DRIFT=1 override active"
+    return 0
+  fi
+  if [ "$cmp" = "1" ]; then
+    echo "  FAIL: $label is newer than the running binary (config=$cfg_ver, binary=$bin_ver). Upgrade openclaw or restamp the config before deploy."
+    ERRORS=$((ERRORS + 1))
+    return 1
+  fi
+  echo "  WARN: $label is older than the running binary (config=$cfg_ver, binary=$bin_ver)"
+  return 0
+}
 
 echo "=== Gateway Pre-flight Check ==="
 echo ""
@@ -42,15 +214,55 @@ else
 fi
 
 # 2. Check ThrottleInterval (must be >= 10 to prevent restart storms)
-ACTIVE_PLIST=$(ls ~/Library/LaunchAgents/ai.smartclaw.gateway.plist 2>/dev/null | head -1)
-if [ -n "$ACTIVE_PLIST" ]; then
-  THROTTLE=$(defaults read "$ACTIVE_PLIST" ThrottleInterval 2>/dev/null || echo "30")
+if [ -f "$ACTIVE_PLIST" ]; then
+  THROTTLE="$(read_plist_key "$ACTIVE_PLIST" "ThrottleInterval" 2>/dev/null || echo "30")"
   echo "[2] ThrottleInterval: $THROTTLE"
   if [ "$THROTTLE" -lt 10 ]; then
     echo "  FAIL: ThrottleInterval=$THROTTLE is too low (causes restart storms)"
     if [ "$FIX_MODE" = "--fix" ]; then
-      defaults write "$ACTIVE_PLIST" ThrottleInterval -int 30
-      echo "  FIX: Set ThrottleInterval to 30"
+      if reload_gateway_plist_from_repo; then
+        :
+      else
+        ERRORS=$((ERRORS + 1))
+      fi
+    else
+      ERRORS=$((ERRORS + 1))
+    fi
+  else
+    echo "  OK"
+  fi
+fi
+
+# 2a. Installed gateway plist must match the canonical runtime wiring.
+if [ -f "$ACTIVE_PLIST" ] && [ -f "$REPO_GATEWAY_PLIST" ]; then
+  echo "[2a] Gateway plist wiring:"
+  PLIST_MISMATCH=0
+  for key in \
+    ProgramArguments.0 \
+    StandardOutPath \
+    StandardErrorPath \
+    EnvironmentVariables.OPENCLAW_STATE_DIR \
+    EnvironmentVariables.OPENCLAW_CONFIG_PATH
+  do
+    expected="$(read_plist_key "$REPO_GATEWAY_PLIST" "$key" 2>/dev/null || true)"
+    actual="$(read_plist_key "$ACTIVE_PLIST" "$key" 2>/dev/null || true)"
+    if [ -z "$expected" ]; then
+      continue
+    fi
+    if [ "$actual" != "$expected" ]; then
+      echo "  FAIL: $key mismatch"
+      echo "    expected: $expected"
+      echo "    actual:   ${actual:-<missing>}"
+      PLIST_MISMATCH=1
+    fi
+  done
+  if [ "$PLIST_MISMATCH" -eq 1 ]; then
+    if [ "$FIX_MODE" = "--fix" ]; then
+      if reload_gateway_plist_from_repo; then
+        :
+      else
+        ERRORS=$((ERRORS + 1))
+      fi
     else
       ERRORS=$((ERRORS + 1))
     fi
@@ -60,7 +272,7 @@ if [ -n "$ACTIVE_PLIST" ]; then
 fi
 
 # 2b. Plist must be XML (not binary) so openclaw gateway status / doctor can parse it
-if [ -n "$ACTIVE_PLIST" ] && [ -f "$ACTIVE_PLIST" ]; then
+if [ -f "$ACTIVE_PLIST" ]; then
   _gw_plist_binary=0
   _hdr=$(head -c 8 "$ACTIVE_PLIST" 2>/dev/null || true)
   if [[ "$_hdr" == bplist* ]]; then
@@ -101,7 +313,7 @@ fi
 
 # 4. Check config JSON validity
 echo -n "[4] Config JSON: "
-if python3 -c "import json; json.load(open('$HOME/.smartclaw/openclaw.json'))" 2>/dev/null; then
+if python3 -c "import json; json.load(open('$STAGING_CONFIG'))" 2>/dev/null; then
   echo "valid"
 else
   echo "INVALID"
@@ -109,10 +321,15 @@ else
 fi
 
 # 5. Check critical config keys
-echo "[5] Critical config keys:"
+LIVE_CONFIG_FOR_PREFLIGHT="$(resolve_live_config_for_preflight)"
+if [ "$LIVE_CONFIG_FOR_PREFLIGHT" = "$PROD_CONFIG" ]; then
+  echo "[5] Critical config keys (live prod config — staging config is a repo stub):"
+else
+  echo "[5] Critical config keys:"
+fi
 python3 -c "
 import json, sys
-with open('$HOME/.smartclaw/openclaw.json') as f:
+with open('$LIVE_CONFIG_FOR_PREFLIGHT') as f:
     d = json.load(f)
 checks = {
     'channels.slack.appToken': d.get('channels',{}).get('slack',{}).get('appToken'),
@@ -192,16 +409,21 @@ else
   echo "  SKIP: $CONSENSUS_CFG not found"
 fi
 
+# 5c. Check live config versions vs running binary (newer configs emit recurring warnings)
+echo "[5c] Live config versions vs binary:"
+check_config_version_vs_binary "staging config" "$HOME/.smartclaw/openclaw.json"
+check_config_version_vs_binary "prod config" "$HOME/.smartclaw_prod/openclaw.json"
+
 # 6. Check native modules
 echo -n "[6] Native modules: "
 NODE=$(${HOME}/.nvm/versions/node/v22.22.0/bin/node --version 2>/dev/null || echo "missing")
-if [ -f "$HOME/.openclaw/extensions/openclaw-mem0/node_modules/better-sqlite3/build/Release/better_sqlite3.node" ]; then
-  if ${HOME}/.nvm/versions/node/v22.22.0/bin/node -e "require('$HOME/.openclaw/extensions/openclaw-mem0/node_modules/better-sqlite3')" 2>/dev/null; then
+if [ -f "$HOME/.smartclaw/extensions/openclaw-mem0/node_modules/better-sqlite3/build/Release/better_sqlite3.node" ]; then
+  if ${HOME}/.nvm/versions/node/v22.22.0/bin/node -e "require('$HOME/.smartclaw/extensions/openclaw-mem0/node_modules/better-sqlite3')" 2>/dev/null; then
     echo "OK (Node $NODE)"
   else
     echo "MISMATCH (needs rebuild)"
     if [ "$FIX_MODE" = "--fix" ]; then
-      cd "$HOME/.openclaw/extensions/openclaw-mem0"
+      cd "$HOME/.smartclaw/extensions/openclaw-mem0"
       rm -rf node_modules/better-sqlite3/build node_modules/better-sqlite3/prebuilds
       ${HOME}/.nvm/versions/node/v22.22.0/bin/npx node-gyp rebuild --directory=node_modules/better-sqlite3 2>/dev/null
       echo "  FIX: Rebuilt better-sqlite3"
@@ -225,7 +447,7 @@ else
   _sdk_ver=$(${HOME}/.nvm/versions/node/v22.22.0/bin/npm view "openclaw@${_oc_ver}" dependencies 2>/dev/null \
     | grep -i agentclientprotocol | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
   if [ -n "${_sdk_ver:-}" ]; then
-    echo "$_sdk_ver" > "$HOME/.openclaw/.current-sdk-version"
+    echo "$_sdk_ver" > "$HOME/.smartclaw/.current-sdk-version"
     echo "  OK: openclaw=$_oc_ver, @agentclientprotocol/sdk=$_sdk_ver (stored .current-sdk-version)"
   else
     echo "  WARN: openclaw=$_oc_ver but could not resolve @agentclientprotocol/sdk version"
@@ -243,12 +465,8 @@ validate_sdk_compatibility() {
     return 1
   fi
   local cur_sdk="unknown"
-  # Migration fallback: read from legacy path if new path doesn't exist
-  if [ -f "$HOME/.openclaw/.current-sdk-version" ]; then
-    cur_sdk=$(tr -d '[:space:]' < "$HOME/.openclaw/.current-sdk-version")
-  elif [ -f "$HOME/.smartclaw/.current-sdk-version" ]; then
-    cur_sdk=$(tr -d '[:space:]' < "$HOME/.smartclaw/.current-sdk-version")
-  fi
+  [ -f "$HOME/.smartclaw/.current-sdk-version" ] \
+    && cur_sdk=$(cat "$HOME/.smartclaw/.current-sdk-version" | tr -d '[:space:]')
   local new_sdk
   new_sdk=$(${HOME}/.nvm/versions/node/v22.22.0/bin/npm view "openclaw@${new_version}" dependencies 2>/dev/null \
     | grep -i agentclientprotocol | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
@@ -327,7 +545,7 @@ else:
 # 9. NODE_MODULE_VERSION baseline tracking
 # Gateway plist uses nvm Node 22 (MODULE_VERSION 127); mismatch causes silent mem0 failures
 GATEWAY_NODE_BIN="${HOME}/.nvm/versions/node/v22.22.0/bin/node"
-MODVER_BASELINE="$HOME/.openclaw/.gateway-node-version"
+MODVER_BASELINE="$HOME/.smartclaw/.gateway-node-version"
 echo "[9] NODE_MODULE_VERSION baseline:"
 if [ -x "$GATEWAY_NODE_BIN" ]; then
   _cur_modver=$("$GATEWAY_NODE_BIN" -e "process.stdout.write(String(process.versions.modules))" 2>/dev/null || echo "unknown")
@@ -338,12 +556,12 @@ if [ -x "$GATEWAY_NODE_BIN" ]; then
       echo "        better-sqlite3 compiled for wrong Node version — mem0 will fail silently"
       if [ "$FIX_MODE" = "--fix" ]; then
         echo "  FIX: Rebuilding better-sqlite3 for MODULE_VERSION $_cur_modver..."
-        _rebuild_out=$(cd "$HOME/.openclaw/extensions/openclaw-mem0" \
+        _rebuild_out=$(cd "$HOME/.smartclaw/extensions/openclaw-mem0" \
           && ${HOME}/.nvm/versions/node/v22.22.0/bin/npm rebuild better-sqlite3 2>&1)
         _rebuild_rc=$?
         if [ "$_rebuild_rc" -eq 0 ]; then
           # Verify the rebuilt module actually loads before updating baseline
-          if ${HOME}/.nvm/versions/node/v22.22.0/bin/node -e "require('$HOME/.openclaw/extensions/openclaw-mem0/node_modules/better-sqlite3')" 2>/dev/null; then
+          if ${HOME}/.nvm/versions/node/v22.22.0/bin/node -e "require('$HOME/.smartclaw/extensions/openclaw-mem0/node_modules/better-sqlite3')" 2>/dev/null; then
             echo "$_cur_modver" > "$MODVER_BASELINE"
             echo "  FIX: Rebuild OK — baseline updated to $_cur_modver"
           else
@@ -357,7 +575,7 @@ if [ -x "$GATEWAY_NODE_BIN" ]; then
         fi
       else
         echo "  Run with --fix to auto-rebuild, or:"
-        echo "    npm rebuild better-sqlite3 --prefix ~/.openclaw/extensions/openclaw-mem0"
+        echo "    npm rebuild better-sqlite3 --prefix ~/.smartclaw/extensions/openclaw-mem0"
         ERRORS=$((ERRORS + 1))
       fi
     else
